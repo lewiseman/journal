@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class LifePage extends StatelessWidget {
-  const new({super.key});
+  const LifePage({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -5,7 +5,7 @@ void main() {
 }
 
 class Journal extends StatelessWidget {
-  const new({super.key});
+  const Journal({super.key});
 
   @override
   Widget build(BuildContext context) {

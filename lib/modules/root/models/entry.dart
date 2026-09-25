@@ -1,7 +1,65 @@
-@Entity()
-class User {
-  @Id()
-  int id = 0;
+import 'package:objectbox/objectbox.dart';
 
-  String? name;
+@Entity()
+class Entry {
+  @Id()
+  int id;
+
+  /// Global ID used for sync between devices.
+  @Unique()
+  String uuid;
+
+  /// note = 0
+  /// diary = 1
+  @Index()
+  int type;
+
+  String? title;
+
+  /// Main note / diary text.
+  String content;
+
+  /// Actual time this record was created.
+  @Property(type: PropertyType.dateUtc)
+  DateTime createdAt;
+
+  /// Last modification time.
+  @Property(type: PropertyType.dateUtc)
+  @Index()
+  DateTime updatedAt;
+
+  /// Used mainly by diary entries.
+  /// Represents the date/time the user associates with the entry.
+  @Property(type: PropertyType.dateUtc)
+  @Index()
+  DateTime? entryDate;
+
+  /// Soft deletion for future synchronization.
+  @Property(type: PropertyType.dateUtc)
+  DateTime? deletedAt;
+
+  bool isFavorite;
+
+  bool isPinned;
+
+  bool isArchived;
+
+  /// Used later for synchronization.
+  int revision;
+
+  Entry({
+    this.id = 0,
+    required this.uuid,
+    required this.type,
+    this.title,
+    this.content = '',
+    required this.createdAt,
+    required this.updatedAt,
+    this.entryDate,
+    this.deletedAt,
+    this.isFavorite = false,
+    this.isPinned = false,
+    this.isArchived = false,
+    this.revision = 1,
+  });
 }
