@@ -9,6 +9,10 @@ class Journal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(title: 'Journal', home: RootLayout());
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Journal',
+      home: RootLayout(),
+    );
   }
 }

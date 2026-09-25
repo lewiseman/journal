@@ -1,0 +1,1 @@
+export 'views/pages/account_page.dart';

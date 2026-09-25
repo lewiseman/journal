@@ -1,0 +1,1 @@
+export 'views/pages/notes_page.dart';

@@ -1,0 +1,1 @@
+export 'views/pages/life_page.dart';
