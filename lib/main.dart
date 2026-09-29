@@ -1,6 +1,12 @@
 import 'package:journal/common.dart';
 
-void main() {
+import 'objectbox/objectbox.dart';
+
+late ObjectBox objectbox;
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  objectbox = await ObjectBox.create();
   runApp(const Journal());
 }
 

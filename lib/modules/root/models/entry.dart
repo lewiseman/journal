@@ -63,3 +63,13 @@ class Entry {
     this.revision = 1,
   });
 }
+
+enum EntryType { note, diary }
+
+extension EntryTypeValue on EntryType {
+  int get value => index;
+}
+
+extension EntryTypeFromInt on int {
+  EntryType get entryType => EntryType.values[this];
+}
