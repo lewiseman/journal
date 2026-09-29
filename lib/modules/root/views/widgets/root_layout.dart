@@ -1,30 +1,9 @@
 import 'package:journal/common.dart';
 
 final _items = [
-  (
-    name: 'Diary',
-    icon: Icons.menu_book_outlined,
-    activeIcon: Icons.menu_book,
-    page: DiaryPage(),
-  ),
-  (
-    name: 'Notes',
-    icon: Icons.note_alt_outlined,
-    activeIcon: Icons.note_alt,
-    page: NotesPage(),
-  ),
-  (
-    name: 'Life',
-    icon: Icons.spa_outlined,
-    activeIcon: Icons.spa,
-    page: LifePage(),
-  ),
-  (
-    name: 'Account',
-    icon: Icons.person_outline,
-    activeIcon: Icons.person,
-    page: AccountPage(),
-  ),
+  (name: 'Diary', icon: 'diary.png', page: DiaryPage()),
+  (name: 'Notes', icon: 'notes.png', page: NotesPage()),
+  (name: 'Life', icon: 'leafs.png', page: LifePage()),
 ];
 
 class RootLayout extends StatefulWidget {
@@ -40,14 +19,21 @@ class _RootLayoutState extends State<RootLayout> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _items.elementAt(_page).page,
+      floatingActionButton: switch (_page) {
+        1 => Text('data'),
+        _ => Text('data'),
+      },
+      floatingActionButtonLocation: switch (_page) {
+        1 => FloatingActionButtonLocation.centerFloat,
+        _ => FloatingActionButtonLocation.centerFloat,
+      },
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _page,
-        selectedLabelStyle: TextStyle(color: Colors.black),
-        unselectedLabelStyle: TextStyle(color: Colors.blueGrey),
+
         showSelectedLabels: true,
         showUnselectedLabels: true,
         selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.blueGrey,
+        unselectedItemColor: Colors.black,
         onTap: (value) {
           setState(() {
             _page = value;
@@ -57,8 +43,11 @@ class _RootLayoutState extends State<RootLayout> {
           for (final x in _items)
             BottomNavigationBarItem(
               label: x.name,
-              icon: Icon(x.icon, color: Colors.blueGrey),
-              activeIcon: Icon(x.activeIcon, color: Colors.black),
+              icon: Image.asset('assets/images/icons/${x.icon}', height: 40),
+              activeIcon: Image.asset(
+                'assets/images/icons/${x.icon}',
+                height: 40,
+              ),
             ),
         ],
       ),
