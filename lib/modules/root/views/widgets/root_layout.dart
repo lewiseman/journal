@@ -20,16 +20,29 @@ class _RootLayoutState extends State<RootLayout> {
     return Scaffold(
       body: _items.elementAt(_page).page,
       floatingActionButton: switch (_page) {
-        1 => Text('data'),
-        _ => Text('data'),
+        0 => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton.large(
+              tooltip: 'Add',
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              onPressed: () {},
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Image.asset('assets/images/icons/pencil.png'),
+              ),
+            ),
+          ],
+        ),
+        _ => null,
       },
       floatingActionButtonLocation: switch (_page) {
-        1 => FloatingActionButtonLocation.centerFloat,
-        _ => FloatingActionButtonLocation.centerFloat,
+        0 => FloatingActionButtonLocation.centerFloat,
+        _ => null,
       },
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _page,
-
         showSelectedLabels: true,
         showUnselectedLabels: true,
         selectedItemColor: Colors.black,
