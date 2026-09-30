@@ -39,10 +39,11 @@ class _RootLayoutState extends State<RootLayout> {
       },
       floatingActionButtonLocation: switch (_page) {
         0 => FloatingActionButtonLocation.centerFloat,
-        _ => null,
+        _ => FloatingActionButtonLocation.endFloat,
       },
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _page,
+        
         showSelectedLabels: true,
         showUnselectedLabels: true,
         selectedItemColor: Colors.black,
@@ -56,7 +57,11 @@ class _RootLayoutState extends State<RootLayout> {
           for (final x in _items)
             BottomNavigationBarItem(
               label: x.name,
-              icon: Image.asset('assets/images/icons/${x.icon}', height: 40),
+              
+              icon: ColorFiltered(
+                colorFilter: ColorFilter.mode(Colors.grey, BlendMode.srcOut),
+                child: Image.asset('assets/images/icons/${x.icon}', height: 40),
+              ),
               activeIcon: Image.asset(
                 'assets/images/icons/${x.icon}',
                 height: 40,
