@@ -7,7 +7,7 @@ late ObjectBox objectbox;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   objectbox = await ObjectBox.create();
-  runApp(const Journal());
+  runApp(ProviderScope(child: const Journal()));
 }
 
 class Journal extends StatelessWidget {
