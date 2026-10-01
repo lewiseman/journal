@@ -10,7 +10,7 @@ class NotesPage extends StatelessWidget {
       crossAxisCount: 2,
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
-      itemCount: 11,
+      itemCount: 5,
       padding: EdgeInsets.only(left: 16, right: 16, bottom: 100),
       itemBuilder: (context, index) {
         return Container(color: Colors.red, height: 200);

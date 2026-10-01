@@ -1,9 +1,16 @@
+import 'dart:ui' as ui;
+
 import 'package:journal/common.dart';
 
 final _items = [
-  (name: 'Diary', icon: 'diary.png', page: DiaryPage()),
-  (name: 'Notes', icon: 'notes.png', page: NotesPage()),
-  (name: 'Life', icon: 'leafs.png', page: LifePage()),
+  (name: 'Diary', icon: 'diary.png', page: DiaryPage(), color: Colors.brown),
+  (
+    name: 'Notes',
+    icon: 'notes.png',
+    page: NotesPage(),
+    color: Colors.deepPurple,
+  ),
+  (name: 'Life', icon: 'leafs.png', page: LifePage(), color: Colors.green),
 ];
 
 class RootLayout extends StatefulWidget {
@@ -17,37 +24,33 @@ class _RootLayoutState extends State<RootLayout> {
   int _page = 0;
   @override
   Widget build(BuildContext context) {
+    // final topPadding = MediaQuery.paddingOf(context).top;
+    // print(topPadding);
     return Scaffold(
       body: _items.elementAt(_page).page,
       floatingActionButton: switch (_page) {
-        0 => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FloatingActionButton.large(
-              tooltip: 'Add',
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              onPressed: () {},
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Image.asset('assets/images/icons/pencil.png'),
-              ),
-            ),
-          ],
+        1 => GestureDetector(
+          onTap: () =>
+              Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => EditNotesPage())),
+          child: Image.asset('assets/images/icons/plus_purple.png', height: 50),
         ),
         _ => null,
       },
       floatingActionButtonLocation: switch (_page) {
-        0 => FloatingActionButtonLocation.centerFloat,
+        0 => FloatingActionButtonLocation.endFloat,
         _ => FloatingActionButtonLocation.endFloat,
       },
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _page,
-        
         showSelectedLabels: true,
         showUnselectedLabels: true,
-        selectedItemColor: Colors.black,
+        selectedItemColor: _items.elementAt(_page).color,
         unselectedItemColor: Colors.black,
+        selectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 13,
+        ),
         onTap: (value) {
           setState(() {
             _page = value;
@@ -57,14 +60,32 @@ class _RootLayoutState extends State<RootLayout> {
           for (final x in _items)
             BottomNavigationBarItem(
               label: x.name,
-              
-              icon: ColorFiltered(
-                colorFilter: ColorFilter.mode(Colors.grey, BlendMode.srcOut),
-                child: Image.asset('assets/images/icons/${x.icon}', height: 40),
-              ),
-              activeIcon: Image.asset(
-                'assets/images/icons/${x.icon}',
-                height: 40,
+              icon: Image.asset('assets/images/icons/${x.icon}', height: 30),
+              activeIcon: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  Transform.translate(
+                    offset: const Offset(0, 2),
+                    child: ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(
+                        sigmaX: 2.5,
+                        sigmaY: 2.5,
+                      ),
+                      child: ColorFiltered(
+                        colorFilter: ColorFilter.mode(
+                          Colors.black.withValues(alpha: 0.24),
+                          BlendMode.srcIn,
+                        ),
+                        child: Image.asset(
+                          'assets/images/icons/${x.icon}',
+                          height: 44,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Image.asset('assets/images/icons/${x.icon}', height: 44),
+                ],
               ),
             ),
         ],
