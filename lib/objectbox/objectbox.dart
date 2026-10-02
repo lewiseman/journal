@@ -1,3 +1,4 @@
+import 'package:journal/common.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -7,8 +8,10 @@ class ObjectBox {
   /// The Store of this app.
   late final Store store;
 
+  late final Box<Entry> entryBox;
+
   ObjectBox._create(this.store) {
-    // Add any additional setup code, e.g. build queries.
+    entryBox = Box<Entry>(store);
   }
 
   /// Create an instance of ObjectBox to use throughout the app.

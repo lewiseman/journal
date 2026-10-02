@@ -1,7 +1,7 @@
 import 'package:journal/common.dart';
 
 class EditNotesPage extends StatelessWidget {
-  const new({super.key});
+  const EditNotesPage({super.key});
 
   @override
   Widget build(BuildContext context) {

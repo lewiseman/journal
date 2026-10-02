@@ -7,7 +7,7 @@ final notesController = AsyncNotifierProvider(NotesNotifier.new);
 class NotesNotifier extends AsyncNotifier {
   @override
   FutureOr<dynamic> build() {
-    // TODO: get all entries o
+    // TODO: get all entries
     throw UnimplementedError();
   }
 }
