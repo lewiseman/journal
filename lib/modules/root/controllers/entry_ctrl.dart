@@ -1,13 +1,10 @@
-import 'dart:async';
+import 'package:journal/common.dart';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+final entryController = NotifierProvider(EntryNotifier.new);
 
-final notesController = AsyncNotifierProvider(NotesNotifier.new);
-
-class NotesNotifier extends AsyncNotifier {
+class EntryNotifier extends Notifier<List<Entry>> {
   @override
-  FutureOr<dynamic> build() {
-    // TODO: get all entries
-    throw UnimplementedError();
+  List<Entry> build() {
+    return objectbox.entryBox.getAll();
   }
 }

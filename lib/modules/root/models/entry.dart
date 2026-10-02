@@ -66,10 +66,8 @@ class Entry {
   });
 }
 
-extension EntryTypeValue on EntryType {
-  int get value => index;
+extension EntryTypeValue on Entry {
+  EntryType get entryType => EntryType.values[type];
 }
 
-extension EntryTypeFromInt on int {
-  EntryType get entryType => EntryType.values[this];
-}
+

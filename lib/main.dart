@@ -2,7 +2,7 @@ import 'package:journal/common.dart';
 
 import 'objectbox/objectbox.dart';
 
-late ObjectBox objectbox;
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
