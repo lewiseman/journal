@@ -1,5 +1,7 @@
 import 'package:objectbox/objectbox.dart';
 
+enum EntryType { note, diary }
+
 @Entity()
 class Entry {
   @Id()
@@ -17,7 +19,7 @@ class Entry {
   String? title;
 
   /// Main note / diary text.
-  String content;
+  List<Map<String, dynamic>> content;
 
   /// Actual time this record was created.
   @Property(type: PropertyType.dateUtc)
@@ -52,7 +54,7 @@ class Entry {
     required this.uuid,
     required this.type,
     this.title,
-    this.content = '',
+    this.content = const [],
     required this.createdAt,
     required this.updatedAt,
     this.entryDate,
@@ -63,8 +65,6 @@ class Entry {
     this.revision = 1,
   });
 }
-
-enum EntryType { note, diary }
 
 extension EntryTypeValue on EntryType {
   int get value => index;

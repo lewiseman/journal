@@ -54,7 +54,7 @@ final _entities = <obx_int.ModelEntity>[
       obx_int.ModelProperty(
         id: const obx_int.IdUid(5, 593944210368775336),
         name: 'content',
-        type: 9,
+        type: 13,
         flags: 0,
       ),
       obx_int.ModelProperty(
@@ -183,7 +183,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final titleOffset = object.title == null
             ? null
             : fbb.writeString(object.title!);
-        final contentOffset = fbb.writeString(object.content);
+        final contentOffset = fbb.writeListInt8(
+          obx_int.toFlexBuffer(object.content),
+        );
         fbb.startTable(14);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, uuidOffset);
@@ -232,9 +234,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final titleParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 10);
-        final contentParam = const fb.StringReader(
-          asciiOptimization: true,
-        ).vTableGet(buffer, rootOffset, 12, '');
+        final contentParam =
+            obx_int.flexBufferToListOfMaps(buffer, rootOffset, 12) ??
+            <Map<String, dynamic>>[];
         final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
           const fb.Int64Reader().vTableGet(buffer, rootOffset, 14, 0),
           isUtc: true,
@@ -315,11 +317,6 @@ class Entry_ {
   /// See [Entry.title].
   static final title = obx.QueryStringProperty<Entry>(
     _entities[0].properties[3],
-  );
-
-  /// See [Entry.content].
-  static final content = obx.QueryStringProperty<Entry>(
-    _entities[0].properties[4],
   );
 
   /// See [Entry.createdAt].

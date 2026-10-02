@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"ObjectBox Docs": {
+			"type": "http",
+			"url": "https://docs.objectbox.io/~gitbook/mcp"
+		}
+	}
+}
