@@ -5,3 +5,4 @@ export 'modules/modules.dart';
 export 'utils/utils.dart';
 export 'config/config.dart';
 export 'objectbox/objectbox.dart';
+export 'components/components.dart';
