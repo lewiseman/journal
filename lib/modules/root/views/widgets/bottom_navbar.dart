@@ -13,7 +13,7 @@ const _destinations = [
     selectedIcon: CupertinoIcons.doc_text_fill,
   ),
   (
-    label: 'Tasks',
+    label: 'Flow',
     icon: CupertinoIcons.check_mark_circled,
     selectedIcon: CupertinoIcons.check_mark_circled_solid,
   ),

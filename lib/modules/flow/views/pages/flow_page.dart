@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class TasksPage extends StatelessWidget {
+class FlowPage extends StatelessWidget {
   const new({super.key});
 
   @override

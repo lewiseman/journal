@@ -19,7 +19,7 @@ class _RootLayoutState extends State<RootLayout>
   final List<Widget> _pages = [
     const DiaryPage(),
     NotesPage(),
-    TasksPage(),
+    FlowPage(),
     MorePage(),
   ];
 
