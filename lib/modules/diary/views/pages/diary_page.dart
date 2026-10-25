@@ -4,6 +4,7 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header.dart';
 import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
 
@@ -115,11 +116,9 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
 
   Future<void> _pickDate() async {
     if (_busy) return;
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(1),
-      lastDate: _today,
+    final date = await context.nav.push<DateTime>(
+      DiaryCalendarPage(initialDate: _selectedDate, lastDate: _today),
+      transition: _reduced ? NavTransition.none : NavTransition.platform,
     );
     if (date != null && mounted) _selectDate(date);
   }

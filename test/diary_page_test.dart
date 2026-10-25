@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
+import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header_control.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
@@ -516,10 +517,13 @@ void main() {
       await tester.tap(find.byTooltip('Choose date'));
       await tester.pumpAndSettle();
       expect(
-        tester.widget<DatePickerDialog>(find.byType(DatePickerDialog)).lastDate,
+        tester
+            .widget<DiaryCalendarPage>(find.byType(DiaryCalendarPage))
+            .lastDate,
         _today,
       );
-      await tester.tap(find.text('Cancel'));
+      expect(find.byType(DatePickerDialog), findsNothing);
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       await _choose(tester, diaryDayAfter(_today, -1));
       await tester.dragFrom(
@@ -528,6 +532,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       final offset = _scroll(tester).innerController.offset;
+      await tester.tap(find.byTooltip('Choose date'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_scroll(tester).innerController.offset, offset);
       await tester.tap(find.bySemanticsLabel('Notes tab'));
       await tester.pumpAndSettle();
       await tester.tap(find.bySemanticsLabel('Diary tab'));
@@ -535,6 +545,32 @@ void main() {
       expect(_selected(tester), diaryDayAfter(_today, -1));
       expect(_scroll(tester).innerController.offset, offset);
       expect(_scene(tester).collapse, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'full-page calendar returns a date into the existing reading view',
+    (tester) async {
+      await _mount(tester);
+      await tester.dragFrom(
+        tester.getRect(_paper).center,
+        const Offset(0, -350),
+      );
+      await tester.pumpAndSettle();
+      expect(_scene(tester).collapse, 1);
+      await tester.tap(find.byTooltip('Choose date'));
+      await tester.pumpAndSettle();
+      final target = DateTime(2026, 10, 3);
+      await tester.tap(
+        find.byKey(ValueKey('calendar-day-${target.toIso8601String()}')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(DiaryCalendarPage), findsNothing);
+      expect(_selected(tester), target);
+      expect(_calendar(tester).selectedDate, target);
+      expect(_scene(tester).collapse, 1);
+      expect(_scroll(tester).innerController.offset, 0);
       expect(tester.takeException(), isNull);
     },
   );
