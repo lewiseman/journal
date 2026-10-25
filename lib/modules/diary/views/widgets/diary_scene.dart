@@ -18,6 +18,7 @@ class DiaryScene extends StatelessWidget {
     required this.today,
     required this.collapse,
     required this.headerHeight,
+    this.collapseExtent = 80,
     required this.turn,
     required this.direction,
     required this.busy,
@@ -38,7 +39,7 @@ class DiaryScene extends StatelessWidget {
   final DiaryDay previous;
   final DiaryDay Function() next;
   final DateTime today;
-  final double collapse, headerHeight, turn;
+  final double collapse, headerHeight, turn, collapseExtent;
   final int direction;
   final bool busy, blocked, reduced;
   final Animation<double> fade;
@@ -73,6 +74,87 @@ class DiaryScene extends StatelessWidget {
       final paper = diaryPaperColors(context);
       final fullDate = MaterialLocalizations.of(context)
           .formatFullDate(day.date);
+      final restLeft = (w * .123).clamp(32.0, 64.0);
+      // The nested viewport grows as its header collapses. Keep captured faces
+      // at their resting size so scrolling never invalidates their textures.
+      final restRect = Rect.fromLTRB(
+        restLeft,
+        headerHeight + 12,
+        w - 20,
+        math.max(headerHeight + 12, h - collapseExtent * collapse - 40),
+      );
+      final showPreview = collapse < 1 && previewLeft + rect.width > 0;
+
+      Widget face(DiaryDay sheet, {required bool current}) {
+        final incoming =
+            !current &&
+            showTurn &&
+            (direction > 0
+                ? sheet.date == previous.date
+                : sheet.date.isAfter(day.date));
+        final preview = !current && sheet.date == previous.date && !incoming;
+        final x = current
+            ? restRect.left + (blocked && busy ? -turn * rect.width : 0)
+            : incoming
+            ? (direction > 0 ? previewLeft : w + 14) * (1 - turn) +
+                  rect.left * turn
+            : previewLeft;
+        final y = current
+            ? restRect.top
+            : rect.top +
+                  (incoming ? (direction > 0 ? 16 * (1 - turn) : 0) : 16);
+        final height = current
+            ? restRect.height
+            : math.max(
+                0.0,
+                rect.height -
+                    (incoming ? (direction > 0 ? 24 * (1 - turn) : 0) : 24),
+              );
+        final opacity = current
+            ? 1.0
+            : incoming
+            ? (direction > 0 ? .72 + .28 * turn : 1.0)
+            : .72 * (1 - collapse);
+        return Positioned.fromRect(
+          key: ValueKey('diary-face-${sheet.date.toIso8601String()}'),
+          rect: restRect,
+          child: ExcludeSemantics(
+            child: IgnorePointer(
+              child: Transform.translate(
+                offset: Offset(x - restRect.left, y - restRect.top),
+                child: Transform.scale(
+                  alignment: Alignment.topLeft,
+                  scaleX: restRect.width > 0
+                      ? (current ? 1 : rect.width / restRect.width)
+                      : 1,
+                  scaleY: restRect.height > 0 ? height / restRect.height : 1,
+                  child: Opacity(
+                    opacity: opacity.clamp(0.0, 1.0),
+                    child: DiaryPaperCurl(
+                      progress: current && showTurn ? turn : 0,
+                      direction: direction,
+                      travel: w + restRect.width * .4,
+                      paper: paper.background,
+                      ink: paper.foreground,
+                      shape: DiaryPaperShape.forDate(sheet.date),
+                      flat: !(current && showTurn),
+                      visible: current
+                          ? showTurn
+                          : incoming || (preview && showPreview),
+                      warm:
+                          collapse == 0 &&
+                          !busy &&
+                          !reduced &&
+                          fadingFrom == null,
+                      child: DiarySheet(day: sheet),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
 
       final live = Stack(
         fit: StackFit.expand,
@@ -153,30 +235,6 @@ class DiaryScene extends StatelessWidget {
                   label: 'Diary for $fullDate',
                   child: const SizedBox.shrink(),
                 ),
-                if (collapse < 1 &&
-                    previewLeft + rect.width > 0 &&
-                    !(showTurn && direction > 0))
-                  Positioned(
-                    left: previewLeft,
-                    top: rect.top + 16,
-                    width: rect.width,
-                    height: math.max(0, rect.height - 24),
-                    child: ExcludeSemantics(
-                      child: IgnorePointer(
-                        child: Opacity(
-                          opacity: .72 * (1 - collapse),
-                          child: RepaintBoundary(
-                            child: DiarySheet(
-                              key: const ValueKey('diary-previous-preview'),
-                              day: previous,
-                              detailed: false,
-                              shadow: true,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 Visibility(
                   visible: !showTurn,
                   maintainState: true,
@@ -194,64 +252,23 @@ class DiaryScene extends StatelessWidget {
                       child: IgnorePointer(
                         child: FadeTransition(
                           opacity: ReverseAnimation(fade),
-                          child: DiarySheet(
-                            day: fadingFrom!,
-                            detailed: false,
-                            shape: DiaryPaperShape.forDate(
-                              fadingFrom!.date,
-                              expansion: collapse,
-                            ),
-                            scrollOffset: fadingOffset,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (showTurn) ...[
-                  Positioned.fromRect(
-                    rect: rect,
-                    child: ExcludeSemantics(
-                      child: IgnorePointer(
-                        child: Transform.translate(
-                          offset: Offset(
-                            ((direction > 0 ? previewLeft : w + 14) -
-                                    rect.left) *
-                                (1 - turn),
-                            direction > 0 ? 16 * (1 - turn) : 0,
-                          ),
-                          child: Transform.scale(
-                            alignment: Alignment.topLeft,
-                            scaleY: direction > 0 && rect.height > 0
-                                ? (rect.height - 24 * (1 - turn)) / rect.height
-                                : 1,
-                            child: RepaintBoundary(
-                              child: DiarySheet(
-                                day: direction > 0 ? previous : next(),
-                                detailed: false,
+                          child: RepaintBoundary(
+                            child: DiarySheet(
+                              day: fadingFrom!,
+                              shape: DiaryPaperShape.forDate(
+                                fadingFrom!.date,
+                                expansion: collapse,
                               ),
+                              scrollOffset: fadingOffset,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  Positioned.fromRect(
-                    rect: rect,
-                    child: ExcludeSemantics(
-                      child: IgnorePointer(
-                        child: DiaryPaperCurl(
-                          progress: turn,
-                          direction: direction,
-                          travel: w + rect.width * .4,
-                          paper: paper.background,
-                          ink: paper.foreground,
-                          shape: shape,
-                          child: DiarySheet(day: day, shape: shape),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                face(previous, current: false),
+                if (day.date.isBefore(today)) face(next(), current: false),
+                face(day, current: true),
               ],
             ),
           ),

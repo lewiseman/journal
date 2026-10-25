@@ -8,7 +8,106 @@ import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 
 void main() {
+  testWidgets('warm-up tolerates a child repaint during independent layout', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MediaQuery(
+        data: MediaQueryData(),
+        child: Center(
+          child: SizedBox(
+            width: 280,
+            height: 260,
+            child: DiaryPaperCurl(
+              progress: 0,
+              direction: 1,
+              travel: 350,
+              paper: Colors.white,
+              flat: true,
+              warm: true,
+              child: _RelayoutFace(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final face = tester.renderObject<_RenderRelayoutFace>(
+      find.byType(_RelayoutFace),
+    );
+    // A tight child can relayout without its parent. Its repaint notification
+    // must not make the parent read its own size from inside the child's layout.
+    face.markNeedsLayout();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
   for (final direction in [-1, 1]) {
+    testWidgets('curl reuses bounded textures and batches faces: $direction', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(900, 400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      Future<void> frame(
+        double progress, {
+        Color front = Colors.red,
+        Color paper = Colors.blue,
+        double width = 280,
+      }) => tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: const MediaQueryData(devicePixelRatio: 4),
+            child: Center(
+              child: SizedBox(
+                width: width,
+                height: 260,
+                child: DiaryPaperCurl(
+                  progress: progress,
+                  direction: direction,
+                  travel: 350,
+                  paper: paper,
+                  child: ColoredBox(color: front),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await frame(.35);
+      final curl = tester.renderObject<RenderDiaryCurl>(
+        find.byType(DiaryPaperCurl),
+      );
+      expect(curl.debugTextureSize, const Size(560, 520));
+      expect(curl.debugFrontCaptures, 1);
+      expect(curl.debugBackCaptures, 1);
+      for (final progress in [.4, .5, .6, .7, .65, .3]) {
+        await frame(progress);
+        expect(curl.debugFrontCaptures, 1);
+        expect(curl.debugBackCaptures, 1);
+        expect(curl.debugMeshDraws, 2);
+      }
+      await frame(.4, front: Colors.yellow);
+      expect(curl.debugFrontCaptures, 2);
+      expect(curl.debugBackCaptures, 1);
+      await frame(.4, front: Colors.yellow, paper: Colors.teal);
+      expect(curl.debugFrontCaptures, 3);
+      expect(curl.debugBackCaptures, 2);
+      await frame(.4, front: Colors.yellow, paper: Colors.teal, width: 260);
+      expect(curl.debugFrontCaptures, 4);
+      expect(curl.debugBackCaptures, 3);
+      expect(curl.debugTextureSize, const Size(520, 520));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('curl exposes paper back and clears the viewport: $direction', (
       tester,
     ) async {
@@ -145,5 +244,29 @@ void main() {
       expect(gone.front, 0);
       expect(gone.back, 0);
     });
+  }
+}
+
+class _RelayoutFace extends LeafRenderObjectWidget {
+  const _RelayoutFace();
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderRelayoutFace();
+}
+
+class _RenderRelayoutFace extends RenderBox {
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.biggest;
+
+  @override
+  void performLayout() => markNeedsPaint();
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    context.canvas.drawRect(offset & size, Paint()..color = Colors.white);
   }
 }

@@ -6,6 +6,10 @@ import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
+const _calendarPinSize = 24.0;
+const _calendarPinOverhang = 13.0;
+const _calendarPinHorizontalOffset = 8.0;
+
 /// Paper date tabs on a fine ink curve. The page owns their motion, so the
 /// calendar follows a sheet's drag, cancellation and settling frame for frame.
 class DiaryCalendar extends StatelessWidget {
@@ -173,6 +177,8 @@ class DiaryCalendar extends StatelessWidget {
     final prominence = Curves.easeInOut.transform(
       (1 - distance).clamp(0.0, 1.0),
     );
+    final lift = 8 * (1 - prominence) * (1 - collapse);
+    final pinned = day == dayOffset.round();
     final expandedX =
         width / 2 +
         relativeDay.sign *
@@ -184,20 +190,23 @@ class DiaryCalendar extends StatelessWidget {
       collapse,
     )!;
     final expandedPointY = _CalendarThreadPainter.heightAt(expandedX, width);
-    final centerY = ui.lerpDouble(
-      ui.lerpDouble(expandedPointY + 24, 62, prominence),
-      _CalendarThreadPainter.compactCenterY,
-      collapse,
-    )!;
+    final centerY =
+        ui.lerpDouble(
+          ui.lerpDouble(expandedPointY + 24, 62, prominence),
+          _CalendarThreadPainter.compactCenterY,
+          collapse,
+        )! -
+        lift;
     final targetWidth = ui.lerpDouble(76, compactDayWidth, collapse)!;
     final date = diaryDayAfter(selectedDate, day);
     final available = _available(date);
     final canSelect = enabled && available;
-    final ink = Color.lerp(
+    final inactiveInk = Color.lerp(
       context.colors.onSurfaceVariant,
-      context.colors.primary,
-      prominence,
+      context.colors.surface,
+      available ? .18 : .50,
     )!;
+    final ink = Color.lerp(inactiveInk, context.colors.primary, prominence)!;
     final sway = math.sin(dayOffset.abs() * math.pi);
     final tilt =
         (relativeDay.sign * .035 * (1 - prominence) + dayOffset * .065 * sway) *
@@ -211,7 +220,7 @@ class DiaryCalendar extends StatelessWidget {
       child: IgnorePointer(
         ignoring: !canSelect || opacity < .3,
         child: Opacity(
-          opacity: opacity * (available ? 1 : .28),
+          opacity: opacity,
           child: Semantics(
             excludeSemantics: true,
             hidden: opacity < .3,
@@ -237,16 +246,46 @@ class DiaryCalendar extends StatelessWidget {
                           centerY: centerY,
                           prominence: prominence,
                           collapse: collapse,
+                          pinned: pinned,
                         ),
                       ),
                     ),
+                    if (pinned && collapse < 1)
+                      Positioned(
+                        top:
+                            centerY -
+                            _DatePaperPainter.heightFor(prominence, collapse) /
+                                2 -
+                            _calendarPinOverhang,
+                        left: _calendarPinHorizontalOffset,
+                        right: -_calendarPinHorizontalOffset,
+                        height: _calendarPinSize,
+                        child: IgnorePointer(
+                          child: Opacity(
+                            opacity: 1 - collapse,
+                            child: Center(
+                              child: Image.asset(
+                                'assets/images/diary_calendar_pin.png',
+                                key: const ValueKey('diary-calendar-pin'),
+                                width: _calendarPinSize,
+                                height: _calendarPinSize,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.medium,
+                                excludeFromSemantics: true,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     _dateLabel(
                       text: '${date.day}',
-                      centerY: ui.lerpDouble(
-                        ui.lerpDouble(expandedPointY + 16, 50, prominence),
-                        24,
-                        collapse,
-                      )!,
+                      centerY:
+                          ui.lerpDouble(
+                            ui.lerpDouble(expandedPointY + 16, 50, prominence),
+                            24,
+                            collapse,
+                          )! -
+                          lift,
                       style: TextStyle(
                         color: ink,
                         fontSize: ui.lerpDouble(
@@ -265,11 +304,13 @@ class DiaryCalendar extends StatelessWidget {
                     ),
                     _dateLabel(
                       text: _weekdays[date.weekday - 1],
-                      centerY: ui.lerpDouble(
-                        ui.lerpDouble(expandedPointY + 33, 71, prominence),
-                        42,
-                        collapse,
-                      )!,
+                      centerY:
+                          ui.lerpDouble(
+                            ui.lerpDouble(expandedPointY + 33, 71, prominence),
+                            42,
+                            collapse,
+                          )! -
+                          lift,
                       style: TextStyle(
                         color: ink,
                         fontSize: ui.lerpDouble(
@@ -374,11 +415,16 @@ class _DatePaperPainter extends CustomPainter {
     required this.centerY,
     required this.prominence,
     required this.collapse,
+    required this.pinned,
   });
 
   final ColorScheme colors;
   final DateTime date;
   final double centerY, prominence, collapse;
+  final bool pinned;
+
+  static double heightFor(double prominence, double collapse) =>
+      ui.lerpDouble(ui.lerpDouble(50, 80, prominence), 52, collapse)!;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -387,17 +433,13 @@ class _DatePaperPainter extends CustomPainter {
       math.min(46, size.width - 4),
       collapse,
     )!;
-    final height = ui.lerpDouble(
-      ui.lerpDouble(50, 80, prominence),
-      52,
-      collapse,
-    )!;
+    final height = heightFor(prominence, collapse);
     final bounds = Rect.fromCenter(
       center: Offset(size.width / 2, centerY),
       width: width,
       height: height,
     );
-    final visibility = (1 - collapse) * ui.lerpDouble(.55, 1, prominence)!;
+    final visibility = 1 - collapse;
     if (visibility > 0) {
       DiaryPaperStamp(
         paper: colors.surface,
@@ -407,12 +449,16 @@ class _DatePaperPainter extends CustomPainter {
         edgeScale: .35,
         opacity: visibility,
       ).paintRect(canvas, bounds);
-      canvas.drawCircle(
-        Offset(size.width / 2, bounds.top + 9),
-        1.15,
-        Paint()
-          ..color = colors.onSurfaceVariant.withValues(alpha: .28 * visibility),
-      );
+      if (!pinned) {
+        canvas.drawCircle(
+          Offset(size.width / 2, bounds.top + 9),
+          1.15,
+          Paint()
+            ..color = colors.onSurfaceVariant.withValues(
+              alpha: .28 * visibility,
+            ),
+        );
+      }
     }
     if (prominence > 0) {
       final y = ui.lerpDouble(centerY + 26, 54, collapse)!;
@@ -433,5 +479,6 @@ class _DatePaperPainter extends CustomPainter {
       date != oldDelegate.date ||
       centerY != oldDelegate.centerY ||
       prominence != oldDelegate.prominence ||
-      collapse != oldDelegate.collapse;
+      collapse != oldDelegate.collapse ||
+      pinned != oldDelegate.pinned;
 }

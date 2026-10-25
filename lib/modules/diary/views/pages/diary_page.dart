@@ -77,6 +77,11 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
   void _replaceDate(DateTime date, {bool fade = false}) {
     final crossfade = fade && !_reduced;
     final oldDay = _day;
+    final neighbors = [_day, _previous, ?_next];
+    DiaryDay sample(DateTime value) => neighbors.firstWhere(
+      (day) => day.date == value,
+      orElse: () => DiaryDay.sample(value),
+    );
     final oldOffset = _innerOffset;
     // The outer nested controller resets the inner offset while retaining
     // exactly the current header expansion. Jumping the inner one would also
@@ -86,9 +91,9 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
     }
     setState(() {
       _selectedDate = date;
-      _day = DiaryDay.sample(date);
-      _previous = DiaryDay.sample(diaryDayAfter(date, -1));
-      _next = null;
+      _day = sample(date);
+      _previous = sample(diaryDayAfter(date, -1));
+      _next = date.isBefore(_today) ? sample(diaryDayAfter(date, 1)) : null;
       _fadingFrom = crossfade ? oldDay : null;
       _fadingOffset = oldOffset;
     });
@@ -169,8 +174,15 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
       _dragging = false;
       _settling = true;
     });
+    void finishAtEdge() {
+      if (commit ? _turn.value >= 1 : _turn.value <= 0) {
+        _turn.stop(canceled: false);
+      }
+    }
+
+    _turn.addListener(finishAtEdge);
     try {
-      if (!_reduced) {
+      if (!_reduced && _turn.value != (commit ? 1 : 0)) {
         await _turn
             .animateWith(
               SpringSimulation(
@@ -197,6 +209,8 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
       });
     } on TickerCanceled {
       // Disposing the page never commits an unfinished turn.
+    } finally {
+      _turn.removeListener(finishAtEdge);
     }
   }
 
@@ -222,40 +236,50 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
           width: artworkWidth,
           child: AnimatedBuilder(
             animation: _outer,
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              // Boost only the top edge and month controls, returning to the
-              // existing image opacity before reaching the calendar tabs.
-              shaderCallback: (_) =>
-                  LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0, .25, 1],
-                    colors: [
-                      Colors.white.withValues(
-                        alpha: context.isDark ? .94 : .82,
+            child: RepaintBoundary(
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                // Boost only the top edge and month controls, returning to the
+                // existing image opacity before reaching the calendar tabs.
+                shaderCallback: (_) =>
+                    LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0, .25, 1],
+                      colors: [
+                        Colors.white.withValues(
+                          alpha: context.isDark ? .94 : .82,
+                        ),
+                        Colors.white.withValues(
+                          alpha: context.isDark ? .94 : .82,
+                        ),
+                        Colors.white.withValues(
+                          alpha: context.isDark ? .68 : .24,
+                        ),
+                      ],
+                    ).createShader(
+                      Rect.fromLTWH(
+                        0,
+                        -artworkTop,
+                        artworkWidth,
+                        top + _controlsHeight + 20,
                       ),
-                      Colors.white.withValues(
-                        alpha: context.isDark ? .94 : .82,
-                      ),
-                      Colors.white.withValues(
-                        alpha: context.isDark ? .68 : .24,
-                      ),
-                    ],
-                  ).createShader(
-                    Rect.fromLTWH(
-                      0,
-                      -artworkTop,
-                      artworkWidth,
-                      top + _controlsHeight + 20,
                     ),
-                  ),
-              child: Image.asset(
-                'assets/images/diary_top_bg.png',
-                color: context.colors.primary,
-                colorBlendMode: BlendMode.color,
-                fit: BoxFit.fitWidth,
-                excludeFromSemantics: true,
+                child: Image.asset(
+                  key: const ValueKey('diary-header-artwork'),
+                  'assets/images/diary_top_bg.png',
+                  color: context.colors.primary,
+                  colorBlendMode: BlendMode.color,
+                  fit: BoxFit.fitWidth,
+                  excludeFromSemantics: true,
+                  cacheWidth:
+                      (artworkWidth *
+                              math.min(
+                                2,
+                                MediaQuery.devicePixelRatioOf(context),
+                              ))
+                          .ceil(),
+                ),
               ),
             ),
             builder: (context, child) => Transform.translate(
@@ -343,6 +367,7 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
                       today: _today,
                       collapse: (_outerOffset / _collapseExtent).clamp(0, 1),
                       headerHeight: top + 82,
+                      collapseExtent: _collapseExtent,
                       turn: _readingTurn ? 0 : _turn.value.clamp(0, 1),
                       direction: _direction,
                       busy: _busy,

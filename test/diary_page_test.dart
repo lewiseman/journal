@@ -11,12 +11,27 @@ import 'package:journal/modules/diary/views/pages/diary_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header_control.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
 
 final _today = DateTime(2026, 10, 25); // Short; the preceding day is long.
 final _paper = find.byKey(const ValueKey('diary-active-paper'));
-final _preview = find.byKey(const ValueKey('diary-previous-preview'));
+final _turnFace = find.byWidgetPredicate(
+  (widget) => widget is DiaryPaperCurl && widget.visible && !widget.flat,
+);
+Finder _preview(WidgetTester tester) => find.byWidgetPredicate(
+  (widget) =>
+      widget is DiaryPaperCurl &&
+      widget.visible &&
+      widget.flat &&
+      widget.shape ==
+          DiaryPaperShape.forDate(diaryDayAfter(_selected(tester), -1)),
+);
+Finder _face(DateTime date) => find.byWidgetPredicate(
+  (widget) =>
+      widget is DiaryPaperCurl && widget.shape == DiaryPaperShape.forDate(date),
+);
 final _captureKey = GlobalKey();
 
 NestedScrollViewState _scroll(WidgetTester tester) =>
@@ -77,11 +92,31 @@ Future<void> _mount(
   await tester.pumpAndSettle();
   await tester.runAsync(
     () => precacheImage(
-      const AssetImage('assets/images/diary_top_bg.png'),
+      tester
+          .widget<Image>(find.byKey(const ValueKey('diary-header-artwork')))
+          .image,
       tester.element(find.byType(DiaryPage)),
     ),
   );
   await tester.pump();
+  if (!reduced) await _warmFaces(tester);
+}
+
+Future<void> _warmFaces(WidgetTester tester) async {
+  final faces = tester
+      .renderObjectList<RenderDiaryCurl>(find.byType(DiaryPaperCurl))
+      .toList();
+  for (var attempt = 0; attempt < 30; attempt++) {
+    await tester.runAsync(() async {
+      for (final face in faces) {
+        face.prepareTextures();
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    });
+    await tester.pump();
+    if (faces.every((face) => face.debugReady)) return;
+  }
+  expect(faces.every((face) => face.debugReady), isTrue);
 }
 
 Future<void> _capture(WidgetTester tester, String name) async {
@@ -102,6 +137,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
 Future<void> _choose(WidgetTester tester, DateTime date) async {
   tester.widget<DiaryCalendar>(find.byType(DiaryCalendar)).onDateChanged(date);
   await tester.pumpAndSettle();
+  await _warmFaces(tester);
 }
 
 void main() {
@@ -148,7 +184,7 @@ void main() {
     final rest = tester.getRect(_paper);
     expect(rest.left, closeTo(48, 1));
     expect(rest.top, closeTo(198, 1));
-    expect(tester.getRect(_preview).right, greaterThan(0));
+    expect(tester.getRect(_preview(tester)).right, greaterThan(0));
     expect(_scroll(tester).innerController.offset, 0);
     await _capture(tester, 'rest');
 
@@ -157,7 +193,7 @@ void main() {
     expect(_scene(tester).collapse, closeTo(.5, .01));
     expect(tester.getRect(_paper).width, greaterThan(rest.width));
     expect(_scroll(tester).innerController.offset, 0);
-    expect(_preview, findsNothing);
+    expect(_preview(tester), findsNothing);
     await _capture(tester, 'half');
 
     _scroll(tester).outerController.jumpTo(80);
@@ -166,7 +202,7 @@ void main() {
     expect(expanded.left, 0);
     expect(expanded.width, 390);
     expect(expanded.top, closeTo(106, .01));
-    expect(_preview, findsNothing);
+    expect(_preview(tester), findsNothing);
     expect(find.bySemanticsLabel('Notes tab').hitTestable(), findsOneWidget);
     await _capture(tester, 'short-expanded');
 
@@ -197,6 +233,60 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('date-specific faces survive repeated swipes without recapture', (
+    tester,
+  ) async {
+    await _mount(tester);
+    for (final direction in [1, 1, 1, -1, -1, -1]) {
+      final from = _selected(tester);
+      final target = diaryDayAfter(from, -direction);
+      final incoming = tester.renderObject<RenderDiaryCurl>(_face(target));
+      expect(incoming.debugReady, isTrue);
+      final captures = (
+        incoming.debugFrontCaptures,
+        incoming.debugBackCaptures,
+      );
+      final gesture = await tester.startGesture(tester.getRect(_paper).center);
+      await gesture.moveBy(Offset(24.0 * direction, 0));
+      await gesture.moveBy(Offset(140.0 * direction, 0));
+      await tester.pump();
+      expect(_turnFace, findsOneWidget);
+      await gesture.up();
+      var frames = 0;
+      while (_scene(tester).busy && frames < 32) {
+        await tester.pump(const Duration(milliseconds: 16));
+        _expectCalendarWithPaper(tester);
+        frames++;
+      }
+      expect(
+        _scene(tester).busy,
+        isFalse,
+        reason: 'Release the turn at its visible endpoint',
+      );
+      expect(_selected(tester), target);
+      expect(
+        tester.renderObject<RenderDiaryCurl>(_face(target)),
+        same(incoming),
+      );
+      expect((
+        incoming.debugFrontCaptures,
+        incoming.debugBackCaptures,
+      ), captures);
+      final source = tester.widget<DiaryPaperCurl>(_face(target));
+      final live =
+          tester.widget<CustomPaint>(_paper).painter! as DiaryPaperPainter;
+      expect(source.shape, live.shape);
+      expect(source.flat, isTrue);
+      expect(source.visible, isFalse, reason: 'Resting text stays native');
+      expect(
+        find.byType(DiaryPaperCurl).evaluate().length,
+        lessThanOrEqualTo(3),
+      );
+      await _warmFaces(tester);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'paper follows a drag, cancels, commits once, and blocks tomorrow',
     (tester) async {
@@ -206,7 +296,7 @@ void main() {
       await gesture.moveBy(const Offset(25, 0));
       await gesture.moveBy(const Offset(110, 0));
       await tester.pump();
-      expect(find.byType(DiaryPaperCurl), findsOneWidget);
+      expect(_turnFace, findsOneWidget);
       expect(_selected(tester), _today);
       _expectCalendarWithPaper(tester);
       await _capture(tester, 'curl-right');
@@ -216,7 +306,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(_selected(tester), _today);
       expect(_calendar(tester).dayOffset, 0);
-      expect(find.byType(DiaryPaperCurl), findsNothing);
+      expect(_turnFace, findsNothing);
 
       await tester.dragFrom(center, const Offset(170, 0));
       await tester.pumpAndSettle();
@@ -241,7 +331,7 @@ void main() {
       _expectCalendarWithPaper(tester);
       await tester.pumpAndSettle();
       expect(_selected(tester), _today);
-      expect(find.byType(DiaryPaperCurl), findsNothing);
+      expect(_turnFace, findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -296,7 +386,7 @@ void main() {
       await drag.moveBy(const Offset(24, 0));
       await drag.moveBy(const Offset(30, 0));
       await tester.pump();
-      expect(find.byType(DiaryPaperCurl), findsOneWidget);
+      expect(_turnFace, findsOneWidget);
       _expectCalendarWithPaper(tester);
       await drag.cancel();
       await tester.pumpAndSettle();
@@ -308,7 +398,7 @@ void main() {
       await blocked.moveBy(const Offset(-90, 0));
       await tester.pump();
       expect(_scene(tester).blocked, isTrue);
-      expect(find.byType(DiaryPaperCurl), findsNothing);
+      expect(_turnFace, findsNothing);
       _expectCalendarWithPaper(tester);
       await blocked.up();
       await tester.pumpAndSettle();
@@ -329,7 +419,7 @@ void main() {
       await tester.pump();
       expect(_calendar(tester).dayOffset, lessThan(-.25));
       expect(_scene(tester).collapse, 1);
-      expect(find.byType(DiaryPaperCurl), findsNothing);
+      expect(_turnFace, findsNothing);
       await reading.up();
       await tester.pumpAndSettle();
       expect(_selected(tester), diaryDayAfter(_today, -2));
@@ -408,7 +498,7 @@ void main() {
       expect(_selected(tester), _today);
       expect(_scene(tester).collapse, 1);
       expect(_scroll(tester).innerController.offset, 0);
-      expect(find.byType(DiaryPaperCurl), findsNothing);
+      expect(_turnFace, findsNothing);
 
       await _choose(tester, DateTime(1980, 2, 4));
       expect(_selected(tester), DateTime(1980, 2, 4));
@@ -518,7 +608,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(_scene(tester).collapse, 0);
       expect(_scroll(tester).innerController.offset, 0);
-      expect(_preview, findsOneWidget);
+      expect(_preview(tester), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -572,7 +662,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(_selected(tester), diaryDayAfter(_today, -1));
-      if (config.reduced) expect(find.byType(DiaryPaperCurl), findsNothing);
+      if (config.reduced) expect(_turnFace, findsNothing);
       _scroll(tester).outerController.jumpTo(200);
       await tester.pumpAndSettle();
       expect(_scene(tester).collapse, 1);

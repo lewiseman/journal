@@ -170,12 +170,8 @@ class _NotesPageState extends ConsumerState<NotesPage> {
         Positioned(
           bottom: 24,
           right: 16,
-          child: FloatingActionButton(
-            elevation: 5,
-            backgroundColor: context.colors.primaryContainer,
-            foregroundColor: context.colors.onPrimaryContainer,
-            tooltip: 'Add note',
-            child: const Icon(Icons.add_rounded),
+          child: _AddNoteButton(
+            key: const ValueKey('notes-add-button'),
             onPressed: () {
               context.nav.push(EditNotePage());
             },
@@ -365,6 +361,71 @@ class _NotesPageState extends ConsumerState<NotesPage> {
           ),
         ),
     ];
+  }
+}
+
+class _AddNoteButton extends StatefulWidget {
+  const _AddNoteButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  State<_AddNoteButton> createState() => _AddNoteButtonState();
+}
+
+class _AddNoteButtonState extends State<_AddNoteButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion =
+        MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
+    return Tooltip(
+      message: 'Add note',
+      excludeFromSemantics: true,
+      child: Semantics(
+        label: 'Add note',
+        button: true,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: widget.onPressed,
+            onHighlightChanged: (pressed) {
+              if (_pressed == pressed) return;
+              setState(() => _pressed = pressed);
+            },
+            customBorder: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            hoverColor: Colors.transparent,
+            focusColor: context.colors.primary.withValues(alpha: .14),
+            child: SizedBox.square(
+              dimension: 72,
+              child: Center(
+                child: AnimatedScale(
+                  scale: _pressed ? .94 : 1,
+                  duration: reducedMotion
+                      ? Duration.zero
+                      : Duration(milliseconds: _pressed ? 70 : 140),
+                  curve: Curves.easeOutCubic,
+                  child: Image.asset(
+                    'assets/images/notes_add.png',
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.medium,
+                    excludeFromSemantics: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
