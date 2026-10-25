@@ -1,14 +1,14 @@
 import 'package:journal/common.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
 
-class RootLayout extends StatefulWidget {
+class RootLayout extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  State<RootLayout> createState() => _RootLayoutState();
+  ConsumerState<RootLayout> createState() => _RootLayoutState();
 }
 
-class _RootLayoutState extends State<RootLayout>
+class _RootLayoutState extends ConsumerState<RootLayout>
     with SingleTickerProviderStateMixin {
   int _page = 0;
   late final AnimationController _reveal = AnimationController(
@@ -29,6 +29,20 @@ class _RootLayoutState extends State<RootLayout>
       _page = index;
     });
     _reveal.forward(from: 0);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Reactive sync on startup: try silent sign in, then sync if authenticated
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final auth = ref.read(syncAuthProvider);
+      final user = await auth.trySilentSignIn();
+      if (user != null && mounted) {
+        ref.read(syncEngineProvider.notifier).syncNow();
+      }
+    });
   }
 
   @override
