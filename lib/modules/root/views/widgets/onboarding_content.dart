@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts_lite.dart';
 import 'package:journal/config/theme.dart';
 
 import 'onboarding_book/onboarding_book.dart';
@@ -250,12 +251,13 @@ class _OnboardingContentState extends State<OnboardingContent> {
                 ),
               )
             else if (!keyboard)
-              const Text(
+              Text(
                 'Your story starts with you.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF433548),
-                  fontSize: 22,
+                style: GoogleFontsLite.getFont(
+                  'Allura',
+                  color: const Color(0xFF433548),
+                  fontSize: 30,
                   fontWeight: FontWeight.w600,
                 ),
               ),
