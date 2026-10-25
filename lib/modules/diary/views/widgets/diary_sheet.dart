@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
 NoteColors diaryPaperColors(BuildContext context) => NoteColors(
   background: context.colors.surface,
@@ -19,6 +20,7 @@ class DiarySheet extends StatelessWidget {
     this.scrollOffset = 0,
     this.shape,
     this.shadow = false,
+    this.detailed = true,
   });
 
   final DiaryDay day;
@@ -26,43 +28,92 @@ class DiarySheet extends StatelessWidget {
   final double scrollOffset;
   final DiaryPaperShape? shape;
   final bool shadow;
+  final bool detailed;
 
   @override
   Widget build(BuildContext context) {
     final outline =
         shape ?? DiaryPaperShape.forDate(day.date, cornerRadius: radius);
     final paper = diaryPaperColors(context);
+    final content = OverflowBox(
+      alignment: Alignment.topCenter,
+      minHeight: 0,
+      maxHeight: double.infinity,
+      child: Transform.translate(
+        offset: Offset(0, -scrollOffset),
+        child: DiaryDayContent(day: day),
+      ),
+    );
     return CustomPaint(
-      painter: DiaryPaperPainter(
-        shape: outline,
-        paper: paper.background,
-        ink: paper.foreground,
-        shadow: shadow,
-        shadowColor: context.colors.shadow,
-      ),
-      child: ClipPath(
-        clipper: DiaryPaperClipper(outline),
-        child: OverflowBox(
-          alignment: Alignment.topCenter,
-          minHeight: 0,
-          maxHeight: double.infinity,
-          child: Transform.translate(
-            offset: Offset(0, -scrollOffset),
-            child: DiaryDayContent(day: day),
-          ),
-        ),
-      ),
+      painter: detailed
+          ? DiaryPaperPainter(
+              shape: outline,
+              paper: paper.background,
+              ink: paper.foreground,
+              shadow: shadow,
+              shadowColor: context.colors.shadow,
+            )
+          : DiaryPaperStamp(
+              paper: paper.background,
+              ink: paper.foreground,
+              shadow: shadow,
+              shadowColor: context.colors.shadow,
+              variant: day.date.weekday,
+              flatten: outline.expansion,
+            ),
+      child: detailed
+          ? ClipPath(clipper: DiaryPaperClipper(outline), child: content)
+          : ClipRect(
+              clipper: _StampContentClipper(outline.detail),
+              child: content,
+            ),
     );
   }
 }
 
-class DiaryDayContent extends StatelessWidget {
+class _StampContentClipper extends CustomClipper<Rect> {
+  const _StampContentClipper(this.detail);
+  final double detail;
+
+  @override
+  Rect getClip(Size size) => (Offset.zero & size).deflate(8 * detail);
+
+  @override
+  bool shouldReclip(_StampContentClipper oldClipper) =>
+      detail != oldClipper.detail;
+}
+
+class DiaryDayContent extends StatefulWidget {
   const DiaryDayContent({super.key, required this.day});
 
   final DiaryDay day;
 
   @override
-  Widget build(BuildContext context) {
+  State<DiaryDayContent> createState() => _DiaryDayContentState();
+}
+
+class _DiaryDayContentState extends State<DiaryDayContent> {
+  Widget? _content;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _content = null;
+  }
+
+  @override
+  void didUpdateWidget(DiaryDayContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.day != widget.day) _content = null;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _content ??= _buildContent(context, widget.day);
+
+  // A turn rebuilds the moving wrappers, not every paragraph and checklist.
+  // Inherited theme changes and a replacement day invalidate this small cache.
+  Widget _buildContent(BuildContext context, DiaryDay day) {
     final paper = diaryPaperColors(context);
     return Padding(
       padding: const EdgeInsets.all(24),

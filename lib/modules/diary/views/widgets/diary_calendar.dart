@@ -3,13 +3,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:journal/config/theme.dart';
-import 'package:flutter/physics.dart';
+import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
-/// A date carousel that follows the illuminated horizon above the diary.
-///
-/// Dates are calendar days rather than 24-hour intervals, so changing days also
-/// works when a daylight-saving transition changes the length of a local day.
-class DiaryCalendar extends StatefulWidget {
+/// Paper date tabs on a fine ink curve. The page owns their motion, so the
+/// calendar follows a sheet's drag, cancellation and settling frame for frame.
+class DiaryCalendar extends StatelessWidget {
   const DiaryCalendar({
     super.key,
     required this.selectedDate,
@@ -17,139 +16,37 @@ class DiaryCalendar extends StatefulWidget {
     this.lastDate,
     this.enabled = true,
     this.collapseProgress = 0,
+    this.dayOffset = 0,
+    this.onDayDragStart,
+    this.onDayDragUpdate,
+    this.onDayDragEnd,
+    this.onDayDragCancel,
   });
 
   final DateTime selectedDate;
   final ValueChanged<DateTime> onDateChanged;
   final DateTime? lastDate;
   final bool enabled;
-
-  /// Scroll-driven progress from the full horizon to the compact date strip.
-  ///
-  /// Geometry follows this value directly so reversing a scroll immediately
-  /// reverses the morph, without a second animation trailing the user's hand.
   final double collapseProgress;
 
-  @override
-  State<DiaryCalendar> createState() => _DiaryCalendarState();
-}
+  /// Fractional calendar days from [selectedDate], driven by the sheet turn.
+  /// There is no second controller or delayed animation after a date commits.
+  final double dayOffset;
 
-class _DiaryCalendarState extends State<DiaryCalendar>
-    with SingleTickerProviderStateMixin {
-  static const _spring = SpringDescription(
-    mass: 1,
-    stiffness: 310,
-    damping: 29,
-  );
+  final VoidCallback? onDayDragStart, onDayDragCancel;
+
+  /// Physical horizontal movement and velocity, normalized to one date tab.
+  final ValueChanged<double>? onDayDragUpdate, onDayDragEnd;
+
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  late final DateTime _anchor;
-  late final AnimationController _position;
-  int _selectedDay = 0;
-  bool _reduceMotion = false;
-  double _dayWidth = 72;
+  bool _available(DateTime date) =>
+      !date.isBefore(DateTime(1)) &&
+      !date.isAfter(diaryDate(lastDate ?? DateTime.now()));
 
-  @override
-  void initState() {
-    super.initState();
-    final today = _civilDate(widget.lastDate ?? DateTime.now());
-    final selectedDate = _civilDate(widget.selectedDate);
-    _anchor = selectedDate.isAfter(today) ? today : selectedDate;
-    _position = AnimationController.unbounded(vsync: this);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reduceMotion =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
-    if (reduceMotion && !_reduceMotion) {
-      _position.stop();
-      _position.value = _selectedDay.toDouble();
-    }
-    _reduceMotion = reduceMotion;
-  }
-
-  @override
-  void didUpdateWidget(DiaryCalendar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final selectedDay = math.min(_offsetFor(widget.selectedDate), _lastDay);
-    if (selectedDay != _selectedDay) {
-      _selectedDay = selectedDay;
-      _settleOn(selectedDay);
-    }
-  }
-
-  static DateTime _civilDate(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
-
-  int _offsetFor(DateTime date) => DateTime.utc(
-    date.year,
-    date.month,
-    date.day,
-  ).difference(DateTime.utc(_anchor.year, _anchor.month, _anchor.day)).inDays;
-
-  DateTime _dateAt(int day) =>
-      DateTime(_anchor.year, _anchor.month, _anchor.day + day);
-
-  int get _lastDay => _offsetFor(widget.lastDate ?? DateTime.now());
-  int get _firstDay => _offsetFor(DateTime(1));
-
-  double get _visiblePosition => math.min(_position.value, _lastDay.toDouble());
-
-  void _settleOn(int day, {double velocity = 0}) {
-    _position.stop();
-    if (_reduceMotion) {
-      _position.value = day.toDouble();
-      return;
-    }
-    _position.animateWith(
-      SpringSimulation(
-        _spring,
-        _visiblePosition,
-        day.toDouble(),
-        (day == _lastDay ? math.min(velocity, 0.0) : velocity).clamp(
-          -14.0,
-          14.0,
-        ),
-        tolerance: const Tolerance(distance: 0.001, velocity: 0.001),
-      ),
-    );
-  }
-
-  void _selectDay(int day, {double velocity = 0}) {
-    if (!widget.enabled) return;
-    final target = day.clamp(_firstDay, _lastDay);
-    if (_selectedDay != target) {
-      // Selection belongs to the parent, which may still be turning a sheet.
-      // Only didUpdateWidget commits it; a requested turn cannot leave the
-      // calendar on a different date from the active diary.
-      widget.onDateChanged(_dateAt(target));
-    }
-    // A parent may navigate away from the diary in its callback.
-    if (mounted) _settleOn(target, velocity: velocity);
-  }
-
-  void _moveBy(int days) {
-    _selectDay(_selectedDay + days, velocity: _position.velocity);
-  }
-
-  void _dragEnd(DragEndDetails details) {
-    final velocity = -(details.primaryVelocity ?? 0) / _dayWidth;
-    final nearestDay = _visiblePosition.round();
-    // A flick carries momentum without skipping a long stretch of the diary.
-    final target = (_visiblePosition + velocity * 0.13).round().clamp(
-      nearestDay - 2,
-      nearestDay + 2,
-    );
-    _selectDay(target, velocity: velocity);
-  }
-
-  @override
-  void dispose() {
-    _position.dispose();
-    super.dispose();
+  void _selectDay(int offset) {
+    final date = diaryDayAfter(selectedDate, offset);
+    if (enabled && offset != 0 && _available(date)) onDateChanged(date);
   }
 
   @override
@@ -157,7 +54,7 @@ class _DiaryCalendarState extends State<DiaryCalendar>
     final localizations = MaterialLocalizations.of(context);
     final textScaler = MediaQuery.textScalerOf(context)
         .clamp(maxScaleFactor: 1.3);
-    final collapse = widget.collapseProgress.clamp(0.0, 1.0);
+    final collapse = collapseProgress.clamp(0.0, 1.0);
     final height = ui.lerpDouble(108, 76, collapse)!;
     final contentInset = 48 * collapse;
     return RepaintBoundary(
@@ -170,55 +67,55 @@ class _DiaryCalendarState extends State<DiaryCalendar>
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
                 final compactDayWidth = (width - 96) / 5;
-                _dayWidth = ui.lerpDouble(
-                  width * 0.18,
+                final dayWidth = ui.lerpDouble(
+                  width * .18,
                   compactDayWidth,
                   collapse,
                 )!;
-                final orbRadius = ui.lerpDouble(
-                  (width * 0.074).clamp(29.0, 32.0),
-                  22,
-                  collapse,
-                )!;
+                final middleDay = dayOffset.round();
+                final previous = diaryDayAfter(selectedDate, -1);
+                final next = diaryDayAfter(selectedDate, 1);
                 return Semantics(
                   container: true,
                   explicitChildNodes: true,
                   label: 'Diary calendar',
-                  value: localizations.formatFullDate(_dateAt(_selectedDay)),
-                  increasedValue: _selectedDay < _lastDay
-                      ? localizations.formatFullDate(_dateAt(_selectedDay + 1))
+                  value: localizations.formatFullDate(selectedDate),
+                  increasedValue: _available(next)
+                      ? localizations.formatFullDate(next)
                       : null,
-                  decreasedValue: localizations.formatFullDate(
-                    _dateAt(_selectedDay - 1),
-                  ),
-                  onIncrease: widget.enabled && _selectedDay < _lastDay
-                      ? () => _moveBy(1)
+                  decreasedValue: _available(previous)
+                      ? localizations.formatFullDate(previous)
                       : null,
-                  onDecrease: widget.enabled && _selectedDay > _firstDay
-                      ? () => _moveBy(-1)
+                  onIncrease: enabled && _available(next)
+                      ? () => _selectDay(1)
+                      : null,
+                  onDecrease: enabled && _available(previous)
+                      ? () => _selectDay(-1)
                       : null,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onHorizontalDragStart: (_) => _position.stop(),
-                    onHorizontalDragUpdate: (details) {
-                      _position.value = math.min(
-                        _visiblePosition - details.delta.dx / _dayWidth,
-                        _lastDay.toDouble(),
-                      );
-                    },
-                    onHorizontalDragEnd: _dragEnd,
-                    onHorizontalDragCancel: () => _settleOn(_selectedDay),
+                    onHorizontalDragStart: onDayDragStart == null
+                        ? null
+                        : (_) => onDayDragStart!(),
+                    onHorizontalDragUpdate: onDayDragUpdate == null
+                        ? null
+                        : (details) =>
+                              onDayDragUpdate!(details.delta.dx / dayWidth),
+                    onHorizontalDragEnd: onDayDragEnd == null
+                        ? null
+                        : (details) => onDayDragEnd!(
+                            (details.primaryVelocity ?? 0) / dayWidth,
+                          ),
+                    onHorizontalDragCancel: onDayDragCancel,
                     child: Stack(
                       clipBehavior: Clip.hardEdge,
                       children: [
                         Positioned.fill(
                           child: IgnorePointer(
-                            child: RepaintBoundary(
-                              child: CustomPaint(
-                                painter: _HorizonPainter(
-                                  colors: context.colors,
-                                  collapse: collapse,
-                                ),
+                            child: CustomPaint(
+                              painter: _CalendarThreadPainter(
+                                colors: context.colors,
+                                collapse: collapse,
                               ),
                             ),
                           ),
@@ -226,31 +123,25 @@ class _DiaryCalendarState extends State<DiaryCalendar>
                         Positioned.fill(
                           child: ClipRect(
                             clipper: _CalendarContentClipper(contentInset),
-                            child: AnimatedBuilder(
-                              animation: _position,
-                              builder: (context, _) {
-                                final middleDay = _visiblePosition.round();
-                                return Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    for (
-                                      var day = middleDay - 3;
-                                      day <= middleDay + 3;
-                                      day++
-                                    )
-                                      _buildDay(
-                                        day: day,
-                                        width: width,
-                                        height: height,
-                                        collapse: collapse,
-                                        compactDayWidth: compactDayWidth,
-                                        orbRadius: orbRadius,
-                                        textScaler: textScaler,
-                                        localizations: localizations,
-                                      ),
-                                  ],
-                                );
-                              },
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                for (
+                                  var day = middleDay - 3;
+                                  day <= middleDay + 3;
+                                  day++
+                                )
+                                  _buildDay(
+                                    context: context,
+                                    day: day,
+                                    width: width,
+                                    height: height,
+                                    collapse: collapse,
+                                    compactDayWidth: compactDayWidth,
+                                    textScaler: textScaler,
+                                    localizations: localizations,
+                                  ),
+                              ],
                             ),
                           ),
                         ),
@@ -267,121 +158,131 @@ class _DiaryCalendarState extends State<DiaryCalendar>
   }
 
   Widget _buildDay({
+    required BuildContext context,
     required int day,
     required double width,
     required double height,
     required double collapse,
     required double compactDayWidth,
-    required double orbRadius,
     required TextScaler textScaler,
     required MaterialLocalizations localizations,
   }) {
-    final relativeDay = day - _visiblePosition;
+    final relativeDay = day - dayOffset;
     final distance = relativeDay.abs();
-    final opacity = ((2.65 - distance) / 0.55).clamp(0.0, 1.0);
+    final opacity = ((2.65 - distance) / .55).clamp(0.0, 1.0);
     final prominence = Curves.easeInOut.transform(
       (1 - distance).clamp(0.0, 1.0),
     );
-    final direction = relativeDay.sign;
-    // Neighbors sit a little wider than the outer days, as on an orbit.
     final expandedX =
         width / 2 +
-        direction * width * (0.195 * distance - 0.015 * distance * distance);
+        relativeDay.sign *
+            width *
+            (.195 * distance - .015 * distance * distance);
     final x = ui.lerpDouble(
       expandedX,
       width / 2 + relativeDay * compactDayWidth,
       collapse,
     )!;
-    final expandedPointY = _HorizonPainter.heightAt(expandedX, width);
-    final pointY = _HorizonPainter.heightAt(x, width, collapse: collapse);
+    final expandedPointY = _CalendarThreadPainter.heightAt(expandedX, width);
+    final centerY = ui.lerpDouble(
+      ui.lerpDouble(expandedPointY + 24, 62, prominence),
+      _CalendarThreadPainter.compactCenterY,
+      collapse,
+    )!;
     final targetWidth = ui.lerpDouble(76, compactDayWidth, collapse)!;
-    final date = _dateAt(day);
-    final selected = day == _selectedDay;
-    final available = day >= _firstDay && day <= _lastDay;
-    final enabled = widget.enabled && available;
+    final date = diaryDayAfter(selectedDate, day);
+    final available = _available(date);
+    final canSelect = enabled && available;
+    final ink = Color.lerp(
+      context.colors.onSurfaceVariant,
+      context.colors.primary,
+      prominence,
+    )!;
+    final sway = math.sin(dayOffset.abs() * math.pi);
+    final tilt =
+        (relativeDay.sign * .035 * (1 - prominence) + dayOffset * .065 * sway) *
+        (1 - collapse);
     return Positioned(
-      key: ValueKey(day),
+      key: ValueKey('diary-calendar-date-${date.toIso8601String()}'),
       left: x - targetWidth / 2,
       top: 0,
       width: targetWidth,
       height: height,
       child: IgnorePointer(
-        ignoring: !enabled || opacity < 0.3,
+        ignoring: !canSelect || opacity < .3,
         child: Opacity(
-          opacity: opacity * (available ? 1 : .35),
+          opacity: opacity * (available ? 1 : .28),
           child: Semantics(
             excludeSemantics: true,
-            hidden: opacity < 0.3,
+            hidden: opacity < .3,
             button: true,
-            enabled: enabled,
-            selected: selected,
+            enabled: canSelect,
+            selected: day == 0,
             label: localizations.formatFullDate(date),
-            onTap: enabled ? () => _selectDay(day) : null,
+            onTap: canSelect ? () => _selectDay(day) : null,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: enabled ? () => _selectDay(day) : null,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _DayOrbPainter(
-                        colors: context.colors,
-                        pointY: pointY,
-                        prominence: prominence,
-                        radius: orbRadius,
-                        collapse: collapse,
+              onTap: canSelect ? () => _selectDay(day) : null,
+              child: Transform.rotate(
+                angle: tilt,
+                alignment: Alignment(0, centerY / height * 2 - 1),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _DatePaperPainter(
+                          colors: context.colors,
+                          date: date,
+                          centerY: centerY,
+                          prominence: prominence,
+                          collapse: collapse,
+                        ),
                       ),
                     ),
-                  ),
-                  _dateLabel(
-                    text: '${date.day}',
-                    centerY: ui.lerpDouble(
-                      ui.lerpDouble(expandedPointY + 16, 50, prominence),
-                      24,
-                      collapse,
-                    )!,
-                    style: TextStyle(
-                      color: Color.lerp(
-                        context.colors.onSurface,
-                        context.colors.onPrimary,
-                        prominence,
-                      ),
-                      fontSize: ui.lerpDouble(
-                        ui.lerpDouble(12.5, 21, prominence),
-                        ui.lerpDouble(12.5, 16, prominence),
+                    _dateLabel(
+                      text: '${date.day}',
+                      centerY: ui.lerpDouble(
+                        ui.lerpDouble(expandedPointY + 16, 50, prominence),
+                        24,
                         collapse,
+                      )!,
+                      style: TextStyle(
+                        color: ink,
+                        fontSize: ui.lerpDouble(
+                          ui.lerpDouble(13, 23, prominence),
+                          ui.lerpDouble(12.5, 17, prominence),
+                          collapse,
+                        ),
+                        fontWeight: FontWeight.lerp(
+                          FontWeight.w400,
+                          FontWeight.w600,
+                          prominence,
+                        ),
+                        height: 1,
                       ),
-                      fontWeight: prominence > 0.5
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                      height: 1,
+                      textScaler: textScaler,
                     ),
-                    textScaler: textScaler,
-                  ),
-                  _dateLabel(
-                    text: _weekdays[date.weekday - 1],
-                    centerY: ui.lerpDouble(
-                      ui.lerpDouble(expandedPointY + 33, 71, prominence),
-                      42,
-                      collapse,
-                    )!,
-                    style: TextStyle(
-                      color: Color.lerp(
-                        context.colors.onSurfaceVariant,
-                        context.colors.onPrimary,
-                        prominence,
-                      ),
-                      fontSize: ui.lerpDouble(
-                        ui.lerpDouble(11, 12, prominence),
-                        10,
+                    _dateLabel(
+                      text: _weekdays[date.weekday - 1],
+                      centerY: ui.lerpDouble(
+                        ui.lerpDouble(expandedPointY + 33, 71, prominence),
+                        42,
                         collapse,
+                      )!,
+                      style: TextStyle(
+                        color: ink,
+                        fontSize: ui.lerpDouble(
+                          ui.lerpDouble(10.5, 11.5, prominence),
+                          10,
+                          collapse,
+                        ),
+                        height: 1,
                       ),
-                      height: 1,
+                      textScaler: textScaler,
                     ),
-                    textScaler: textScaler,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -408,7 +309,6 @@ class _DiaryCalendarState extends State<DiaryCalendar>
 
 class _CalendarContentClipper extends CustomClipper<Rect> {
   const _CalendarContentClipper(this.inset);
-
   final double inset;
 
   @override
@@ -420,14 +320,11 @@ class _CalendarContentClipper extends CustomClipper<Rect> {
       inset != oldClipper.inset;
 }
 
-class _HorizonPainter extends CustomPainter {
-  const _HorizonPainter({required this.collapse, required this.colors});
+class _CalendarThreadPainter extends CustomPainter {
+  const _CalendarThreadPainter({required this.collapse, required this.colors});
   final ColorScheme colors;
-
-  // Midway between the compact number (24) and weekday (42).
-  static const compactCenterY = 33.0;
-
   final double collapse;
+  static const compactCenterY = 33.0;
 
   static double heightAt(double x, double width, {double collapse = 0}) {
     final inset = 48 * collapse;
@@ -441,153 +338,100 @@ class _HorizonPainter extends CustomPainter {
     final inset = 48 * collapse;
     final edgeY = ui.lerpDouble(-15, compactCenterY, collapse)!;
     final path = Path()..moveTo(inset, edgeY);
-    if (collapse == 1) {
-      path.lineTo(size.width - inset, edgeY);
-    } else {
-      path.quadraticBezierTo(
-        size.width / 2,
-        ui.lerpDouble(119, compactCenterY, collapse)!,
-        size.width - inset,
-        edgeY,
-      );
-    }
-    final glow = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 15
-      ..color = colors.glow(.32)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-    canvas.drawPath(path, glow);
+    path.quadraticBezierTo(
+      size.width / 2,
+      ui.lerpDouble(119, compactCenterY, collapse)!,
+      size.width - inset,
+      edgeY,
+    );
     canvas.drawPath(
-      path,
+      path.shift(Offset(0, .8 * (1 - collapse))),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 5
-        ..color = colors.glow(.5)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+        ..strokeWidth = 1.6
+        ..color = colors.onSurface.withValues(alpha: .045 * (1 - collapse)),
     );
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..shader = LinearGradient(
-          colors: [
-            colors.primary.withValues(alpha: .25),
-            colors.primary,
-            colors.primary,
-            colors.primary,
-            colors.primary.withValues(alpha: .25),
-          ],
-          stops: [0, 0.16, 0.5, 0.84, 1],
-        ).createShader(Offset.zero & size),
+        ..strokeWidth = .75
+        ..color = colors.primary.withValues(
+          alpha: ui.lerpDouble(.32, .10, collapse)!,
+        ),
     );
   }
 
   @override
-  bool shouldRepaint(_HorizonPainter oldDelegate) =>
+  bool shouldRepaint(_CalendarThreadPainter oldDelegate) =>
       collapse != oldDelegate.collapse || colors != oldDelegate.colors;
 }
 
-class _DayOrbPainter extends CustomPainter {
-  const _DayOrbPainter({
+class _DatePaperPainter extends CustomPainter {
+  const _DatePaperPainter({
     required this.colors,
-    required this.pointY,
+    required this.date,
+    required this.centerY,
     required this.prominence,
-    required this.radius,
     required this.collapse,
   });
 
   final ColorScheme colors;
-  final double pointY;
-  final double prominence;
-  final double radius;
-  final double collapse;
+  final DateTime date;
+  final double centerY, prominence, collapse;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(
-      size.width / 2,
-      ui.lerpDouble(
-        pointY,
-        ui.lerpDouble(62, _HorizonPainter.compactCenterY, collapse),
-        prominence,
-      )!,
+    final width = ui.lerpDouble(
+      ui.lerpDouble(44, 64, prominence),
+      math.min(46, size.width - 4),
+      collapse,
+    )!;
+    final height = ui.lerpDouble(
+      ui.lerpDouble(50, 80, prominence),
+      52,
+      collapse,
+    )!;
+    final bounds = Rect.fromCenter(
+      center: Offset(size.width / 2, centerY),
+      width: width,
+      height: height,
     );
-    final orbRadius = ui.lerpDouble(3.1, radius, prominence)!;
-    canvas.drawCircle(
-      center,
-      orbRadius + ui.lerpDouble(2, 5, prominence)!,
-      Paint()
-        ..color = colors.glow(ui.lerpDouble(.6, .65, prominence)!)
-        ..maskFilter = MaskFilter.blur(
-          BlurStyle.normal,
-          ui.lerpDouble(4, ui.lerpDouble(12, 6, collapse), prominence)!,
-        ),
-    );
-    if (prominence > 0.01) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: center.translate(0, orbRadius * 0.72),
-          width: orbRadius * 1.75,
-          height: orbRadius * 0.7,
-        ),
+    final visibility = (1 - collapse) * ui.lerpDouble(.55, 1, prominence)!;
+    if (visibility > 0) {
+      DiaryPaperStamp(
+        paper: colors.surface,
+        ink: colors.onSurface,
+        shadowColor: colors.shadow,
+        variant: date.weekday,
+        edgeScale: .35,
+        opacity: visibility,
+      ).paintRect(canvas, bounds);
+      canvas.drawCircle(
+        Offset(size.width / 2, bounds.top + 9),
+        1.15,
         Paint()
-          ..color = colors.glow(prominence * .8)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+          ..color = colors.onSurfaceVariant.withValues(alpha: .28 * visibility),
       );
     }
-    final bounds = Rect.fromCircle(center: center, radius: orbRadius);
-    canvas.drawCircle(
-      center,
-      orbRadius,
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.45, -0.8),
-          radius: 1.3,
-          colors: [
-            Color.lerp(colors.primary, colors.onPrimary, .08)!,
-            colors.primary,
-            colors.primary,
-            Color.lerp(colors.primary, colors.onPrimary, .04)!,
-          ],
-          stops: const [0, 0.22, 0.6, 1],
-        ).createShader(bounds),
-    );
-    canvas.drawCircle(
-      center,
-      orbRadius,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.primary,
-            Color.lerp(colors.primary, colors.onPrimary, .18)!,
-            colors.primary,
-          ],
-        ).createShader(bounds),
-    );
-    if (prominence > 0.01) {
-      canvas.drawCircle(
-        center,
-        math.max(0, orbRadius - 1.7),
+    if (prominence > 0) {
+      final y = ui.lerpDouble(centerY + 26, 54, collapse)!;
+      canvas.drawLine(
+        Offset(size.width / 2 - 6 * prominence, y),
+        Offset(size.width / 2 + 6 * prominence, y - .5 * (1 - collapse)),
         Paint()
-          ..color = colors.primary.withValues(alpha: prominence * 0.22)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
+          ..color = colors.primary.withValues(alpha: .65 * prominence)
+          ..strokeWidth = 1.3
+          ..strokeCap = StrokeCap.round,
       );
-    } else {
-      canvas.drawCircle(center, 1.8, Paint()..color = colors.primary);
     }
   }
 
   @override
-  bool shouldRepaint(_DayOrbPainter oldDelegate) =>
-      pointY != oldDelegate.pointY ||
+  bool shouldRepaint(_DatePaperPainter oldDelegate) =>
+      colors != oldDelegate.colors ||
+      date != oldDelegate.date ||
+      centerY != oldDelegate.centerY ||
       prominence != oldDelegate.prominence ||
-      radius != oldDelegate.radius ||
-      collapse != oldDelegate.collapse ||
-      colors != oldDelegate.colors;
+      collapse != oldDelegate.collapse;
 }

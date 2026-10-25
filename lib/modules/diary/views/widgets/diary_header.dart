@@ -1,4 +1,5 @@
 import 'package:journal/common.dart';
+import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header_control.dart';
 
@@ -14,6 +15,13 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.onDateChanged,
     required this.onSearch,
     required this.onPickDate,
+    this.turn = kAlwaysDismissedAnimation,
+    this.turnDirection = 1,
+    this.turning = false,
+    this.onDayDragStart,
+    this.onDayDragUpdate,
+    this.onDayDragEnd,
+    this.onDayDragCancel,
   });
 
   final double topInset;
@@ -24,6 +32,11 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
   final ValueChanged<DateTime> onDateChanged;
   final VoidCallback? onSearch;
   final VoidCallback onPickDate;
+  final Animation<double> turn;
+  final int turnDirection;
+  final bool turning;
+  final VoidCallback? onDayDragStart, onDayDragCancel;
+  final ValueChanged<double>? onDayDragUpdate, onDayDragEnd;
 
   @override
   double get maxExtent => topInset + controlsHeight + 118;
@@ -41,47 +54,67 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
     final expandedTop = 6 + controlsHeight / 2 - 24;
     final actionTop = topInset + expandedTop + (17 - expandedTop) * progress;
     final actionInset = 14 * (1 - progress);
-    final foreground = ClipRect(
-      child: Stack(
-        children: [
-          Column(
+    final foreground = AnimatedBuilder(
+      animation: turn,
+      builder: (context, _) {
+        final offset = turning
+            ? -turnDirection * turn.value.clamp(0.0, 1.0)
+            : 0.0;
+        final incoming = diaryDayAfter(selectedDate, -turnDirection);
+        final displayDate =
+            offset.abs() >= .5 &&
+                !incoming.isAfter(diaryDate(lastDate ?? DateTime.now()))
+            ? incoming
+            : selectedDate;
+        return ClipRect(
+          child: Stack(
             children: [
-              SizedBox(height: topInset + 6),
-              SizedBox(height: controlsHeight * (1 - progress)),
-              SizedBox(height: 4 * (1 - progress)),
-              DiaryCalendar(
-                selectedDate: selectedDate,
-                lastDate: lastDate,
-                enabled: enabled,
-                onDateChanged: onDateChanged,
-                collapseProgress: progress,
+              Column(
+                children: [
+                  SizedBox(height: topInset + 6),
+                  SizedBox(height: controlsHeight * (1 - progress)),
+                  SizedBox(height: 4 * (1 - progress)),
+                  DiaryCalendar(
+                    selectedDate: selectedDate,
+                    lastDate: lastDate,
+                    enabled: enabled,
+                    onDateChanged: onDateChanged,
+                    collapseProgress: progress,
+                    dayOffset: offset,
+                    onDayDragStart: onDayDragStart,
+                    onDayDragUpdate: onDayDragUpdate,
+                    onDayDragEnd: onDayDragEnd,
+                    onDayDragCancel: onDayDragCancel,
+                  ),
+                ],
+              ),
+              Positioned(
+                left: actionInset,
+                top: actionTop,
+                width: 88 + (48 - 88) * progress,
+                height: 48,
+                child: _action(
+                  action: DiaryHeaderAction.date,
+                  progress: progress,
+                  onTap: onPickDate,
+                  date: displayDate,
+                ),
+              ),
+              Positioned(
+                right: actionInset,
+                top: actionTop,
+                width: 76 + (48 - 76) * progress,
+                height: 48,
+                child: _action(
+                  action: DiaryHeaderAction.search,
+                  progress: progress,
+                  onTap: onSearch,
+                ),
               ),
             ],
           ),
-          Positioned(
-            left: actionInset,
-            top: actionTop,
-            width: 88 + (48 - 88) * progress,
-            height: 48,
-            child: _action(
-              action: DiaryHeaderAction.date,
-              progress: progress,
-              onTap: onPickDate,
-            ),
-          ),
-          Positioned(
-            right: actionInset,
-            top: actionTop,
-            width: 76 + (48 - 76) * progress,
-            height: 48,
-            child: _action(
-              action: DiaryHeaderAction.search,
-              progress: progress,
-              onTap: onSearch,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
     return Stack(
       clipBehavior: Clip.none,
@@ -95,7 +128,7 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
               Curves.easeOutCubic.transform(progress),
           child: IgnorePointer(child: _DiaryHeaderGradient(progress: progress)),
         ),
-        IgnorePointer(ignoring: !enabled, child: foreground),
+        foreground,
       ],
     );
   }
@@ -104,6 +137,7 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
     required DiaryHeaderAction action,
     required double progress,
     required VoidCallback? onTap,
+    DateTime? date,
   }) => DiaryHeaderControl(
     key: ValueKey(
       action == DiaryHeaderAction.date
@@ -112,7 +146,7 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
     ),
     collapseProgress: progress,
     action: action,
-    date: selectedDate,
+    date: date ?? selectedDate,
     onTap: enabled ? onTap : null,
   );
 
@@ -122,6 +156,13 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
       oldDelegate.selectedDate != selectedDate ||
       oldDelegate.lastDate != lastDate ||
       oldDelegate.enabled != enabled ||
+      oldDelegate.turn != turn ||
+      oldDelegate.turnDirection != turnDirection ||
+      oldDelegate.turning != turning ||
+      oldDelegate.onDayDragStart != onDayDragStart ||
+      oldDelegate.onDayDragUpdate != onDayDragUpdate ||
+      oldDelegate.onDayDragEnd != onDayDragEnd ||
+      oldDelegate.onDayDragCancel != onDayDragCancel ||
       oldDelegate.controlsHeight != controlsHeight ||
       oldDelegate.onDateChanged != onDateChanged ||
       oldDelegate.onSearch != onSearch ||

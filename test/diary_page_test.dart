@@ -9,6 +9,7 @@ import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
+import 'package:journal/modules/diary/views/widgets/diary_header_control.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
 import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
@@ -23,6 +24,19 @@ NestedScrollViewState _scroll(WidgetTester tester) =>
 DiaryScene _scene(WidgetTester tester) =>
     tester.widget(find.byType(DiaryScene));
 DateTime _selected(WidgetTester tester) => _scene(tester).day.date;
+DiaryCalendar _calendar(WidgetTester tester) =>
+    tester.widget<DiaryCalendar>(find.byType(DiaryCalendar));
+Finder _calendarDate(DateTime date) =>
+    find.byKey(ValueKey('diary-calendar-date-${date.toIso8601String()}'));
+
+void _expectCalendarWithPaper(WidgetTester tester) {
+  final scene = _scene(tester);
+  expect(_calendar(tester).selectedDate, scene.day.date);
+  expect(
+    _calendar(tester).dayOffset,
+    closeTo(-scene.direction * scene.turn, .00001),
+  );
+}
 
 Future<void> _mount(
   WidgetTester tester, {
@@ -143,7 +157,7 @@ void main() {
     expect(_scene(tester).collapse, closeTo(.5, .01));
     expect(tester.getRect(_paper).width, greaterThan(rest.width));
     expect(_scroll(tester).innerController.offset, 0);
-    expect(tester.getRect(_preview).right, lessThan(0));
+    expect(_preview, findsNothing);
     await _capture(tester, 'half');
 
     _scroll(tester).outerController.jumpTo(80);
@@ -190,14 +204,18 @@ void main() {
       final center = tester.getRect(_paper).center;
       final gesture = await tester.startGesture(center);
       await gesture.moveBy(const Offset(25, 0));
-      await gesture.moveBy(const Offset(70, 0));
+      await gesture.moveBy(const Offset(110, 0));
       await tester.pump();
       expect(find.byType(DiaryPaperCurl), findsOneWidget);
       expect(_selected(tester), _today);
+      _expectCalendarWithPaper(tester);
       await _capture(tester, 'curl-right');
       await gesture.cancel();
+      await tester.pump(const Duration(milliseconds: 32));
+      _expectCalendarWithPaper(tester);
       await tester.pumpAndSettle();
       expect(_selected(tester), _today);
+      expect(_calendar(tester).dayOffset, 0);
       expect(find.byType(DiaryPaperCurl), findsNothing);
 
       await tester.dragFrom(center, const Offset(170, 0));
@@ -219,9 +237,151 @@ void main() {
       await tester.pumpAndSettle();
       expect(_selected(tester), _today);
       await tester.flingFrom(center, const Offset(-180, 0), 1300);
+      await tester.pump(const Duration(milliseconds: 32));
+      _expectCalendarWithPaper(tester);
       await tester.pumpAndSettle();
       expect(_selected(tester), _today);
       expect(find.byType(DiaryPaperCurl), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('calendar and paper share every turn frame in both directions', (
+    tester,
+  ) async {
+    await _mount(tester);
+    await _choose(tester, diaryDayAfter(_today, -1));
+    for (final direction in [1, -1]) {
+      final from = _selected(tester);
+      final target = diaryDayAfter(from, -direction);
+      final before = tester.getCenter(_calendarDate(target)).dx;
+      final calendarCenter = tester.getCenter(find.byType(DiaryCalendar)).dx;
+      final gesture = await tester.startGesture(tester.getRect(_paper).center);
+      await gesture.moveBy(Offset(24.0 * direction, 0));
+      await gesture.moveBy(Offset(110.0 * direction, 0));
+      await tester.pump();
+      _expectCalendarWithPaper(tester);
+      expect(_selected(tester), from);
+      expect(_calendar(tester).dayOffset.abs(), greaterThan(.25));
+      expect(
+        (tester.getCenter(_calendarDate(target)).dx - calendarCenter).abs(),
+        lessThan((before - calendarCenter).abs()),
+      );
+      await gesture.up();
+      var frames = 0;
+      while (_scene(tester).busy && frames < 90) {
+        await tester.pump(const Duration(milliseconds: 16));
+        _expectCalendarWithPaper(tester);
+        frames++;
+      }
+      expect(frames, greaterThan(2));
+      expect(_scene(tester).busy, isFalse);
+      expect(_selected(tester), target);
+      expect(_calendar(tester).dayOffset, 0);
+      final landed = tester.getCenter(_calendarDate(target));
+      expect(landed.dx, closeTo(calendarCenter, .001));
+      // A second calendar spring must never start after the paper lands.
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(tester.getCenter(_calendarDate(target)), landed);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'calendar drags turn the paper and retain an expanded reading view',
+    (tester) async {
+      await _mount(tester);
+      final center = tester.getCenter(find.byType(DiaryCalendar));
+      final drag = await tester.startGesture(center);
+      await drag.moveBy(const Offset(24, 0));
+      await drag.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(find.byType(DiaryPaperCurl), findsOneWidget);
+      _expectCalendarWithPaper(tester);
+      await drag.cancel();
+      await tester.pumpAndSettle();
+      expect(_selected(tester), _today);
+      expect(_calendar(tester).dayOffset, 0);
+
+      final blocked = await tester.startGesture(center);
+      await blocked.moveBy(const Offset(-24, 0));
+      await blocked.moveBy(const Offset(-90, 0));
+      await tester.pump();
+      expect(_scene(tester).blocked, isTrue);
+      expect(find.byType(DiaryPaperCurl), findsNothing);
+      _expectCalendarWithPaper(tester);
+      await blocked.up();
+      await tester.pumpAndSettle();
+      expect(_selected(tester), _today);
+
+      await tester.dragFrom(center, const Offset(80, 0));
+      await tester.pumpAndSettle();
+      expect(_selected(tester), diaryDayAfter(_today, -1));
+      _scroll(tester).outerController.jumpTo(80);
+      await tester.pumpAndSettle();
+      _scroll(tester).innerController.jumpTo(100);
+      await tester.pump();
+      final reading = await tester.startGesture(
+        tester.getCenter(find.byType(DiaryCalendar)),
+      );
+      await reading.moveBy(const Offset(24, 0));
+      await reading.moveBy(const Offset(28, 0));
+      await tester.pump();
+      expect(_calendar(tester).dayOffset, lessThan(-.25));
+      expect(_scene(tester).collapse, 1);
+      expect(find.byType(DiaryPaperCurl), findsNothing);
+      await reading.up();
+      await tester.pumpAndSettle();
+      expect(_selected(tester), diaryDayAfter(_today, -2));
+      expect(_scene(tester).collapse, 1);
+      expect(_scroll(tester).innerController.offset, 0);
+      expect(_calendar(tester).dayOffset, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'month labels follow the turn and distant dates land immediately',
+    (tester) async {
+      await _mount(tester);
+      final march = DateTime(2024, 3, 1);
+      _calendar(tester).onDateChanged(march);
+      await tester.pump();
+      expect(_selected(tester), march);
+      expect(_calendar(tester).selectedDate, march);
+      expect(_calendar(tester).dayOffset, 0);
+      expect(tester.getCenter(_calendarDate(march)).dx, 195);
+      await tester.pumpAndSettle();
+
+      final leap = DateTime(2024, 2, 29);
+      final drag = await tester.startGesture(tester.getRect(_paper).center);
+      await drag.moveBy(const Offset(24, 0));
+      await drag.moveBy(const Offset(190, 0));
+      await tester.pump();
+      expect(_selected(tester), march);
+      _expectCalendarWithPaper(tester);
+      expect(
+        tester
+            .widget<DiaryHeaderControl>(
+              find.byKey(const ValueKey('diary-date-control')),
+            )
+            .date,
+        leap,
+      );
+      await drag.up();
+      await tester.pumpAndSettle();
+      expect(_selected(tester), leap);
+      expect(tester.getCenter(_calendarDate(leap)).dx, 195);
+      expect(_calendar(tester).dayOffset, 0);
+
+      await _choose(tester, DateTime(2026, 1, 1));
+      await tester.dragFrom(
+        tester.getRect(_paper).center,
+        const Offset(180, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(_selected(tester), DateTime(2025, 12, 31));
+      _expectCalendarWithPaper(tester);
       expect(tester.takeException(), isNull);
     },
   );
@@ -329,6 +489,11 @@ void main() {
       final label = MaterialLocalizations.of(calendar)
           .formatFullDate(diaryDayAfter(_today, -1));
       await tester.tap(find.bySemanticsLabel(label).hitTestable());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(_scene(tester).turn, greaterThan(0));
+      expect(_selected(tester), _today);
+      _expectCalendarWithPaper(tester);
       await tester.pumpAndSettle();
       expect(_selected(tester), diaryDayAfter(_today, -1));
       await tester.dragFrom(

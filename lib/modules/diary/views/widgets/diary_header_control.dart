@@ -2,6 +2,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:journal/config/theme.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
 enum DiaryHeaderAction { date, search }
 
@@ -63,7 +64,7 @@ class DiaryHeaderControl extends StatelessWidget {
             child: InkWell(
               onTap: onTap,
               excludeFromSemantics: true,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(lerpDouble(6, 16, progress)!),
               splashColor: context.colors.primary.withValues(alpha: 0.200),
               highlightColor: context.colors.primary.withValues(alpha: 0.102),
               child: Center(child: _surface(context, progress, isDate: isDate)),
@@ -84,55 +85,24 @@ class DiaryHeaderControl extends StatelessWidget {
       context.colors.onSurfaceVariant,
       progress,
     )!;
-    return Container(
+    return SizedBox(
       width: lerpDouble(isDate ? 88 : 70, 32, progress),
       height: lerpDouble(34, 32, progress),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(lerpDouble(22, 16, progress)!),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(
-              context.colors.surfaceContainerLow.withValues(alpha: 0.667),
-              context.colors.surfaceContainerLow.withValues(alpha: 0.933),
-              progress,
-            )!,
-            Color.lerp(
-              context.colors.surfaceContainerLow.withValues(alpha: 0.714),
-              context.colors.surfaceContainerLow.withValues(alpha: 0.933),
-              progress,
-            )!,
-          ],
+      child: CustomPaint(
+        painter: _HeaderPaperPainter(
+          progress: progress,
+          colors: context.colors,
         ),
-        border: Border.all(
-          color: Color.lerp(
-            context.colors.primary.withValues(alpha: 0.800),
-            context.colors.primary.withValues(alpha: 0.502),
-            progress,
-          )!,
-          width: .8,
+        child: Center(
+          child: isDate
+              ? _dateContent(progress, foreground)
+              : Icon(
+                  Icons.search_rounded,
+                  size: lerpDouble(24, 19, progress),
+                  color: foreground,
+                ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Color.lerp(
-              context.colors.primary.withValues(alpha: 0.400),
-              context.colors.primary.withValues(alpha: 0.161),
-              progress,
-            )!,
-            blurRadius: lerpDouble(13, 6, progress)!,
-            spreadRadius: -1,
-          ),
-        ],
       ),
-      alignment: Alignment.center,
-      child: isDate
-          ? _dateContent(progress, foreground)
-          : Icon(
-              Icons.search_rounded,
-              size: lerpDouble(24, 19, progress),
-              color: foreground,
-            ),
     );
   }
 
@@ -180,4 +150,33 @@ class DiaryHeaderControl extends StatelessWidget {
       ],
     );
   }
+}
+
+class _HeaderPaperPainter extends CustomPainter {
+  const _HeaderPaperPainter({required this.progress, required this.colors});
+
+  final double progress;
+  final ColorScheme colors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress > 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(16)),
+        Paint()..color = colors.surfaceContainerLow.withValues(alpha: progress),
+      );
+    }
+    if (progress == 1) return;
+    DiaryPaperStamp(
+      paper: colors.surface,
+      ink: colors.onSurface,
+      shadowColor: colors.shadow,
+      edgeScale: .25,
+      opacity: 1 - progress,
+    ).paint(canvas, size);
+  }
+
+  @override
+  bool shouldRepaint(_HeaderPaperPainter oldDelegate) =>
+      progress != oldDelegate.progress || colors != oldDelegate.colors;
 }

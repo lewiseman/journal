@@ -42,6 +42,7 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
   int _direction = 1;
   bool _dragging = false;
   bool _settling = false;
+  bool _readingTurn = false;
 
   DateTime get _today => diaryDate((widget.clock ?? DateTime.now)());
   bool get _busy => _dragging || _settling;
@@ -119,28 +120,47 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
   }
 
   void _dragStart(DragStartDetails details) {
-    if (!_atTop || _settling) return;
-    _dragDistance = 0;
-    _fade.value = 1;
-    setState(() => _dragging = true);
+    if (!_atTop) return;
+    _beginDrag();
   }
 
-  void _dragUpdate(DragUpdateDetails details) {
+  void _calendarDragStart() => _beginDrag(reading: !_atTop);
+
+  void _beginDrag({bool reading = false}) {
+    if (_busy) return;
+    _dragDistance = 0;
+    _fade.value = 1;
+    setState(() {
+      _dragging = true;
+      _readingTurn = reading;
+    });
+  }
+
+  void _dragUpdate(DragUpdateDetails details) =>
+      _updateTurn(details.delta.dx / _cardWidth);
+
+  // Both gestures use fractions of their own surface: one paper width or one
+  // calendar tab. They then drive exactly the same turn and spring simulation.
+  void _updateTurn(double delta) {
     if (!_dragging) return;
-    _dragDistance += details.delta.dx;
+    _dragDistance += delta;
     final direction = _dragDistance < 0 ? -1 : 1;
     if (direction != _direction) setState(() => _direction = direction);
-    final progress = _dragDistance.abs() / _cardWidth;
+    final progress = _dragDistance.abs();
     _turn.value = _blocked
         ? math.min(.12, progress * .16)
         : progress.clamp(0, 1);
   }
 
-  void _dragEnd(DragEndDetails details) {
+  void _dragEnd(DragEndDetails details) =>
+      _endTurn((details.primaryVelocity ?? 0) / _cardWidth);
+
+  void _endTurn(double signedVelocity) {
     if (!_dragging) return;
-    final velocity = (details.primaryVelocity ?? 0) * _direction;
-    final commit = !_blocked && (_turn.value >= .25 || velocity >= 700);
-    _settle(commit: commit, velocity: velocity / _cardWidth);
+    final velocity = signedVelocity * _direction;
+    final commit =
+        !_blocked && (_turn.value >= .25 || velocity >= 700 / _cardWidth);
+    _settle(commit: commit, velocity: velocity);
   }
 
   Future<void> _settle({required bool commit, double velocity = 0}) async {
@@ -164,9 +184,17 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
             .orCancel;
       }
       if (!mounted) return;
-      if (commit) _replaceDate(diaryDayAfter(_selectedDate, -_direction));
+      if (commit) {
+        _replaceDate(
+          diaryDayAfter(_selectedDate, -_direction),
+          fade: _readingTurn,
+        );
+      }
       _turn.value = 0;
-      setState(() => _settling = false);
+      setState(() {
+        _settling = false;
+        _readingTurn = false;
+      });
     } on TickerCanceled {
       // Disposing the page never commits an unfinished turn.
     }
@@ -185,16 +213,43 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
     final top = MediaQuery.paddingOf(context).top;
     final width = MediaQuery.sizeOf(context).width;
     final artworkWidth = width.clamp(0.0, 700.0);
-    return Stack(
+    final artworkTop = 60 - artworkWidth * .41;
+    final page = Stack(
       children: [
         Positioned(
-          top: 100 - artworkWidth * .41,
+          top: artworkTop,
           left: (width - artworkWidth) / 2,
           width: artworkWidth,
           child: AnimatedBuilder(
             animation: _outer,
-            child: Opacity(
-              opacity: context.isDark ? .6 : .16,
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              // Boost only the top edge and month controls, returning to the
+              // existing image opacity before reaching the calendar tabs.
+              shaderCallback: (_) =>
+                  LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0, .25, 1],
+                    colors: [
+                      Colors.white.withValues(
+                        alpha: context.isDark ? .94 : .82,
+                      ),
+                      Colors.white.withValues(
+                        alpha: context.isDark ? .94 : .82,
+                      ),
+                      Colors.white.withValues(
+                        alpha: context.isDark ? .68 : .24,
+                      ),
+                    ],
+                  ).createShader(
+                    Rect.fromLTWH(
+                      0,
+                      -artworkTop,
+                      artworkWidth,
+                      top + _controlsHeight + 20,
+                    ),
+                  ),
               child: Image.asset(
                 'assets/images/diary_top_bg.png',
                 color: context.colors.primary,
@@ -223,7 +278,7 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
                 end: Alignment.bottomCenter,
                 stops: const [0, .13, .27, .42, 1],
                 colors: [
-                  context.colors.surface.withValues(alpha: .627),
+                  context.colors.surface.withValues(alpha: .50),
                   context.colors.surface.withValues(alpha: .094),
                   context.colors.surface.withValues(alpha: .863),
                   context.colors.surface,
@@ -263,6 +318,15 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
                         onSearch: null,
                         onPickDate: _pickDate,
                         enabled: !_busy,
+                        turn: _turn,
+                        turnDirection: _direction,
+                        turning: _busy,
+                        onDayDragStart: _settling ? null : _calendarDragStart,
+                        onDayDragUpdate: _settling ? null : _updateTurn,
+                        onDayDragEnd: _settling ? null : _endTurn,
+                        onDayDragCancel: _dragging
+                            ? () => _settle(commit: false)
+                            : null,
                       ),
                     ),
                   ),
@@ -279,7 +343,7 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
                       today: _today,
                       collapse: (_outerOffset / _collapseExtent).clamp(0, 1),
                       headerHeight: top + 82,
-                      turn: _turn.value.clamp(0, 1),
+                      turn: _readingTurn ? 0 : _turn.value.clamp(0, 1),
                       direction: _direction,
                       busy: _busy,
                       blocked: _blocked,
@@ -309,6 +373,14 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
           ),
         ),
       ],
+    );
+    return Listener(
+      // An accepted Flutter drag can report a pointer cancellation as an end.
+      // Catch it before the gesture recognizer so neither surface commits it.
+      onPointerCancel: (_) {
+        if (_dragging) _settle(commit: false);
+      },
+      child: page,
     );
   }
 }

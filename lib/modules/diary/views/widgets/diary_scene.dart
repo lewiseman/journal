@@ -79,14 +79,18 @@ class DiaryScene extends StatelessWidget {
         children: [
           Positioned.fromRect(
             rect: rect,
-            child: CustomPaint(
-              key: const ValueKey('diary-active-paper'),
-              painter: DiaryPaperPainter(
-                shape: shape,
-                paper: paper.background,
-                ink: paper.foreground,
-                shadow: true,
-                shadowColor: context.colors.shadow,
+            child: RepaintBoundary(
+              child: CustomPaint(
+                key: const ValueKey('diary-active-paper'),
+                isComplex: true,
+                willChange: collapse > 0 && collapse < 1,
+                painter: DiaryPaperPainter(
+                  shape: shape,
+                  paper: paper.background,
+                  ink: paper.foreground,
+                  shadow: true,
+                  shadowColor: context.colors.shadow,
+                ),
               ),
             ),
           ),
@@ -149,7 +153,9 @@ class DiaryScene extends StatelessWidget {
                   label: 'Diary for $fullDate',
                   child: const SizedBox.shrink(),
                 ),
-                if (collapse < 1)
+                if (collapse < 1 &&
+                    previewLeft + rect.width > 0 &&
+                    !(showTurn && direction > 0))
                   Positioned(
                     left: previewLeft,
                     top: rect.top + 16,
@@ -159,10 +165,13 @@ class DiaryScene extends StatelessWidget {
                       child: IgnorePointer(
                         child: Opacity(
                           opacity: .72 * (1 - collapse),
-                          child: DiarySheet(
-                            key: const ValueKey('diary-previous-preview'),
-                            day: previous,
-                            shadow: true,
+                          child: RepaintBoundary(
+                            child: DiarySheet(
+                              key: const ValueKey('diary-previous-preview'),
+                              day: previous,
+                              detailed: false,
+                              shadow: true,
+                            ),
                           ),
                         ),
                       ),
@@ -187,6 +196,7 @@ class DiaryScene extends StatelessWidget {
                           opacity: ReverseAnimation(fade),
                           child: DiarySheet(
                             day: fadingFrom!,
+                            detailed: false,
                             shape: DiaryPaperShape.forDate(
                               fadingFrom!.date,
                               expansion: collapse,
@@ -199,17 +209,28 @@ class DiaryScene extends StatelessWidget {
                   ),
                 if (showTurn) ...[
                   Positioned.fromRect(
-                    rect: Rect.fromLTWH(
-                      (direction > 0 ? previewLeft : w + 14) * (1 - turn) +
-                          rect.left * turn,
-                      rect.top + (direction > 0 ? 16 * (1 - turn) : 0),
-                      rect.width,
-                      rect.height - (direction > 0 ? 24 * (1 - turn) : 0),
-                    ),
+                    rect: rect,
                     child: ExcludeSemantics(
                       child: IgnorePointer(
-                        child: DiarySheet(
-                          day: direction > 0 ? previous : next(),
+                        child: Transform.translate(
+                          offset: Offset(
+                            ((direction > 0 ? previewLeft : w + 14) -
+                                    rect.left) *
+                                (1 - turn),
+                            direction > 0 ? 16 * (1 - turn) : 0,
+                          ),
+                          child: Transform.scale(
+                            alignment: Alignment.topLeft,
+                            scaleY: direction > 0 && rect.height > 0
+                                ? (rect.height - 24 * (1 - turn)) / rect.height
+                                : 1,
+                            child: RepaintBoundary(
+                              child: DiarySheet(
+                                day: direction > 0 ? previous : next(),
+                                detailed: false,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
