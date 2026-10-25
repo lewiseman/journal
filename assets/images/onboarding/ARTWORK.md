@@ -103,3 +103,19 @@ Use case: photorealistic-natural.
 Asset type: reusable spine-binding material texture for an elegant lavender linen journal in a Flutter app.
 Create one photorealistic macro MATERIAL TEXTURE, portrait 1:3 aspect ratio, around 512 by 1536. Frame filled edge-to-edge by finely woven dusty lavender bookbinding linen. A narrow vertical sewn binding seam runs straight down the middle, using small warm ivory saddle stitches at regular spaced intervals, with subtly compressed cloth around the stitches. Fine tactile warp and weft fibers, restrained natural unevenness, premium new handmade journal craftsmanship. Muted lavender, soft plum and warm ivory thread, pairing with cream watercolor scrapbook pages.
 Perfectly flat straight-on orthographic texture, even diffuse illumination; no dramatic central shadow, no gradient lighting, no perspective, no surrounding book, no surrounding scene, no visible cover edges, no text, no watermark. Stitching must be small and delicate. Suitable for mapping to the narrow cloth hinge where two open pages meet. Clean continuous material all the way to all four canvas edges.
+
+## Ink background
+
+`ink-paper.webp` is a static 1024 × 1536 texture of aged ivory paper with sparse, faint dried ink drops. Generated with the built-in image generation tool and encoded as WebP at quality 88. `OnboardingInkBackground` uses `BoxFit.cover` with right alignment to keep the small margin drops visible on tall screens. The surface has no animation or shader clock; dark plum interface text keeps it readable.
+
+### ink-paper
+
+Use case: photorealistic-natural.
+Asset type: subtle static full-screen background texture for a journal app, portrait 2:3.
+Primary request: a few small, softly feathered dried ink drops on realistic old paper. Quiet, understated, tactile stationery.
+Scene/backdrop: straight-on macro scan of a single sheet of warm ivory antique writing paper, filling the entire image edge to edge. Fine visible cotton fibers, tiny irregular flecks, gently mottled ecru, a faint natural patina and softly aged tan edges. Subtle believable wear, clean and beautiful, not dirty or distressed.
+Subject: just three sparse, very diluted ink-drop marks near the margins: a small pale dusty grey-violet feathered bloom near the upper right, a partial muted blue-grey ink drop along the middle left edge, and one faint warm grey ink stain near a lower corner. Each mark is small, roughly 5–12 percent of image width, with soft uneven capillary edges and tiny nearby satellite droplets. The ink lies absorbed flat into the paper fibers, low opacity and low contrast, like an old fountain pen's accidental droplets.
+Composition/framing: at least 80 percent open uninterrupted paper. Keep the central area and lower central area nearly blank for a journal book and dark interface text. Natural asymmetrical spacing, no decorative border, no objects.
+Lighting/mood: evenly lit overhead archival scan, soft and calm, almost neutral ivory rather than yellow, subtle patina.
+Color palette: light warm ivory and oatmeal paper, faint taupe aging, extremely restrained desaturated grey-lavender and blue-grey ink.
+Constraints: ONLY paper texture and a few subtle dried ink drops. No dramatic ink plumes, no ink in water, no smoke, no clouds, no high contrast, no dark background, no heavy paint splashes, no large wash, no large saturated shapes, no coffee rings, no writing, no letters, no text, no handwriting, no pen, no flowers, no book, no UI, no mockup, no watermark. Completely static.

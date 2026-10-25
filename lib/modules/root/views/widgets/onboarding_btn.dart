@@ -19,20 +19,13 @@ class OnboardingPrimaryButton extends StatelessWidget {
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF72F3FF), Color(0xFFC6B8FF), Color(0xFFFF8DDD)],
+        colors: [Color(0xFFB4A5BB), Color(0xFFC4B8CA), Color(0xFFA89582)],
       ),
-      boxShadow: [
+      boxShadow: const [
         BoxShadow(
-          color: const Color(0xFF72F3FF).withValues(alpha: .3),
+          color: Color(0x2165503B),
           blurRadius: 18,
-          spreadRadius: 1,
-          offset: const Offset(-3, -1),
-        ),
-        BoxShadow(
-          color: const Color(0xFFA06CFF).withValues(alpha: .3),
-          blurRadius: 26,
-          spreadRadius: 2,
-          offset: const Offset(3, 5),
+          offset: Offset(0, 5),
         ),
       ],
     ),
@@ -86,7 +79,6 @@ class OnboardingPrimaryButton extends StatelessWidget {
     ),
   );
 }
-
 
 class OnboardingAction extends StatelessWidget {
   const OnboardingAction({

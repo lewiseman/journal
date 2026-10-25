@@ -12,6 +12,7 @@ import 'package:journal/modules/root/views/pages/onboarding_page.dart';
 import 'package:journal/modules/root/views/widgets/onboarding_book/book_materials.dart';
 import 'package:journal/modules/root/views/widgets/onboarding_book/onboarding_book.dart';
 import 'package:journal/modules/root/views/widgets/onboarding_btn.dart';
+import 'package:journal/modules/root/views/widgets/onboarding_ink_background.dart';
 import 'package:journal/utils/cache.dart';
 
 class _Store implements KeyValueStore {
@@ -102,6 +103,7 @@ void main() {
     await tester.runAsync(
       () => Future.wait([
         precacheImage(const AssetImage('assets/images/j.png'), context),
+        precacheImage(const AssetImage(onboardingInkAsset), context),
         precacheImage(const AssetImage(onboardingCoverAsset), context),
         for (final provider in bookMaterialProviders)
           precacheImage(provider, context),

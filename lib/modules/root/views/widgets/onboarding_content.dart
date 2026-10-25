@@ -7,6 +7,7 @@ import 'package:journal/config/theme.dart';
 
 import 'onboarding_book/onboarding_book.dart';
 import 'onboarding_btn.dart';
+import 'onboarding_ink_background.dart';
 
 /// The responsive onboarding view. The page owns workflow and interactions.
 class OnboardingContent extends StatefulWidget {
@@ -241,7 +242,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                   key: ValueKey('onboarding-description'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color.fromARGB(255, 205, 194, 228),
+                    color: Color(0xFF514354),
                     fontSize: 18,
                     height: 1.45,
                     letterSpacing: -.2,
@@ -253,7 +254,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                 'Your story starts with you.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF433548),
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
                 ),
@@ -264,7 +265,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                 child: Text(
                   widget.error!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFFFC6DF)),
+                  style: const TextStyle(color: Color(0xFF9B3E4C)),
                 ),
               ),
             if (!naming || !keyboard || widget.error != null)
@@ -293,12 +294,14 @@ class _OnboardingContentState extends State<OnboardingContent> {
     final touring = widget.touring;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: AppThemeConfig.darkSystemUiOverlay,
+      value: AppThemeConfig.lightSystemUiOverlay.copyWith(
+        systemNavigationBarColor: OnboardingInkBackground.baseColor,
+      ),
       child: Scaffold(
-        backgroundColor: const Color(0xFF100D48),
+        backgroundColor: OnboardingInkBackground.baseColor,
         body: Stack(
           children: [
-            const Positioned.fill(child: OnboardingSky()),
+            const Positioned.fill(child: OnboardingInkBackground()),
             SafeArea(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -366,7 +369,9 @@ class _OnboardingPageHints extends StatelessWidget {
             width: i == page ? 22 : 5,
             height: 5,
             decoration: BoxDecoration(
-              color: i == page ? const Color(0xFFC4B6FF) : Colors.white24,
+              color: i == page
+                  ? const Color(0xFF715B83)
+                  : const Color(0xFFA99A91),
               borderRadius: BorderRadius.circular(8),
             ),
           ),
@@ -376,7 +381,7 @@ class _OnboardingPageHints extends StatelessWidget {
         const SizedBox(height: 10),
         const Text(
           'Tap a page or swipe to turn.',
-          style: TextStyle(color: Color(0xFFBDB6DE), fontSize: 12, height: 1.2),
+          style: TextStyle(color: Color(0xFF6B5E70), fontSize: 12, height: 1.2),
         ),
       ],
     ],
@@ -397,13 +402,13 @@ class _OnboardingTerms extends StatelessWidget {
         child: const Text.rich(
           TextSpan(
             text: 'By continuing. You agree to our ',
-            style: TextStyle(color: Color(0xFFC1C9F6), height: 1.4),
+            style: TextStyle(color: Color(0xFF6B5E70), height: 1.4),
             children: [
               TextSpan(
                 text: 'Terms of service',
                 style: TextStyle(
                   decoration: TextDecoration.underline,
-                  decorationColor: Colors.white,
+                  decorationColor: Color(0xFF6B5E70),
                 ),
               ),
               TextSpan(text: " and you've read the "),
