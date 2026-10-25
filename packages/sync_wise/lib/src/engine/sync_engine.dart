@@ -10,6 +10,15 @@ enum EngineSyncState {
   unauthenticated,
   error;
 
+  String get statusLabel => switch (this) {
+    EngineSyncState.idle => 'Connected',
+    EngineSyncState.pending => 'Checking connection',
+    EngineSyncState.syncing => 'Syncing notes',
+    EngineSyncState.offline => 'Not connected',
+    EngineSyncState.unauthenticated => 'On this device',
+    EngineSyncState.error => 'Sync needs attention',
+  };
+
   IconData get icon => switch (this) {
     EngineSyncState.idle => Icons.cloud_done_rounded,
     EngineSyncState.offline || EngineSyncState.error => Icons.cloud_off_rounded,
@@ -33,15 +42,10 @@ class SyncEngineState {
   });
   bool get isSyncing => status == EngineSyncState.syncing;
 
-  String get statusLabel => switch (status) {
-    EngineSyncState.idle =>
-      lastSyncTime == null ? 'Connected' : 'Notes backed up',
-    EngineSyncState.pending => 'Checking connection',
-    EngineSyncState.syncing => 'Syncing notes',
-    EngineSyncState.offline => 'Not connected',
-    EngineSyncState.unauthenticated => 'On this device',
-    EngineSyncState.error => 'Sync needs attention',
-  };
+  String get statusLabel =>
+      status == EngineSyncState.idle && lastSyncTime != null
+      ? 'Notes backed up'
+      : status.statusLabel;
 
   String descriptionFor(SyncBackend backend) => switch (status) {
     EngineSyncState.idle =>

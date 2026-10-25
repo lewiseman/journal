@@ -135,6 +135,7 @@ class SyncAccountCard extends ConsumerWidget {
                       child: _AccountIdentity(
                         syncAccount: syncAccount,
                         title: name ?? 'Your account',
+                        syncStatus: syncState.status.statusLabel,
                         collapseProgress: t,
                         statusColor: statusColor,
                       ),
@@ -380,12 +381,14 @@ class _AccountIdentity extends StatelessWidget {
     required this.collapseProgress,
     required this.statusColor,
     required this.syncAccount,
+    required this.syncStatus,
   });
 
   final String title;
   final double collapseProgress;
   final Color statusColor;
   final SyncAccount? syncAccount;
+  final String syncStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -454,7 +457,7 @@ class _AccountIdentity extends StatelessWidget {
                     alignment: alignment,
                     child: Text(
                       compact
-                          ? 'Sync Status'
+                          ? syncStatus
                           : (syncAccount?.email ?? 'A little peace of mind.'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
