@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:journal/config/theme.dart';
 import 'package:flutter/physics.dart';
-import 'package:flutter/services.dart';
 
 /// A date carousel that follows the illuminated horizon above the diary.
 ///
@@ -15,11 +14,15 @@ class DiaryCalendar extends StatefulWidget {
     super.key,
     required this.selectedDate,
     required this.onDateChanged,
+    this.lastDate,
+    this.enabled = true,
     this.collapseProgress = 0,
   });
 
   final DateTime selectedDate;
   final ValueChanged<DateTime> onDateChanged;
+  final DateTime? lastDate;
+  final bool enabled;
 
   /// Scroll-driven progress from the full horizon to the compact date strip.
   ///
@@ -49,7 +52,7 @@ class _DiaryCalendarState extends State<DiaryCalendar>
   @override
   void initState() {
     super.initState();
-    final today = _civilDate(DateTime.now());
+    final today = _civilDate(widget.lastDate ?? DateTime.now());
     final selectedDate = _civilDate(widget.selectedDate);
     _anchor = selectedDate.isAfter(today) ? today : selectedDate;
     _position = AnimationController.unbounded(vsync: this);
@@ -90,7 +93,8 @@ class _DiaryCalendarState extends State<DiaryCalendar>
   DateTime _dateAt(int day) =>
       DateTime(_anchor.year, _anchor.month, _anchor.day + day);
 
-  int get _lastDay => _offsetFor(DateTime.now());
+  int get _lastDay => _offsetFor(widget.lastDate ?? DateTime.now());
+  int get _firstDay => _offsetFor(DateTime(1));
 
   double get _visiblePosition => math.min(_position.value, _lastDay.toDouble());
 
@@ -115,10 +119,12 @@ class _DiaryCalendarState extends State<DiaryCalendar>
   }
 
   void _selectDay(int day, {double velocity = 0}) {
-    final target = math.min(day, _lastDay);
+    if (!widget.enabled) return;
+    final target = day.clamp(_firstDay, _lastDay);
     if (_selectedDay != target) {
-      setState(() => _selectedDay = target);
-      HapticFeedback.selectionClick();
+      // Selection belongs to the parent, which may still be turning a sheet.
+      // Only didUpdateWidget commits it; a requested turn cannot leave the
+      // calendar on a different date from the active diary.
       widget.onDateChanged(_dateAt(target));
     }
     // A parent may navigate away from the diary in its callback.
@@ -185,8 +191,12 @@ class _DiaryCalendarState extends State<DiaryCalendar>
                   decreasedValue: localizations.formatFullDate(
                     _dateAt(_selectedDay - 1),
                   ),
-                  onIncrease: _selectedDay < _lastDay ? () => _moveBy(1) : null,
-                  onDecrease: () => _moveBy(-1),
+                  onIncrease: widget.enabled && _selectedDay < _lastDay
+                      ? () => _moveBy(1)
+                      : null,
+                  onDecrease: widget.enabled && _selectedDay > _firstDay
+                      ? () => _moveBy(-1)
+                      : null,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onHorizontalDragStart: (_) => _position.stop(),
@@ -287,7 +297,8 @@ class _DiaryCalendarState extends State<DiaryCalendar>
     final targetWidth = ui.lerpDouble(76, compactDayWidth, collapse)!;
     final date = _dateAt(day);
     final selected = day == _selectedDay;
-    final enabled = day <= _lastDay;
+    final available = day >= _firstDay && day <= _lastDay;
+    final enabled = widget.enabled && available;
     return Positioned(
       key: ValueKey(day),
       left: x - targetWidth / 2,
@@ -297,7 +308,7 @@ class _DiaryCalendarState extends State<DiaryCalendar>
       child: IgnorePointer(
         ignoring: !enabled || opacity < 0.3,
         child: Opacity(
-          opacity: opacity * (enabled ? 1 : .35),
+          opacity: opacity * (available ? 1 : .35),
           child: Semantics(
             excludeSemantics: true,
             hidden: opacity < 0.3,

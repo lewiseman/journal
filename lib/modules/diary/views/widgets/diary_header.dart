@@ -2,14 +2,14 @@ import 'package:journal/common.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header_control.dart';
 
-
-
 /// A pinned header whose geometry follows the same scroll offset as the feed.
 /// Keeping it inside the sliver layout avoids offset feedback as it contracts.
 class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
   const DiaryHeaderDelegate({
     required this.topInset,
     required this.selectedDate,
+    this.lastDate,
+    this.enabled = true,
     required this.controlsHeight,
     required this.onDateChanged,
     required this.onSearch,
@@ -18,6 +18,8 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   final double topInset;
   final DateTime selectedDate;
+  final DateTime? lastDate;
+  final bool enabled;
   final double controlsHeight;
   final ValueChanged<DateTime> onDateChanged;
   final VoidCallback? onSearch;
@@ -49,6 +51,8 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
               SizedBox(height: 4 * (1 - progress)),
               DiaryCalendar(
                 selectedDate: selectedDate,
+                lastDate: lastDate,
+                enabled: enabled,
                 onDateChanged: onDateChanged,
                 collapseProgress: progress,
               ),
@@ -91,7 +95,7 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
               Curves.easeOutCubic.transform(progress),
           child: IgnorePointer(child: _DiaryHeaderGradient(progress: progress)),
         ),
-        foreground,
+        IgnorePointer(ignoring: !enabled, child: foreground),
       ],
     );
   }
@@ -109,19 +113,20 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
     collapseProgress: progress,
     action: action,
     date: selectedDate,
-    onTap: onTap,
+    onTap: enabled ? onTap : null,
   );
 
   @override
   bool shouldRebuild(DiaryHeaderDelegate oldDelegate) =>
       oldDelegate.topInset != topInset ||
       oldDelegate.selectedDate != selectedDate ||
+      oldDelegate.lastDate != lastDate ||
+      oldDelegate.enabled != enabled ||
       oldDelegate.controlsHeight != controlsHeight ||
       oldDelegate.onDateChanged != onDateChanged ||
       oldDelegate.onSearch != onSearch ||
       oldDelegate.onPickDate != onPickDate;
 }
-
 
 /// A tinted surface that blends into the diary below the pinned header.
 class _DiaryHeaderGradient extends StatelessWidget {
