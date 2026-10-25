@@ -59,6 +59,7 @@ class SyncAccountCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final name = CacheStorage.instance.get(userNameKey);
     final syncAccountAsync = ref.watch(authStateProvider);
+    final syncState = ref.watch(syncEngineProvider);
     final syncAccount = syncAccountAsync.value;
     final isSignedIn = syncAccount != null;
     final colors = context.colors;
@@ -131,7 +132,6 @@ class SyncAccountCard extends ConsumerWidget {
                       onTap: compact ? onExpand : null,
                       child: _AccountIdentity(
                         syncAccount: syncAccount,
-
                         title: name ?? 'Your account',
                         collapseProgress: t,
                         statusColor: colors.primary,
@@ -173,11 +173,24 @@ class SyncAccountCard extends ConsumerWidget {
                                   children: [
                                     Padding(
                                       padding: const EdgeInsets.only(top: 2),
-                                      child: Icon(
-                                        Icons.cloud_done_rounded,
-                                        color: colors.primary,
-                                        size: 22,
-                                      ),
+                                      child: syncState.isSyncing
+                                          ? SizedBox.square(
+                                              dimension: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                value:
+                                                    MediaQuery.disableAnimationsOf(
+                                                      context,
+                                                    )
+                                                    ? .7
+                                                    : null,
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.cloud_done_rounded,
+                                              color: colors.primary,
+                                              size: 22,
+                                            ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -401,7 +414,11 @@ class _AccountIdentity extends StatelessWidget {
                 0,
                 horizontal,
               ),
-              child: _AccountAvatar(size: avatarSize, name: ''),
+              child: _AccountAvatar(
+                size: avatarSize,
+                name: title,
+                avatar: syncAccount?.photoUrl ?? '',
+              ),
             ),
             PositionedDirectional(
               top: lerpDouble(104, 0, vertical),
@@ -470,9 +487,14 @@ class _AccountIdentity extends StatelessWidget {
 }
 
 class _AccountAvatar extends StatelessWidget {
-  const _AccountAvatar({required this.size, required this.name});
+  const _AccountAvatar({
+    required this.size,
+    required this.name,
+    required this.avatar,
+  });
   final double size;
   final String name;
+  final String avatar;
 
   @override
   Widget build(BuildContext context) {

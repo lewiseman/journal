@@ -2,7 +2,21 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sync_wise/src/engine/sync_backend.dart';
 
-enum EngineSyncState { idle, pending, syncing, offline, unauthenticated, error }
+enum EngineSyncState {
+  idle,
+  pending,
+  syncing,
+  offline,
+  unauthenticated,
+  error;
+
+  IconData get _statusIcon => switch (state.phase) {
+    SyncPhase.connected => Icons.cloud_done_rounded,
+    SyncPhase.failed => Icons.cloud_off_rounded,
+    SyncPhase.syncing => Icons.sync_rounded,
+    _ => Icons.cloud_outlined,
+  };
+}
 
 @immutable
 class SyncEngineState {
