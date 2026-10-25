@@ -4,6 +4,7 @@ import 'package:flutter/semantics.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
 
 /// All geometry uses the outer header's progress. The inner scrollable keeps
@@ -58,8 +59,8 @@ class DiaryScene extends StatelessWidget {
       final left = (w * .123).clamp(32.0, 64.0) * (1 - collapse);
       final right = 20 * (1 - collapse);
       final gap = 12 * (1 - collapse);
-      final bottom = 20 * (1 - collapse);
-      final radius = 24 * (1 - collapse);
+      final bottom = 40 * (1 - collapse);
+      final shape = DiaryPaperShape.forDate(day.date, expansion: collapse);
       final rect = Rect.fromLTRB(
         left,
         headerHeight + gap,
@@ -78,25 +79,14 @@ class DiaryScene extends StatelessWidget {
         children: [
           Positioned.fromRect(
             rect: rect,
-            child: DecoratedBox(
+            child: CustomPaint(
               key: const ValueKey('diary-active-paper'),
-              decoration: BoxDecoration(
-                color: paper.background,
-                borderRadius: BorderRadius.circular(radius),
-                border: Border.all(
-                  color: paper.foreground.withValues(
-                    alpha: .06 * (1 - collapse),
-                  ),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: context.colors.shadow.withValues(
-                      alpha: .12 * (1 - collapse),
-                    ),
-                    blurRadius: 20 * (1 - collapse),
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+              painter: DiaryPaperPainter(
+                shape: shape,
+                paper: paper.background,
+                ink: paper.foreground,
+                shadow: true,
+                shadowColor: context.colors.shadow,
               ),
             ),
           ),
@@ -104,10 +94,9 @@ class DiaryScene extends StatelessWidget {
             left: left,
             right: right,
             child: ClipPath(
-              clipper: _SheetViewportClipper(
-                top: rect.top,
-                bottom: bottom,
-                radius: radius,
+              clipper: DiaryPaperClipper(
+                shape,
+                viewport: Rect.fromLTWH(0, rect.top, rect.width, rect.height),
               ),
               child: CustomScrollView(
                 key: const PageStorageKey('diary-content'),
@@ -173,6 +162,7 @@ class DiaryScene extends StatelessWidget {
                           child: DiarySheet(
                             key: const ValueKey('diary-previous-preview'),
                             day: previous,
+                            shadow: true,
                           ),
                         ),
                       ),
@@ -197,7 +187,10 @@ class DiaryScene extends StatelessWidget {
                           opacity: ReverseAnimation(fade),
                           child: DiarySheet(
                             day: fadingFrom!,
-                            radius: radius,
+                            shape: DiaryPaperShape.forDate(
+                              fadingFrom!.date,
+                              expansion: collapse,
+                            ),
                             scrollOffset: fadingOffset,
                           ),
                         ),
@@ -230,7 +223,9 @@ class DiaryScene extends StatelessWidget {
                           direction: direction,
                           travel: w + rect.width * .4,
                           paper: paper.background,
-                          child: DiarySheet(day: day),
+                          ink: paper.foreground,
+                          shape: shape,
+                          child: DiarySheet(day: day, shape: shape),
                         ),
                       ),
                     ),
@@ -243,29 +238,4 @@ class DiaryScene extends StatelessWidget {
       );
     },
   );
-}
-
-class _SheetViewportClipper extends CustomClipper<Path> {
-  const _SheetViewportClipper({
-    required this.top,
-    required this.bottom,
-    required this.radius,
-  });
-
-  final double top, bottom, radius;
-
-  @override
-  Path getClip(Size size) => Path()
-    ..addRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(0, top, size.width, math.max(top, size.height - bottom)),
-        Radius.circular(radius),
-      ),
-    );
-
-  @override
-  bool shouldReclip(_SheetViewportClipper oldClipper) =>
-      top != oldClipper.top ||
-      bottom != oldClipper.bottom ||
-      radius != oldClipper.radius;
 }

@@ -139,7 +139,7 @@ class _DiaryHeaderGradient extends StatelessWidget {
   Widget build(BuildContext context) {
     if (progress <= 0) return const SizedBox.expand();
 
-    final color = context.colors.surfaceContainer;
+    final color = context.colors.surface;
     final visibility = Curves.easeOutCubic.transform(progress);
     return LayoutBuilder(
       builder: (context, constraints) {

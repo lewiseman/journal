@@ -1,9 +1,13 @@
 import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 
-NoteColors diaryPaperColors(BuildContext context) =>
-    NoteColorPreset.paper.resolveColors(context.colors);
+NoteColors diaryPaperColors(BuildContext context) => NoteColors(
+  background: context.colors.surface,
+  foreground: context.colors.onSurface,
+  secondary: context.colors.onSurfaceVariant,
+);
 
 /// The static face used for previews and curls has no scrollable or layers.
 /// Its clipped overflow is exactly the beginning of the live reading view.
@@ -11,30 +15,45 @@ class DiarySheet extends StatelessWidget {
   const DiarySheet({
     super.key,
     required this.day,
-    this.radius = 24,
+    this.radius = 6,
     this.scrollOffset = 0,
+    this.shape,
+    this.shadow = false,
   });
 
   final DiaryDay day;
   final double radius;
   final double scrollOffset;
+  final DiaryPaperShape? shape;
+  final bool shadow;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(radius),
-    child: ColoredBox(
-      color: diaryPaperColors(context).background,
-      child: OverflowBox(
-        alignment: Alignment.topCenter,
-        minHeight: 0,
-        maxHeight: double.infinity,
-        child: Transform.translate(
-          offset: Offset(0, -scrollOffset),
-          child: DiaryDayContent(day: day),
+  Widget build(BuildContext context) {
+    final outline =
+        shape ?? DiaryPaperShape.forDate(day.date, cornerRadius: radius);
+    final paper = diaryPaperColors(context);
+    return CustomPaint(
+      painter: DiaryPaperPainter(
+        shape: outline,
+        paper: paper.background,
+        ink: paper.foreground,
+        shadow: shadow,
+        shadowColor: context.colors.shadow,
+      ),
+      child: ClipPath(
+        clipper: DiaryPaperClipper(outline),
+        child: OverflowBox(
+          alignment: Alignment.topCenter,
+          minHeight: 0,
+          maxHeight: double.infinity,
+          child: Transform.translate(
+            offset: Offset(0, -scrollOffset),
+            child: DiaryDayContent(day: day),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class DiaryDayContent extends StatelessWidget {

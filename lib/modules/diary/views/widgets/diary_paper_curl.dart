@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 
 /// A loose sheet, rather than a page attached to a book's spine. Its trailing
 /// edge rolls back as the whole sheet travels out of the diary viewport.
@@ -15,12 +16,22 @@ class DiaryPaperCurl extends SingleChildRenderObjectWidget {
     required this.travel,
     required this.paper,
     required super.child,
+    this.shape = const DiaryPaperShape(),
+    this.ink,
   });
 
   final double progress;
   final int direction;
   final double travel;
   final Color paper;
+  final DiaryPaperShape shape;
+  final Color? ink;
+
+  Color get _ink =>
+      ink ??
+      (paper.computeLuminance() < .3
+          ? const Color(0xffeeeeee)
+          : const Color(0xff222222));
 
   @override
   RenderDiaryCurl createRenderObject(BuildContext context) => RenderDiaryCurl(
@@ -29,6 +40,8 @@ class DiaryPaperCurl extends SingleChildRenderObjectWidget {
     travel,
     paper,
     MediaQuery.devicePixelRatioOf(context),
+    shape,
+    _ink,
   );
 
   @override
@@ -42,6 +55,8 @@ class DiaryPaperCurl extends SingleChildRenderObjectWidget {
       travel,
       paper,
       MediaQuery.devicePixelRatioOf(context),
+      shape,
+      _ink,
     );
   }
 }
@@ -63,6 +78,8 @@ class RenderDiaryCurl extends RenderProxyBox {
     this._travel,
     this._paper,
     this._pixelRatio,
+    this._shape,
+    this._ink,
   );
 
   double _progress;
@@ -70,6 +87,8 @@ class RenderDiaryCurl extends RenderProxyBox {
   double _travel;
   Color _paper;
   double _pixelRatio;
+  DiaryPaperShape _shape;
+  Color _ink;
   ui.Image? _front;
   ui.ImageShader? _texture;
   ui.Image? _backImage;
@@ -81,13 +100,22 @@ class RenderDiaryCurl extends RenderProxyBox {
     double travel,
     Color paper,
     double pixelRatio,
+    DiaryPaperShape shape,
+    Color ink,
   ) {
-    if (paper != _paper || pixelRatio != _pixelRatio) _discardFaces();
+    if (paper != _paper ||
+        pixelRatio != _pixelRatio ||
+        shape != _shape ||
+        ink != _ink) {
+      _discardFaces();
+    }
     _progress = progress;
     _direction = direction;
     _travel = travel;
     _paper = paper;
     _pixelRatio = pixelRatio;
+    _shape = shape;
+    _ink = ink;
     // Movement only changes the projection; the front texture is shared
     // by all strips and all frames of this turn.
     super.markNeedsPaint();
@@ -110,10 +138,12 @@ class RenderDiaryCurl extends RenderProxyBox {
     // the reverse of the sheet must be opaque even when its front has holes.
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder)..scale(_pixelRatio);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(24)),
-      Paint()..color = _paper.withValues(alpha: 1),
-    );
+    DiaryPaperPainter(
+      shape: _shape,
+      paper: _paper,
+      ink: _ink,
+      reverse: true,
+    ).paint(canvas, size);
     final picture = recorder.endRecording();
     _backImage = picture.toImageSync(
       (size.width * _pixelRatio).ceil(),
@@ -166,6 +196,7 @@ class RenderDiaryCurl extends RenderProxyBox {
     if (_front == null) {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder)..scale(_pixelRatio);
+      canvas.clipPath(_shape.path(size));
       final recording = _RecordingContext(canvas, Offset.zero & size);
       recording.paintChild(child!, Offset.zero);
       final picture = recorder.endRecording();
@@ -215,20 +246,22 @@ class RenderDiaryCurl extends RenderProxyBox {
       points[i] = (x: p.x, scale: 1 + depth / (w * 5.5), depth: depth);
     }
 
-    final silhouette = Path();
-    for (var i = 0; i <= bands; i++) {
-      final p = points[i];
-      final top = h * (1 - p.scale) / 2;
-      if (i == 0) {
-        silhouette.moveTo(p.x, top);
-      } else {
-        silhouette.lineTo(p.x, top);
-      }
-    }
-    for (final p in points.reversed) {
-      silhouette.lineTo(p.x, h * (1 + p.scale) / 2);
-    }
-    silhouette.close();
+    // Project the actual deckled outline, so the cast shadow never falls
+    // back to a rectangular silhouette while the visible edge bends.
+    final outline = _shape.outline(size).map((source) {
+      final position =
+          (_direction > 0 ? source.dx / w : 1 - source.dx / w) * bands;
+      final index = position.floor().clamp(0, bands - 1);
+      final fraction = (position - index).clamp(0.0, 1.0);
+      final a = points[index];
+      final b = points[index + 1];
+      final scale = a.scale + (b.scale - a.scale) * fraction;
+      return Offset(
+        a.x + (b.x - a.x) * fraction,
+        h / 2 + (source.dy - h / 2) * scale,
+      );
+    }).toList();
+    final silhouette = DiaryPaperShape.pathFromOutline(outline);
     final canvas = context.canvas;
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
@@ -252,7 +285,7 @@ class RenderDiaryCurl extends RenderProxyBox {
       final back = normal < 0;
       Color shadeAt(int edge) => Color.lerp(
         const Color(0xffffffff),
-        const Color(0xff35281e),
+        const Color(0xff000000),
         (1 - math.cos(angleAt(edge / bands)).abs()) * .17 + lift * .025,
       )!;
       final ca = back
