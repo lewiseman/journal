@@ -17,7 +17,7 @@ The same full-color cutouts are used in light and dark themes. Medium-value lila
 
 ## Production assets
 
-All `*_active.png` and `*_inactive.png` files in this directory are 192 × 192 RGBA PNGs, downsampled from generated masters using macOS `sips` with alpha preserved. They render inside 44 × 44 logical-pixel bounds in `JournalBottomNavbar`. Both states stay mounted for smooth crossfades and an immediately available alternate image. Reduced-motion settings disable transitions.
+All `*_active.png` and `*_inactive.png` files in this directory are 192 × 192 RGBA PNGs, downsampled from generated masters using macOS `sips` with alpha preserved. They occupy fixed 44 × 44 logical-pixel layout slots in `JournalBottomNavbar`, rendering at about 36 pixels inactive and 47 pixels active. Selection lifts the artwork 3 pixels with a subtle 320 ms spring settle; deselection returns in 180 ms. Both states stay mounted and crossfade over 150 ms. Pressing compresses only the artwork, and changing tabs triggers one selection haptic. Labels stay in place while a stronger, theme-aware edge glow follows the selection, with luminance compensation to keep lower-contrast accents visible. Navbar transitions use fixed durations without a custom reduced-motion branch.
 
 Keep transparent padding and visual weight consistent when replacing an image. Do not add a background tile or bake a light/dark surface into the artwork.
 
