@@ -15,13 +15,11 @@ class DiaryCalendar extends StatefulWidget {
     super.key,
     required this.selectedDate,
     required this.onDateChanged,
-    this.entryDates = const {},
     this.collapseProgress = 0,
   });
 
   final DateTime selectedDate;
   final ValueChanged<DateTime> onDateChanged;
-  final Set<DateTime> entryDates;
 
   /// Scroll-driven progress from the full horizon to the compact date strip.
   ///
@@ -47,14 +45,14 @@ class _DiaryCalendarState extends State<DiaryCalendar>
   int _selectedDay = 0;
   bool _reduceMotion = false;
   double _dayWidth = 72;
-  Set<int> _entryDays = {};
 
   @override
   void initState() {
     super.initState();
-    _anchor = _civilDate(widget.selectedDate);
+    final today = _civilDate(DateTime.now());
+    final selectedDate = _civilDate(widget.selectedDate);
+    _anchor = selectedDate.isAfter(today) ? today : selectedDate;
     _position = AnimationController.unbounded(vsync: this);
-    _updateEntryDays();
   }
 
   @override
@@ -73,16 +71,11 @@ class _DiaryCalendarState extends State<DiaryCalendar>
   @override
   void didUpdateWidget(DiaryCalendar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _updateEntryDays();
-    final selectedDay = _offsetFor(widget.selectedDate);
+    final selectedDay = math.min(_offsetFor(widget.selectedDate), _lastDay);
     if (selectedDay != _selectedDay) {
       _selectedDay = selectedDay;
       _settleOn(selectedDay);
     }
-  }
-
-  void _updateEntryDays() {
-    _entryDays = widget.entryDates.map(_offsetFor).toSet();
   }
 
   static DateTime _civilDate(DateTime date) =>
@@ -97,6 +90,10 @@ class _DiaryCalendarState extends State<DiaryCalendar>
   DateTime _dateAt(int day) =>
       DateTime(_anchor.year, _anchor.month, _anchor.day + day);
 
+  int get _lastDay => _offsetFor(DateTime.now());
+
+  double get _visiblePosition => math.min(_position.value, _lastDay.toDouble());
+
   void _settleOn(int day, {double velocity = 0}) {
     _position.stop();
     if (_reduceMotion) {
@@ -106,22 +103,26 @@ class _DiaryCalendarState extends State<DiaryCalendar>
     _position.animateWith(
       SpringSimulation(
         _spring,
-        _position.value,
+        _visiblePosition,
         day.toDouble(),
-        velocity.clamp(-14.0, 14.0),
+        (day == _lastDay ? math.min(velocity, 0.0) : velocity).clamp(
+          -14.0,
+          14.0,
+        ),
         tolerance: const Tolerance(distance: 0.001, velocity: 0.001),
       ),
     );
   }
 
   void _selectDay(int day, {double velocity = 0}) {
-    if (_selectedDay != day) {
-      setState(() => _selectedDay = day);
+    final target = math.min(day, _lastDay);
+    if (_selectedDay != target) {
+      setState(() => _selectedDay = target);
       HapticFeedback.selectionClick();
-      widget.onDateChanged(_dateAt(day));
+      widget.onDateChanged(_dateAt(target));
     }
     // A parent may navigate away from the diary in its callback.
-    if (mounted) _settleOn(day, velocity: velocity);
+    if (mounted) _settleOn(target, velocity: velocity);
   }
 
   void _moveBy(int days) {
@@ -130,9 +131,9 @@ class _DiaryCalendarState extends State<DiaryCalendar>
 
   void _dragEnd(DragEndDetails details) {
     final velocity = -(details.primaryVelocity ?? 0) / _dayWidth;
-    final nearestDay = _position.value.round();
+    final nearestDay = _visiblePosition.round();
     // A flick carries momentum without skipping a long stretch of the diary.
-    final target = (_position.value + velocity * 0.13).round().clamp(
+    final target = (_visiblePosition + velocity * 0.13).round().clamp(
       nearestDay - 2,
       nearestDay + 2,
     );
@@ -178,19 +179,22 @@ class _DiaryCalendarState extends State<DiaryCalendar>
                   explicitChildNodes: true,
                   label: 'Diary calendar',
                   value: localizations.formatFullDate(_dateAt(_selectedDay)),
-                  increasedValue: localizations.formatFullDate(
-                    _dateAt(_selectedDay + 1),
-                  ),
+                  increasedValue: _selectedDay < _lastDay
+                      ? localizations.formatFullDate(_dateAt(_selectedDay + 1))
+                      : null,
                   decreasedValue: localizations.formatFullDate(
                     _dateAt(_selectedDay - 1),
                   ),
-                  onIncrease: () => _moveBy(1),
+                  onIncrease: _selectedDay < _lastDay ? () => _moveBy(1) : null,
                   onDecrease: () => _moveBy(-1),
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onHorizontalDragStart: (_) => _position.stop(),
                     onHorizontalDragUpdate: (details) {
-                      _position.value -= details.delta.dx / _dayWidth;
+                      _position.value = math.min(
+                        _visiblePosition - details.delta.dx / _dayWidth,
+                        _lastDay.toDouble(),
+                      );
                     },
                     onHorizontalDragEnd: _dragEnd,
                     onHorizontalDragCancel: () => _settleOn(_selectedDay),
@@ -215,7 +219,7 @@ class _DiaryCalendarState extends State<DiaryCalendar>
                             child: AnimatedBuilder(
                               animation: _position,
                               builder: (context, _) {
-                                final middleDay = _position.value.round();
+                                final middleDay = _visiblePosition.round();
                                 return Stack(
                                   clipBehavior: Clip.none,
                                   children: [
@@ -262,7 +266,7 @@ class _DiaryCalendarState extends State<DiaryCalendar>
     required TextScaler textScaler,
     required MaterialLocalizations localizations,
   }) {
-    final relativeDay = day - _position.value;
+    final relativeDay = day - _visiblePosition;
     final distance = relativeDay.abs();
     final opacity = ((2.65 - distance) / 0.55).clamp(0.0, 1.0);
     final prominence = Curves.easeInOut.transform(
@@ -282,8 +286,8 @@ class _DiaryCalendarState extends State<DiaryCalendar>
     final pointY = _HorizonPainter.heightAt(x, width, collapse: collapse);
     final targetWidth = ui.lerpDouble(76, compactDayWidth, collapse)!;
     final date = _dateAt(day);
-    final hasEntry = _entryDays.contains(day);
     final selected = day == _selectedDay;
+    final enabled = day <= _lastDay;
     return Positioned(
       key: ValueKey(day),
       left: x - targetWidth / 2,
@@ -291,21 +295,20 @@ class _DiaryCalendarState extends State<DiaryCalendar>
       width: targetWidth,
       height: height,
       child: IgnorePointer(
-        ignoring: opacity < 0.3,
+        ignoring: !enabled || opacity < 0.3,
         child: Opacity(
-          opacity: opacity,
+          opacity: opacity * (enabled ? 1 : .35),
           child: Semantics(
             excludeSemantics: true,
             hidden: opacity < 0.3,
             button: true,
+            enabled: enabled,
             selected: selected,
-            label:
-                '${localizations.formatFullDate(date)}'
-                '${hasEntry ? ', has diary entries' : ''}',
-            onTap: () => _selectDay(day),
+            label: localizations.formatFullDate(date),
+            onTap: enabled ? () => _selectDay(day) : null,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => _selectDay(day),
+              onTap: enabled ? () => _selectDay(day) : null,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
