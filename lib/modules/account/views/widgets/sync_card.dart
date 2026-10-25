@@ -70,7 +70,8 @@ class SyncAccountCard extends ConsumerWidget {
     final identityHeight = _expandedIdentityHeight(context);
     final radius = BorderRadius.circular(lerpDouble(30, 20, t)!);
     final compact = t >= .6;
-
+    final error = syncState.status == EngineSyncState.error;
+    final statusColor = error ? colors.error : colors.primary;
     return Material(
       key: const ValueKey('sync-account-card'),
       color: colors.surface,
@@ -135,7 +136,7 @@ class SyncAccountCard extends ConsumerWidget {
                         syncAccount: syncAccount,
                         title: name ?? 'Your account',
                         collapseProgress: t,
-                        statusColor: colors.primary,
+                        statusColor: statusColor,
                       ),
                     ),
                   ),
@@ -185,11 +186,12 @@ class SyncAccountCard extends ConsumerWidget {
                                                     )
                                                     ? .7
                                                     : null,
+                                                color: statusColor,
                                               ),
                                             )
                                           : Icon(
                                               syncState.status.icon,
-                                              color: colors.primary,
+                                              color: statusColor,
                                               size: 22,
                                             ),
                                     ),
@@ -241,27 +243,27 @@ class SyncAccountCard extends ConsumerWidget {
                                         .read(syncAuthProvider)
                                         .signIn();
                                     if (user != null && context.mounted) {
-                                      //   await ref
-                                      //       .read(syncEngineProvider.notifier)
-                                      //       .syncNow();
-                                      //   if (context.mounted) {
-                                      //     ScaffoldMessenger.of(
-                                      //       context,
-                                      //     ).showSnackBar(
-                                      //       SnackBar(
-                                      //         content: Text(
-                                      //           ref
-                                      //                       .read(
-                                      //                         syncEngineProvider,
-                                      //                       )
-                                      //                       .lastError ==
-                                      //                   null
-                                      //               ? 'Connected as ${user.email}.'
-                                      //               : 'Connected, but backup is incomplete. See the sync error below.',
-                                      //         ),
-                                      //       ),
-                                      //     );
-                                      //   }
+                                      await ref
+                                          .read(syncEngineProvider.notifier)
+                                          .syncNow(manual: true);
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              ref
+                                                          .read(
+                                                            syncEngineProvider,
+                                                          )
+                                                          .lastError ==
+                                                      null
+                                                  ? 'Connected as ${user.email}.'
+                                                  : 'Connected, but backup is incomplete. See the sync error below.',
+                                            ),
+                                          ),
+                                        );
+                                      }
                                     }
                                   },
                                   style: FilledButton.styleFrom(
