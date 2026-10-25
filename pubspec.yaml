@@ -43,6 +43,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.15.1
   objectbox_generator: ^6.0.0-preview.4
+  video_player_platform_interface: ^6.9.0
 
 objectbox:
   output_dir: objectbox

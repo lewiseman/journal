@@ -10,10 +10,18 @@ class TransparentVideoPlayer extends StatefulWidget {
   /// Requires the Impeller renderer.
   final bool stackedAlpha;
 
+  /// Pause without disposing the video, including while it is initializing.
+  final bool playing;
+
+  /// Shown while loading or when the renderer cannot display the video.
+  final Widget? placeholder;
+
   const TransparentVideoPlayer({
     super.key,
     required this.assetPath,
     this.stackedAlpha = false,
+    this.playing = true,
+    this.placeholder,
   });
 
   @override
@@ -24,6 +32,7 @@ class _TransparentVideoPlayerState extends State<TransparentVideoPlayer> {
   late VideoPlayerController _controller;
   late Future<void> _initialization;
   ui.FragmentShader? _shader;
+  bool _ready = false;
 
   @override
   void initState() {
@@ -38,10 +47,13 @@ class _TransparentVideoPlayerState extends State<TransparentVideoPlayer> {
         oldWidget.stackedAlpha != widget.stackedAlpha) {
       _controller.dispose();
       _loadVideo();
+    } else if (oldWidget.playing != widget.playing) {
+      _updatePlayback();
     }
   }
 
   void _loadVideo() {
+    _ready = false;
     _shader?.dispose();
     _shader = null;
     final controller = VideoPlayerController.asset(widget.assetPath);
@@ -68,7 +80,17 @@ class _TransparentVideoPlayerState extends State<TransparentVideoPlayer> {
     await controller.setLooping(true);
     if (!mounted || controller != _controller) return;
 
-    await controller.play();
+    _ready = true;
+    await _updatePlayback();
+  }
+
+  Future<void> _updatePlayback() async {
+    if (!_ready || _controller.value.hasError) return;
+    if (widget.playing) {
+      await _controller.play();
+    } else {
+      await _controller.pause();
+    }
   }
 
   @override
@@ -77,10 +99,12 @@ class _TransparentVideoPlayerState extends State<TransparentVideoPlayer> {
       future: _initialization,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const Center(child: Text('Unable to play video.'));
+          return widget.placeholder ??
+              const Center(child: Text('Unable to play video.'));
         }
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return widget.placeholder ??
+              const Center(child: CircularProgressIndicator());
         }
         return AspectRatio(
           aspectRatio:
