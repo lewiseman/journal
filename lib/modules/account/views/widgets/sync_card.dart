@@ -60,6 +60,7 @@ class SyncAccountCard extends ConsumerWidget {
     final name = CacheStorage.instance.get(userNameKey);
     final syncAccountAsync = ref.watch(authStateProvider);
     final syncState = ref.watch(syncEngineProvider);
+    final syncBackend = ref.watch(syncBackendProvider);
     final syncAccount = syncAccountAsync.value;
     final isSignedIn = syncAccount != null;
     final colors = context.colors;
@@ -201,7 +202,7 @@ class SyncAccountCard extends ConsumerWidget {
                                           Semantics(
                                             liveRegion: true,
                                             child: Text(
-                                              'Connected',
+                                              syncState.statusLabel,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
@@ -214,7 +215,9 @@ class SyncAccountCard extends ConsumerWidget {
                                           ),
                                           const SizedBox(height: 5),
                                           Text(
-                                            'New note edits will back up to Google Drive.',
+                                            syncState.descriptionFor(
+                                              syncBackend,
+                                            ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(

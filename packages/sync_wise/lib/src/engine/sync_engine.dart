@@ -32,6 +32,32 @@ class SyncEngineState {
     this.activity,
   });
   bool get isSyncing => status == EngineSyncState.syncing;
+
+  String get statusLabel => switch (status) {
+    EngineSyncState.idle =>
+      lastSyncTime == null ? 'Connected' : 'Notes backed up',
+    EngineSyncState.pending => 'Checking connection',
+    EngineSyncState.syncing => 'Syncing notes',
+    EngineSyncState.offline => 'Not connected',
+    EngineSyncState.unauthenticated => 'On this device',
+    EngineSyncState.error => 'Sync needs attention',
+  };
+
+  String descriptionFor(SyncBackend backend) => switch (status) {
+    EngineSyncState.idle =>
+      lastSyncTime == null
+          ? 'New note edits will back up to ${backend.displayName}.'
+          : 'Your latest note upload is safely in ${backend.displayName}.',
+    EngineSyncState.pending =>
+      'Looking for your existing ${backend.displayName} connection.',
+    EngineSyncState.syncing =>
+      'Saving your latest note to ${backend.displayName}.',
+    EngineSyncState.offline => 'Please check your connection and try again.',
+    EngineSyncState.unauthenticated =>
+      'Connect ${backend.displayName} to back up your notes as you write.',
+    EngineSyncState.error =>
+      lastError ?? 'Please check your connection and try again.',
+  };
 }
 
 /// Schedules and reconciles replicas without depending on an app's database,
