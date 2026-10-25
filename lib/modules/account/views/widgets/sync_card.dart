@@ -57,6 +57,7 @@ class SyncAccountCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final name = CacheStorage.instance.get(userNameKey);
     final syncAccountAsync = ref.watch(authStateProvider);
     final syncAccount = syncAccountAsync.value;
     final isSignedIn = syncAccount != null;
@@ -67,6 +68,7 @@ class SyncAccountCard extends ConsumerWidget {
     final identityHeight = _expandedIdentityHeight(context);
     final radius = BorderRadius.circular(lerpDouble(30, 20, t)!);
     final compact = t >= .6;
+
     return Material(
       key: const ValueKey('sync-account-card'),
       color: colors.surface,
@@ -130,7 +132,7 @@ class SyncAccountCard extends ConsumerWidget {
                       child: _AccountIdentity(
                         syncAccount: syncAccount,
 
-                        title: '_title',
+                        title: name ?? 'Your account',
                         collapseProgress: t,
                         statusColor: colors.primary,
                       ),
@@ -223,27 +225,27 @@ class SyncAccountCard extends ConsumerWidget {
                                         .read(syncAuthProvider)
                                         .signIn();
                                     if (user != null && context.mounted) {
-                                    //   await ref
-                                    //       .read(syncEngineProvider.notifier)
-                                    //       .syncNow();
-                                    //   if (context.mounted) {
-                                    //     ScaffoldMessenger.of(
-                                    //       context,
-                                    //     ).showSnackBar(
-                                    //       SnackBar(
-                                    //         content: Text(
-                                    //           ref
-                                    //                       .read(
-                                    //                         syncEngineProvider,
-                                    //                       )
-                                    //                       .lastError ==
-                                    //                   null
-                                    //               ? 'Connected as ${user.email}.'
-                                    //               : 'Connected, but backup is incomplete. See the sync error below.',
-                                    //         ),
-                                    //       ),
-                                    //     );
-                                    //   }
+                                      //   await ref
+                                      //       .read(syncEngineProvider.notifier)
+                                      //       .syncNow();
+                                      //   if (context.mounted) {
+                                      //     ScaffoldMessenger.of(
+                                      //       context,
+                                      //     ).showSnackBar(
+                                      //       SnackBar(
+                                      //         content: Text(
+                                      //           ref
+                                      //                       .read(
+                                      //                         syncEngineProvider,
+                                      //                       )
+                                      //                       .lastError ==
+                                      //                   null
+                                      //               ? 'Connected as ${user.email}.'
+                                      //               : 'Connected, but backup is incomplete. See the sync error below.',
+                                      //         ),
+                                      //       ),
+                                      //     );
+                                      //   }
                                     }
                                   },
                                   style: FilledButton.styleFrom(

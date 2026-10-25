@@ -55,6 +55,7 @@ flutter:
     - assets/images/onboarding/
   shaders:
     - shaders/wabi_sabi.frag
+    - shaders/stacked_alpha.frag
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
