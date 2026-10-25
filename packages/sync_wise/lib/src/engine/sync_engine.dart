@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sync_wise/src/engine/sync_backend.dart';
 
@@ -10,11 +10,12 @@ enum EngineSyncState {
   unauthenticated,
   error;
 
-  IconData get _statusIcon => switch (state.phase) {
-    SyncPhase.connected => Icons.cloud_done_rounded,
-    SyncPhase.failed => Icons.cloud_off_rounded,
-    SyncPhase.syncing => Icons.sync_rounded,
-    _ => Icons.cloud_outlined,
+  IconData get icon => switch (this) {
+    EngineSyncState.idle => Icons.cloud_done_rounded,
+    EngineSyncState.offline || EngineSyncState.error => Icons.cloud_off_rounded,
+    EngineSyncState.syncing => Icons.sync_rounded,
+    EngineSyncState.pending ||
+    EngineSyncState.unauthenticated => Icons.cloud_outlined,
   };
 }
 

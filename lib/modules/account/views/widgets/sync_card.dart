@@ -187,7 +187,7 @@ class SyncAccountCard extends ConsumerWidget {
                                               ),
                                             )
                                           : Icon(
-                                              Icons.cloud_done_rounded,
+                                              syncState.status.icon,
                                               color: colors.primary,
                                               size: 22,
                                             ),
