@@ -53,6 +53,7 @@ flutter:
   assets:
     - assets/videos/
     - assets/images/
+    - assets/images/navigation/
     - assets/images/onboarding/
   shaders:
     - shaders/wabi_sabi.frag

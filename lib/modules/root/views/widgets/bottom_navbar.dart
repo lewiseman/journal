@@ -1,26 +1,25 @@
-import 'package:flutter/cupertino.dart';
 import 'package:journal/common.dart';
 
 const _destinations = [
   (
     label: 'Diary',
-    icon: CupertinoIcons.book,
-    selectedIcon: CupertinoIcons.book_fill,
+    image: 'assets/images/navigation/diary_inactive.png',
+    selectedImage: 'assets/images/navigation/diary_active.png',
   ),
   (
     label: 'Notes',
-    icon: CupertinoIcons.doc_text,
-    selectedIcon: CupertinoIcons.doc_text_fill,
+    image: 'assets/images/navigation/notes_inactive.png',
+    selectedImage: 'assets/images/navigation/notes_active.png',
   ),
   (
     label: 'Flow',
-    icon: CupertinoIcons.check_mark_circled,
-    selectedIcon: CupertinoIcons.check_mark_circled_solid,
+    image: 'assets/images/navigation/flow_inactive.png',
+    selectedImage: 'assets/images/navigation/flow_active.png',
   ),
   (
     label: 'More',
-    icon: CupertinoIcons.square_grid_2x2,
-    selectedIcon: CupertinoIcons.square_grid_2x2_fill,
+    image: 'assets/images/navigation/more_inactive.png',
+    selectedImage: 'assets/images/navigation/more_active.png',
   ),
 ];
 
@@ -35,7 +34,9 @@ class JournalBottomNavbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const duration = Duration(milliseconds: 200);
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 200);
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -116,23 +117,36 @@ class JournalBottomNavbar extends StatelessWidget {
         highlightColor: context.colors.primary.withValues(alpha: .08),
         onTap: () => onSelected(index),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 14, 8, 10),
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                height: 28,
-                child: AnimatedSwitcher(
+              SizedBox.square(
+                dimension: 44,
+                // Both images stay mounted so the first selection is already
+                // decoded, and switching tabs never flashes an empty frame.
+                child: AnimatedCrossFade(
                   duration: duration,
-                  child: Icon(
-                    selected ? destination.selectedIcon : destination.icon,
-                    key: ValueKey(selected),
-                    size: 28,
-                    color: color,
+                  firstCurve: Curves.easeOutCubic,
+                  secondCurve: Curves.easeOutCubic,
+                  crossFadeState: selected
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  firstChild: Image.asset(
+                    destination.image,
+                    width: 44,
+                    height: 44,
+                    excludeFromSemantics: true,
+                  ),
+                  secondChild: Image.asset(
+                    destination.selectedImage,
+                    width: 44,
+                    height: 44,
+                    excludeFromSemantics: true,
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 3),
               AnimatedDefaultTextStyle(
                 duration: duration,
                 curve: Curves.easeOut,
