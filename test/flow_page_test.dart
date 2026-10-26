@@ -555,6 +555,36 @@ void main() {
       await _capture(tester, config.name);
       _scroll(tester).jumpTo(_layout(tester).collapseExtent);
       await tester.pumpAndSettle();
+      for (final card in find.byType(FlowThoughtCard).evaluate()) {
+        final cardFinder = find.byWidget(card.widget);
+        final cardRect = tester.getRect(cardFinder);
+        final material = tester.widget<Material>(
+          find.descendant(of: cardFinder, matching: find.byType(Material)),
+        );
+        final outline = material.shape!.getOuterPath(
+          Offset.zero & cardRect.size,
+        );
+        for (final text
+            in find
+                .descendant(of: cardFinder, matching: find.byType(Text))
+                .evaluate()) {
+          final textRect = tester
+              .getRect(find.byWidget(text.widget))
+              .shift(-cardRect.topLeft);
+          for (final corner in [
+            textRect.topLeft,
+            textRect.topRight,
+            textRect.bottomLeft,
+            textRect.bottomRight,
+          ]) {
+            expect(
+              outline.contains(corner),
+              isTrue,
+              reason: '${config.name} text must stay inside the cloud edge',
+            );
+          }
+        }
+      }
       await _capture(tester, '${config.name}-collection');
       _scroll(tester).jumpTo(_scroll(tester).position.maxScrollExtent);
       await tester.pumpAndSettle();
