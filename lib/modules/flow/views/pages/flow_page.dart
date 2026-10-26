@@ -120,61 +120,17 @@ class _FlowPageState extends State<FlowPage> {
 
   void _openVoice() {
     _focus.unfocus();
-    _showSheet(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: context.colors.primaryContainer,
-              borderRadius: BorderRadius.circular(26),
-            ),
-            child: Icon(
-              Icons.mic_none_rounded,
-              size: 34,
-              color: context.colors.onPrimaryContainer,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Say it your way.',
-            style: TextStyle(
-              fontSize: 28,
-              letterSpacing: -.8,
-              color: context.colors.onSurface,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Voice capture is coming soon.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: context.colors.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'For now, give your thoughts a little space in writing.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.5,
-              color: context.colors.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Got it'),
-            ),
-          ),
-        ],
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    context.nav.push<void>(
+      const VoiceSessionPage(
+        mode: VoiceSessionMode.transcription,
+        title: 'Capture a thought',
       ),
+      transition:
+          MediaQuery.disableAnimationsOf(context) ||
+              MediaQuery.accessibleNavigationOf(context)
+          ? NavTransition.none
+          : NavTransition.fade,
     );
   }
 

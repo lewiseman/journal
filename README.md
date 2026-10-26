@@ -45,8 +45,30 @@ at the top of More, with Settings below the Tasks and People cards.
   Google account and an internet connection.
 
 This is JSON/content sync. Attachment metadata is preserved, but image, voice
-and other attachment bytes are not transferred. Diary image/voice capture is
-still a placeholder.
+and other attachment bytes are not transferred.
+
+The diary image button opens a UI-only photo-story preview. Select one or more
+photos, swipe or enlarge them, add optional captions, then choose **Just the
+photos** or **Generate questions**. Captions sit on each print's paper border;
+hold and drag prints in the filmstrip to change their order. Sample question
+cards explore the moment, the feeling and small details for each photo.
+Reflect uses loose photo prints,
+paper index tabs and a swipeable deck of question slips with ruled writing space.
+The header switches between Photos, Reflect and Entry. Reflect's footer offers
+**Review** alongside the next-question action.
+Answers survive changing photos, moving between questions and trying alternatives.
+The final entry preview brings each photo and its words together on a scrapbook
+page. Prompts can be shown as annotations, and **Edit photos** returns to the
+prints while keeping the reflections.
+Paper, ink and accents follow the active app theme.
+Closing the preview does not save photos or text;
+AI image analysis and persistence will be connected separately.
+
+Microphones in Notes, Diary and Flow open a shared voice-interface preview.
+Notes and Flow show sample transcription; Diary demonstrates a conversation
+with occasional AI responses. The preview does not record audio, contact an AI
+service or save its sample text. It supports pause, resume and replay, and pauses
+when the app becomes inactive. Real voice services and capture remain future work.
 
 ## Resetting account data
 

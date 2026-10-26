@@ -17,6 +17,7 @@ import 'package:journal/modules/notes/models/note_colors.dart';
 import 'package:journal/modules/notes/models/note_entity.dart';
 import 'package:journal/modules/notes/views/pages/edit_note_page.dart';
 import 'package:journal/modules/notes/views/widgets/note_attachment_strip.dart';
+import 'package:journal/modules/voice/voice.dart';
 import 'package:open_filex/open_filex.dart';
 
 void main() {
@@ -304,6 +305,71 @@ void main() {
     expect(removed, 1);
   });
 
+  testWidgets('voice preview returns to the same unsaved note draft', (
+    tester,
+  ) async {
+    final repository = _NotesRepository();
+    await tester.pumpWidget(
+      _harness(
+        service: _AttachmentService(),
+        repository: repository,
+        child: const EditNotePage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.first, 'My draft');
+    await tester.enterText(fields.last, 'Keep these words.');
+    await tester.tap(find.byTooltip('Transcribe a voice note'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
+      VoiceSessionMode.transcription,
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.byType(VoiceSessionPage), findsNothing);
+    expect(tester.widget<TextField>(fields.first).controller!.text, 'My draft');
+    expect(
+      tester.widget<TextField>(fields.last).controller!.text,
+      'Keep these words.',
+    );
+    expect(repository.saves, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('secondary devices can preview voice only in new notes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _harness(
+        service: _AttachmentService(),
+        role: SyncDeviceRole.secondary,
+        child: EditNotePage(existingNote: NoteEntity(uuid: 'read-only')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Edit note'), findsNothing);
+    expect(find.byTooltip('Transcribe a voice note'), findsNothing);
+    await tester.pumpWidget(
+      _harness(
+        service: _AttachmentService(),
+        role: SyncDeviceRole.secondary,
+        child: const EditNotePage(key: ValueKey('new-note')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Transcribe a voice note'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(VoiceSessionPage), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('long filenames fit narrow cards with large text', (
     tester,
   ) async {
@@ -492,9 +558,10 @@ Widget _harness({
   required NoteAttachmentService service,
   required Widget child,
   NotesRepository? repository,
+  SyncDeviceRole role = SyncDeviceRole.unknown,
 }) => ProviderScope(
   overrides: [
-    syncDeviceRoleProvider.overrideWithValue(SyncDeviceRole.unknown),
+    syncDeviceRoleProvider.overrideWithValue(role),
     noteAttachmentServiceProvider.overrideWithValue(service),
     if (repository != null)
       notesRepositoryProvider.overrideWithValue(repository),

@@ -5,3 +5,4 @@ export 'settings/settings.dart';
 export 'notes/notes.dart';
 export 'flow/flow.dart';
 export 'more/more.dart';
+export 'voice/voice.dart';

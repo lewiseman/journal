@@ -1,5 +1,6 @@
 import 'package:journal/common.dart' hide DiaryDayEntity;
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
+import 'package:journal/modules/diary/views/pages/add_diary_photos_page.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
@@ -240,6 +241,33 @@ class _DiaryAddActions extends StatelessWidget {
     );
   }
 
+  void _openVoice(BuildContext context) {
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    FocusScope.of(context).unfocus();
+    final reduced =
+        MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
+    context.nav.push<void>(
+      const VoiceSessionPage(
+        mode: VoiceSessionMode.conversation,
+        title: 'Your day, out loud',
+      ),
+      transition: reduced ? NavTransition.none : NavTransition.fade,
+    );
+  }
+
+  void _openPhotos(BuildContext context) {
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    FocusScope.of(context).unfocus();
+    final reduced =
+        MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
+    context.nav.push<void>(
+      AddDiaryPhotosPage(date: date),
+      transition: reduced ? NavTransition.none : NavTransition.platform,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final access = context.dependOnInheritedWidgetOfExactType<DiaryAccess>();
@@ -268,7 +296,14 @@ class _DiaryAddActions extends StatelessWidget {
               runSpacing: 16,
               children: [
                 for (final action in DiaryPaperAction.values)
-                  DiaryPaperActionButton(action: action, onPressed: _noop),
+                  DiaryPaperActionButton(
+                    action: action,
+                    onPressed: switch (action) {
+                      DiaryPaperAction.voice => () => _openVoice(context),
+                      DiaryPaperAction.image => () => _openPhotos(context),
+                      DiaryPaperAction.more => _noop,
+                    },
+                  ),
               ],
             ),
           ],
@@ -277,6 +312,6 @@ class _DiaryAddActions extends StatelessWidget {
     );
   }
 
-  // Capture and the additional actions menu will be connected in a later pass.
+  // The additional menu will be connected in a later pass.
   static void _noop() {}
 }

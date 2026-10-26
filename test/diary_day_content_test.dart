@@ -4,9 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
+import 'package:journal/modules/diary/views/pages/add_diary_photos_page.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
 import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
+import 'package:journal/modules/voice/voice.dart';
 
 final _prompt = find.byKey(const ValueKey('diary-writing-prompt'));
 final _actions = find.byKey(const ValueKey('diary-add-actions'));
@@ -221,44 +223,58 @@ void main() {
     },
   );
 
-  testWidgets(
-    'prompt is accessible and the three capture buttons are placeholders',
-    (tester) async {
-      final day = DiaryDayEntity(dateString: '2026-10-26');
-      final before = day.toSyncJson('test');
-      await _mount(tester, day);
-      for (final label in ['Voice', 'Image', 'More']) {
-        expect(find.text(label), findsNothing);
-      }
-      expect(
-        tester.getSemantics(find.bySemanticsLabel(DiaryWritingPrompt.question)),
-        matchesSemantics(
-          label: DiaryWritingPrompt.question,
-          hint: 'Write a diary entry',
-          isButton: true,
-          hasTapAction: true,
-        ),
-      );
-      for (final tooltip in [
-        'Add voice entry',
-        'Add image entry',
-        'More diary actions',
-      ]) {
-        final button = find.byTooltip(tooltip);
-        expect(tester.getSize(button), const Size(48, 48));
-        final description = tester.getSemantics(button).getSemanticsData();
+  testWidgets('voice opens a conversation preview without changing the diary', (
+    tester,
+  ) async {
+    final day = DiaryDayEntity(dateString: '2026-10-26');
+    final before = day.toSyncJson('test');
+    await _mount(tester, day);
+    for (final label in ['Voice', 'Image', 'More']) {
+      expect(find.text(label), findsNothing);
+    }
+    expect(
+      tester.getSemantics(find.bySemanticsLabel(DiaryWritingPrompt.question)),
+      matchesSemantics(
+        label: DiaryWritingPrompt.question,
+        hint: 'Write a diary entry',
+        isButton: true,
+        hasTapAction: true,
+      ),
+    );
+    for (final tooltip in [
+      'Add voice entry',
+      'Add image entry',
+      'More diary actions',
+    ]) {
+      final button = find.byTooltip(tooltip);
+      expect(tester.getSize(button), const Size(48, 48));
+      final description = tester.getSemantics(button).getSemanticsData();
+      expect('${description.label} ${description.tooltip}', contains(tooltip));
+      await tester.tap(button);
+      if (tooltip == 'Add voice entry') {
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
         expect(
-          '${description.label} ${description.tooltip}',
-          contains(tooltip),
+          tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
+          VoiceSessionMode.conversation,
         );
-        await tester.tap(button);
+        await tester.tap(find.text('Done'));
+      } else if (tooltip == 'Add image entry') {
         await tester.pumpAndSettle();
-        expect(_prompt, findsOneWidget);
-        expect(day.toSyncJson('test'), before);
+        expect(
+          tester
+              .widget<AddDiaryPhotosPage>(find.byType(AddDiaryPhotosPage))
+              .date,
+          DateTime(2026, 10, 26),
+        );
+        await tester.tap(find.byTooltip('Close photo preview'));
       }
-      expect(tester.takeException(), isNull);
-    },
-  );
+      await tester.pumpAndSettle();
+      expect(_prompt, findsOneWidget);
+      expect(day.toSyncJson('test'), before);
+    }
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('the question opens text entry for the selected day', (
     tester,

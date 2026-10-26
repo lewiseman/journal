@@ -78,6 +78,26 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
     _contentFocusNode.requestFocus();
   }
 
+  void _openVoice() {
+    if (_isPreviewMode || ModalRoute.of(context)?.isCurrent == false) return;
+    if (_savedNote != null &&
+        ref.read(syncDeviceRoleProvider) == SyncDeviceRole.secondary) {
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    context.nav.push<void>(
+      const VoiceSessionPage(
+        mode: VoiceSessionMode.transcription,
+        title: 'Voice note',
+      ),
+      transition:
+          MediaQuery.disableAnimationsOf(context) ||
+              MediaQuery.accessibleNavigationOf(context)
+          ? NavTransition.none
+          : NavTransition.fade,
+    );
+  }
+
   Future<void> _pickAttachments() async {
     if (_pickingAttachments || _isPreviewMode) return;
     FocusScope.of(context).unfocus();
@@ -456,7 +476,10 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                           ),
                         ),
                         IconButton.filled(
-                          onPressed: () {},
+                          tooltip: 'Transcribe a voice note',
+                          onPressed: canModifySaved || _savedNote == null
+                              ? _openVoice
+                              : null,
                           icon: Icon(Icons.mic_none_rounded),
                           style: IconButton.styleFrom(
                             backgroundColor: context.colors.surface,
