@@ -49,7 +49,11 @@ class AppearancePage extends ConsumerWidget {
                     context: context,
                     title:
                         theme.name[0].toUpperCase() + theme.name.substring(1),
-                    image: '',
+                    image: switch (theme) {
+                      ThemeMode.light => 'assets/images/theme_light.png',
+                      ThemeMode.dark => 'assets/images/theme_dark.png',
+                      ThemeMode.system => 'assets/images/theme_system.png',
+                    },
                   ),
                 ),
             ],
@@ -242,6 +246,7 @@ class AppearancePage extends ConsumerWidget {
                   child: Image.asset(
                     image,
                     fit: BoxFit.contain,
+                    excludeFromSemantics: true,
                     errorBuilder: (context, error, stackTrace) => Center(
                       child: Icon(
                         Icons.image_outlined,
