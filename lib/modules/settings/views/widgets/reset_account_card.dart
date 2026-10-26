@@ -36,7 +36,7 @@ class _ResetAccountCardState extends ConsumerState<ResetAccountCard> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Permanently delete all notes, diary entries, trash and Journal backups from this device and ${backend.displayName}.',
+              'Permanently delete all notes, diary entries, thoughts, trash and Journal backups from this device and ${backend.displayName}.',
             ),
             const SizedBox(height: 8),
             const Text(

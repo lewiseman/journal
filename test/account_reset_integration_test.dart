@@ -70,7 +70,10 @@ void main() {
     app.notes.saveNote(uuid: 'trash', title: 'Trash', content: 'deleted');
     app.notes.deleteNote('trash');
     app.diary.addTimelineItem(dateString: '2026-10-26', content: 'Diary');
+    final thought = app.thoughts.saveThought(content: 'Backed up thought');
     await app.sync();
+    expect(drive.documents.containsKey('thought/${thought.uuid}'), isTrue);
+    app.thoughts.saveThought(content: 'Pending thought');
     // This edit and its timer must not survive reset and upload later.
     app.notes.saveNote(
       uuid: 'pending',
@@ -95,6 +98,7 @@ void main() {
     expect(reset.state().completed, isTrue, reason: reset.state().error);
     expect(app.db.noteBox.count(), 0);
     expect(app.db.diaryBox.count(), 0);
+    expect(app.db.thoughtBox.count(), 0);
     expect(app.storage.pendingCreations, isEmpty);
     expect(app.storage.role, SyncDeviceRole.unknown);
     expect(drive.documents, isEmpty);

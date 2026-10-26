@@ -3,27 +3,24 @@ import 'dart:math' as math;
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
-import 'package:journal/modules/flow/models/flow_thought.dart';
 import 'package:journal/modules/flow/views/widgets/flow_composer.dart';
 import 'package:journal/modules/flow/views/widgets/flow_opening.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
 
-class FlowPage extends StatefulWidget {
+class FlowPage extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  State<FlowPage> createState() => _FlowPageState();
+  ConsumerState<FlowPage> createState() => _FlowPageState();
 }
 
-class _FlowPageState extends State<FlowPage> {
+class _FlowPageState extends ConsumerState<FlowPage> {
   final _scroll = ScrollController();
   final _draft = TextEditingController();
   final _focus = FocusNode();
   final _composerKey = GlobalKey();
-  final _thoughts = FlowThought.samples(DateTime.now());
   double _composerHeight = 56;
   bool _measurementScheduled = false;
-  int _nextId = 12;
 
   @override
   void initState() {
@@ -58,13 +55,20 @@ class _FlowPageState extends State<FlowPage> {
   void _send() {
     final text = _draft.text.trim();
     if (text.isEmpty) return;
-    setState(() {
-      final id = _nextId++;
-      _thoughts.insert(
-        0,
-        FlowThought(id: id, text: text, createdAt: DateTime.now(), paper: id),
+    try {
+      ref.read(thoughtsRepositoryProvider).saveThought(content: text);
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Couldn’t save your thought. Your draft is still here.',
+          ),
+          action: SnackBarAction(label: 'Retry', onPressed: _send),
+        ),
       );
-    });
+      return;
+    }
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     _draft.clear();
     _focus.unfocus();
     if (_scroll.hasClients) {
@@ -80,7 +84,7 @@ class _FlowPageState extends State<FlowPage> {
     }
   }
 
-  void _openThought(FlowThought thought) {
+  void _openThought(ThoughtEntity thought) {
     _focus.unfocus();
     final paper = flowThoughtColors(thought, context.colors);
     _showSheet(
@@ -90,7 +94,7 @@ class _FlowPageState extends State<FlowPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            thought.isSample ? 'SAMPLE THOUGHT' : 'YOUR THOUGHT',
+            'YOUR THOUGHT',
             style: TextStyle(
               color: paper.secondary,
               fontSize: 10,
@@ -104,7 +108,7 @@ class _FlowPageState extends State<FlowPage> {
           ),
           const SizedBox(height: 24),
           SelectableText(
-            thought.text,
+            thought.content,
             style: TextStyle(
               fontSize: 23,
               height: 1.5,
@@ -171,6 +175,8 @@ class _FlowPageState extends State<FlowPage> {
 
   @override
   Widget build(BuildContext context) {
+    final thoughts = ref.watch(thoughtsStreamProvider);
+    final saved = thoughts.asData?.value ?? const <ThoughtEntity>[];
     final reduced = MediaQuery.disableAnimationsOf(context);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
     final tabActive = TickerMode.valuesOf(context).enabled;
@@ -200,11 +206,12 @@ class _FlowPageState extends State<FlowPage> {
                   height: constraints.maxHeight,
                   textScale: MediaQuery.textScalerOf(context).scale(16) / 16,
                   composerHeight: _composerHeight,
+                  thoughtCount: saved.length,
                 );
                 return Stack(
                   clipBehavior: Clip.hardEdge,
                   children: [
-                    _history(layout, reduced),
+                    _history(layout, reduced, saved, thoughts),
                     AnimatedBuilder(
                       animation: _scroll,
                       builder: (context, _) => _floatingScene(
@@ -224,7 +231,12 @@ class _FlowPageState extends State<FlowPage> {
     );
   }
 
-  Widget _history(FlowSceneLayout layout, bool reduced) => CustomScrollView(
+  Widget _history(
+    FlowSceneLayout layout,
+    bool reduced,
+    List<ThoughtEntity> thoughts,
+    AsyncValue<List<ThoughtEntity>> state,
+  ) => CustomScrollView(
     key: const PageStorageKey('flow-history'),
     controller: _scroll,
     keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -232,9 +244,32 @@ class _FlowPageState extends State<FlowPage> {
       SliverPersistentHeader(
         delegate: FlowOpening(
           layout: layout,
-          thoughts: _thoughts.take(layout.previewCount).toList(),
+          thoughts: thoughts.take(layout.previewCount).toList(),
           onOpen: _openThought,
           reduced: reduced,
+          status: state.when(
+            data: (_) => const Text(
+              'A little space for what’s on your mind.\nWrite your first thought below.',
+              textAlign: TextAlign.center,
+            ),
+            loading: () => const Text(
+              'Loading your thoughts…',
+              textAlign: TextAlign.center,
+            ),
+            error: (_, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Couldn’t load your thoughts.',
+                  textAlign: TextAlign.center,
+                ),
+                TextButton(
+                  onPressed: () => ref.invalidate(thoughtsStreamProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
       SliverPadding(
@@ -243,14 +278,14 @@ class _FlowPageState extends State<FlowPage> {
           crossAxisCount: layout.columns,
           mainAxisSpacing: FlowSceneLayout.gap,
           crossAxisSpacing: FlowSceneLayout.gap,
-          childCount: _thoughts.length - layout.previewCount,
+          childCount: thoughts.length - layout.previewCount,
           itemBuilder: (context, index) {
-            final thought = _thoughts[index + layout.previewCount];
+            final thought = thoughts[index + layout.previewCount];
             return SizedBox(
               height:
                   [184.0, 150.0, 172.0, 206.0][index % 4] * layout.cardScale,
               child: FlowThoughtCard(
-                key: ValueKey('flow-thought-${thought.id}'),
+                key: ValueKey('flow-thought-${thought.uuid}'),
                 thought: thought,
                 onTap: () => _openThought(thought),
               ),

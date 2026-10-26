@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:journal/common.dart';
-import 'package:journal/modules/flow/models/flow_thought.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
 
 /// Shared geometry keeps the cards and floating composer on the same timeline.
@@ -12,6 +11,7 @@ class FlowSceneLayout {
     required this.height,
     required this.textScale,
     required this.composerHeight,
+    required this.thoughtCount,
   });
 
   static const gutter = 24.0;
@@ -23,12 +23,14 @@ class FlowSceneLayout {
   final double height;
   final double textScale;
   final double composerHeight;
+  final int thoughtCount;
 
   late final columns = width < 350 || textScale > 1.4 ? 1 : 2;
   late final composerTop = height - bottom - composerHeight;
   late final cardScale = textScale.clamp(1.0, 2.2);
   late final _previewSpace = math.max(68.0, composerTop - topInset - 138);
-  late final previewCount = columns == 2 && _previewSpace >= 320 ? 6 : 4;
+  late final _previewCapacity = columns == 2 && _previewSpace >= 320 ? 6 : 4;
+  late final previewCount = math.min(thoughtCount, _previewCapacity);
 
   // Balanced column heights let the lazy grid continue below these same
   // cards, without gaps or duplicate previews.
@@ -54,20 +56,23 @@ class FlowSceneLayout {
   }();
 
   late final minExtent =
-      settled.map((rect) => rect.bottom).reduce(math.max) + gap;
+      (settled.isEmpty
+          ? previewBottom
+          : settled.map((rect) => rect.bottom).reduce(math.max)) +
+      gap;
   late final maxExtent = math.max(height, minExtent + 220);
   late final collapseExtent = maxExtent - minExtent;
 
   late final List<Rect> scattered = () {
     final areaHeight = math.min(
       _previewSpace,
-      previewCount == 6 ? 340.0 : 228.0,
+      _previewCapacity == 6 ? 340.0 : 228.0,
     );
     final cardWidth = math.min((width - gutter * 2) * .48, 220.0);
     // Keep the original small cards; extra room adds another pair of previews.
     final cardHeight = math.max(54.0, math.min(_previewSpace, 228.0) * .57);
     final travel = areaHeight - cardHeight;
-    final positions = previewCount == 6
+    final positions = _previewCapacity == 6
         ? const [
             Offset(0, .01),
             Offset(1, .08),
@@ -83,7 +88,7 @@ class FlowSceneLayout {
             Offset(.94, 1),
           ];
     return [
-      for (final position in positions)
+      for (final position in positions.take(previewCount))
         Rect.fromLTWH(
           gutter - 2 + position.dx * (width - gutter * 2 + 2 - cardWidth),
           topInset + travel * position.dy,
@@ -93,9 +98,9 @@ class FlowSceneLayout {
     ];
   }();
 
-  late final previewBottom = scattered
-      .map((rect) => rect.bottom)
-      .reduce(math.max);
+  late final previewBottom = scattered.isEmpty
+      ? math.min(_previewSpace, 180.0)
+      : scattered.map((rect) => rect.bottom).reduce(math.max);
 
   double progress(double offset, {required bool reduced}) {
     final value = (offset / collapseExtent).clamp(0.0, 1.0);
@@ -106,6 +111,7 @@ class FlowSceneLayout {
       Rect.lerp(scattered[index], settled[index], progress)!;
 
   double composerOverlap(double offset, double progress) {
+    if (previewCount == 0) return 0;
     final headerShift = math.max(0.0, offset - collapseExtent);
     final cardsBottom =
         List.generate(
@@ -127,12 +133,14 @@ class FlowOpening extends SliverPersistentHeaderDelegate {
     required this.thoughts,
     required this.onOpen,
     required this.reduced,
+    this.status,
   });
 
   final FlowSceneLayout layout;
-  final List<FlowThought> thoughts;
-  final ValueChanged<FlowThought> onOpen;
+  final List<ThoughtEntity> thoughts;
+  final ValueChanged<ThoughtEntity> onOpen;
   final bool reduced;
+  final Widget? status;
 
   @override
   double get minExtent => layout.minExtent;
@@ -149,6 +157,28 @@ class FlowOpening extends SliverPersistentHeaderDelegate {
     return Stack(
       clipBehavior: Clip.none,
       children: [
+        if (thoughts.isEmpty && status != null)
+          Positioned(
+            top: FlowSceneLayout.topInset,
+            left: FlowSceneLayout.gutter,
+            right: FlowSceneLayout.gutter,
+            height: math.max(
+              0,
+              layout.previewBottom - FlowSceneLayout.topInset,
+            ),
+            child: Center(
+              child: SingleChildScrollView(
+                child: DefaultTextStyle(
+                  style: TextStyle(
+                    color: context.colors.onSurfaceVariant,
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
+                  child: status!,
+                ),
+              ),
+            ),
+          ),
         for (var i = 0; i < thoughts.length; i++)
           Positioned.fromRect(
             rect: layout.cardRect(i, progress),
@@ -161,7 +191,7 @@ class FlowOpening extends SliverPersistentHeaderDelegate {
                       progress,
                     )!,
               child: FlowThoughtCard(
-                key: ValueKey('flow-thought-${thoughts[i].id}'),
+                key: ValueKey('flow-thought-${thoughts[i].uuid}'),
                 thought: thoughts[i],
                 onTap: () => onOpen(thoughts[i]),
               ),

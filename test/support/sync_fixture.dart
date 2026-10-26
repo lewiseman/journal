@@ -7,6 +7,7 @@ import 'package:journal/modules/root/controllers/journal_sync_collections.dart';
 import 'package:journal/modules/root/controllers/journal_sync_store.dart';
 import 'package:journal/modules/notes/controllers/notes_repository.dart';
 import 'package:journal/modules/diary/controllers/diary_repository.dart';
+import 'package:journal/modules/flow/controllers/thoughts_repository.dart';
 import 'package:journal/objectbox/objectbox.g.dart';
 import 'package:sync_wise/sync_wise.dart';
 
@@ -47,6 +48,7 @@ class SyncFixture {
   late final SyncStateStore storage;
   late final NotesRepository notes;
   late final DiaryRepository diary;
+  late final ThoughtsRepository thoughts;
   late final List<SyncCollection> collections;
   late final MemoryBackend backend;
   late final ProviderContainer container;
@@ -88,11 +90,18 @@ class SyncFixture {
       sync: fixture.storage,
       onDataChanged: () => fixture.engine.scheduleSync(),
     );
+    fixture.thoughts = ThoughtsRepository(
+      db: fixture.db,
+      device: fixture.device,
+      sync: fixture.storage,
+      onDataChanged: () => fixture.engine.scheduleSync(),
+    );
     fixture.collections = journalSyncCollections(
       db: fixture.db,
       device: fixture.device,
       notes: fixture.notes,
       diary: fixture.diary,
+      thoughts: fixture.thoughts,
       storage: fixture.storage,
     );
     fixture.backend = MemoryBackend(drive);

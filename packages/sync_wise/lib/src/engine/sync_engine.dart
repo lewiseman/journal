@@ -68,7 +68,7 @@ class SyncEngineState {
     EngineSyncState.offline =>
       'Your changes are saved here and will retry when connected.',
     EngineSyncState.unauthenticated =>
-      'Connect ${backend.displayName} to sync notes and diaries.',
+      'Connect ${backend.displayName} to sync your journal.',
     EngineSyncState.error =>
       lastError ?? 'Sync could not finish. Your changes are saved here.',
   };

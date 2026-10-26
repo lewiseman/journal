@@ -32,7 +32,11 @@ final googleAuthServiceProvider = Provider<GoogleAuthService>((ref) {
 final syncBackendProvider = Provider<SyncBackend>((ref) {
   final backend = GoogleDriveBackend(
     auth: ref.watch(googleAuthServiceProvider),
-    documentIdFields: const {'note': 'uuid', 'diary': 'dateString'},
+    documentIdFields: const {
+      'note': 'uuid',
+      'diary': 'dateString',
+      'thought': 'uuid',
+    },
   );
   ref.onDispose(backend.dispose);
   return backend;
@@ -109,6 +113,7 @@ final NotifierProvider<SyncEngine, SyncEngineState> syncEngineProvider =
             device: device,
             notes: ref.watch(notesRepositoryProvider),
             diary: ref.watch(diaryRepositoryProvider),
+            thoughts: ref.watch(thoughtsRepositoryProvider),
             storage: storage,
           ),
         );

@@ -22,7 +22,7 @@ void main() {
       expect(app.state.role, SyncDeviceRole.primary);
       expect(app.notes.getNoteByUuid('remote')!.content, 'from cloud');
       expect(drive.documents['note/local']!.payload['content'], 'saved first');
-      expect(drive.listings, ['note', 'diary']);
+      expect(drive.listings, ['note', 'diary', 'thought']);
       expect(drive.migrationComplete, isTrue);
       expect(app.storage.pendingCreations, isEmpty);
       expect(app.backend.closed, app.backend.sessions);

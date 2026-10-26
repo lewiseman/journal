@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:journal/modules/flow/controllers/thoughts_providers.dart';
 import 'package:journal/components/transparent_video_player.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/flow/views/pages/flow_page.dart';
@@ -12,6 +14,8 @@ import 'package:journal/modules/flow/views/widgets/flow_opening.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
 import 'package:journal/modules/voice/voice.dart';
+
+import 'support/memory_thoughts_repository.dart';
 
 const _captureKey = ValueKey('flow-capture');
 final _history = find.byKey(const PageStorageKey('flow-history'));
@@ -33,7 +37,10 @@ Future<void> _mount(
   double scale = 1,
   bool dark = false,
   bool reduced = false,
+  MemoryThoughtsRepository? repository,
 }) async {
+  final thoughts = repository ?? MemoryThoughtsRepository(sampleThoughts());
+  addTearDown(thoughts.changes.close);
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   tester.view.padding = const FakeViewPadding(top: 24);
@@ -43,22 +50,27 @@ Future<void> _mount(
   addTearDown(tester.view.resetViewInsets);
   final base = dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme;
   await tester.pumpWidget(
-    RepaintBoundary(
-      key: _captureKey,
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: base.copyWith(
-          textTheme: base.textTheme.apply(fontFamily: 'FlowTest'),
-          primaryTextTheme: base.primaryTextTheme.apply(fontFamily: 'FlowTest'),
-        ),
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(scale),
-            disableAnimations: reduced,
+    ProviderScope(
+      overrides: [thoughtsRepositoryProvider.overrideWithValue(thoughts)],
+      child: RepaintBoundary(
+        key: _captureKey,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: base.copyWith(
+            textTheme: base.textTheme.apply(fontFamily: 'FlowTest'),
+            primaryTextTheme: base.primaryTextTheme.apply(
+              fontFamily: 'FlowTest',
+            ),
           ),
-          child: child!,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(scale),
+              disableAnimations: reduced,
+            ),
+            child: child!,
+          ),
+          home: const _Tabs(),
         ),
-        home: const _Tabs(),
       ),
     ),
   );
@@ -106,6 +118,131 @@ void main() {
         ..addFont(Future.value(ByteData.sublistView(await font.readAsBytes())));
       await loader.load();
     }
+  });
+
+  for (final count in [0, 1, 3, 4, 5, 6, 12, 20]) {
+    testWidgets(
+      '$count saved thoughts render without placeholders or duplicates',
+      (tester) async {
+        final repository = MemoryThoughtsRepository(sampleThoughts(count));
+        await _mount(tester, repository: repository);
+        expect(_layout(tester).previewCount, count < 6 ? count : 6);
+        expect(find.text('SAMPLE THOUGHT'), findsNothing);
+        if (count == 0) {
+          expect(
+            find.textContaining('Write your first thought below.'),
+            findsOneWidget,
+          );
+          expect(find.byType(FlowThoughtCard), findsNothing);
+        } else {
+          expect(
+            find.textContaining('Write your first thought below.'),
+            findsNothing,
+          );
+          expect(_card(0), findsOneWidget);
+          _scroll(tester).jumpTo(_scroll(tester).position.maxScrollExtent);
+          await tester.pumpAndSettle();
+          expect(_card(count - 1).hitTestable(), findsOneWidget);
+          final ids = tester
+              .widgetList<FlowThoughtCard>(find.byType(FlowThoughtCard))
+              .map((card) => card.thought.uuid)
+              .toList();
+          expect(ids.toSet().length, ids.length);
+        }
+        expect(find.byType(TextField), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('the first saved thought replaces the empty state', (
+    tester,
+  ) async {
+    final repository = MemoryThoughtsRepository([]);
+    await _mount(tester, repository: repository);
+    await tester.enterText(
+      find.byType(TextField),
+      '  First thought\nSecond line  ',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add thought'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Write your first thought below.'),
+      findsNothing,
+    );
+    expect(repository.thoughts.single.summary, '');
+    expect(repository.thoughts.single.content, 'First thought\nSecond line');
+    expect(_card(0), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed saving retains the draft and Retry saves it once', (
+    tester,
+  ) async {
+    final repository = MemoryThoughtsRepository([])..failSaves = true;
+    await _mount(tester, repository: repository);
+    const draft = '  A thought I must keep  ';
+    await tester.enterText(find.byType(TextField), draft);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Add thought'));
+    await tester.pumpAndSettle();
+    expect(repository.thoughts, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      draft,
+    );
+    expect(
+      find.text('Couldn’t save your thought. Your draft is still here.'),
+      findsOneWidget,
+    );
+    repository.failSaves = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(repository.thoughts, hasLength(1));
+    expect(repository.thoughts.single.content, 'A thought I must keep');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
+    expect(_card(0), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'loading shows no sample cards and saved data appears when ready',
+    (tester) async {
+      final repository = MemoryThoughtsRepository(sampleThoughts(1))
+        ..holdReads = true;
+      await _mount(tester, repository: repository);
+      expect(find.text('Loading your thoughts…'), findsOneWidget);
+      expect(find.byType(FlowThoughtCard), findsNothing);
+      repository.changes.add(repository.thoughts);
+      await tester.pumpAndSettle();
+      expect(find.text('Loading your thoughts…'), findsNothing);
+      expect(_card(0), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('read failure offers Retry and recovers saved thoughts', (
+    tester,
+  ) async {
+    final repository = MemoryThoughtsRepository(sampleThoughts(1))
+      ..failReads = true;
+    await _mount(tester, repository: repository);
+    expect(find.text('Couldn’t load your thoughts.'), findsOneWidget);
+    expect(find.byType(FlowThoughtCard), findsNothing);
+    repository.failReads = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Couldn’t load your thoughts.'), findsNothing);
+    expect(_card(0), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -273,17 +410,17 @@ void main() {
   ) async {
     await _mount(tester);
     // The frontmost card is fully tappable even in the scattered arrangement.
-    final text = tester.widget<FlowThoughtCard>(_card(3)).thought.text;
+    final text = tester.widget<FlowThoughtCard>(_card(3)).thought.content;
     await tester.tap(_card(3));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(SelectableText, text), findsOneWidget);
-    expect(find.text('SAMPLE THOUGHT'), findsOneWidget);
+    expect(find.text('YOUR THOUGHT'), findsOneWidget);
     await _capture(tester, 'detail');
     Navigator.of(tester.element(find.byType(SelectableText))).pop();
     await tester.pumpAndSettle();
     final thoughtsBefore = tester
         .widgetList<FlowThoughtCard>(find.byType(FlowThoughtCard))
-        .map((card) => card.thought.text)
+        .map((card) => card.thought.content)
         .toList();
     await tester.tap(find.byTooltip('Voice capture'));
     await tester.pump();
@@ -302,7 +439,7 @@ void main() {
     expect(
       tester
           .widgetList<FlowThoughtCard>(find.byType(FlowThoughtCard))
-          .map((card) => card.thought.text),
+          .map((card) => card.thought.content),
       thoughtsBefore,
     );
     expect(

@@ -22,6 +22,9 @@ void main() {
       dateString: '2026-10-26',
       dayTitle: 'My day',
     );
+    final thought = original.thoughts.saveThought(
+      content: 'Saved before reinstall',
+    );
     await original.sync();
     final before = canonicalJson({
       for (final entry in drive.documents.entries)
@@ -33,6 +36,7 @@ void main() {
     expect(reinstalled.state.role, SyncDeviceRole.secondary);
     expect(reinstalled.db.noteBox.count(), 0);
     expect(reinstalled.db.diaryBox.count(), 0);
+    expect(reinstalled.db.thoughtBox.count(), 0);
 
     await reinstalled.engine.reclaimPrimary();
 
@@ -52,6 +56,11 @@ void main() {
       'Saved diary',
     );
     expect(reinstalled.diary.getDay('2026-10-26')!.dayTitle, 'My day');
+    expect(
+      reinstalled.thoughts.getThoughtByUuid(thought.uuid)!.content,
+      'Saved before reinstall',
+    );
+    expect(reinstalled.thoughts.getThoughtByUuid(thought.uuid)!.summary, '');
     expect(
       canonicalJson({
         for (final entry in drive.documents.entries)

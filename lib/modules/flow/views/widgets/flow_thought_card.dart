@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
-import 'package:journal/modules/flow/models/flow_thought.dart';
 
 const _papers = [
   NoteColorPreset.sand,
@@ -13,8 +12,13 @@ const _papers = [
   NoteColorPreset.paper,
 ];
 
-NoteColors flowThoughtColors(FlowThought thought, ColorScheme colors) =>
-    _papers[thought.paper % _papers.length].resolveColors(colors);
+int _paperIndex(ThoughtEntity thought) => thought.uuid.codeUnits.fold(
+  0,
+  (sum, unit) => (sum + unit) % _papers.length,
+);
+
+NoteColors flowThoughtColors(ThoughtEntity thought, ColorScheme colors) =>
+    _papers[_paperIndex(thought)].resolveColors(colors);
 
 String flowThoughtDate(DateTime date) {
   final now = DateTime.now();
@@ -34,13 +38,13 @@ class FlowThoughtCard extends StatelessWidget {
     required this.onTap,
   });
 
-  final FlowThought thought;
+  final ThoughtEntity thought;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = flowThoughtColors(thought, context.colors);
-    final alternate = thought.paper.isOdd;
+    final alternate = _paperIndex(thought).isOdd;
     final radius = BorderRadius.only(
       topLeft: Radius.circular(alternate ? 25 : 17),
       topRight: Radius.circular(alternate ? 17 : 25),
@@ -50,8 +54,7 @@ class FlowThoughtCard extends StatelessWidget {
     final date = flowThoughtDate(thought.createdAt);
     return Semantics(
       button: true,
-      label:
-          '${thought.isSample ? 'Sample thought. ' : ''}$date. ${thought.text}',
+      label: '$date. ${thought.content}',
       onTap: onTap,
       excludeSemantics: true,
       child: Material(
@@ -90,7 +93,7 @@ class FlowThoughtCard extends StatelessWidget {
                   children: [
                     if (!compact) ...[
                       Text(
-                        thought.isSample ? '$date · sample' : date,
+                        date,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -103,7 +106,7 @@ class FlowThoughtCard extends StatelessWidget {
                     ],
                     Expanded(
                       child: Text(
-                        thought.text,
+                        thought.content,
                         maxLines: lines,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

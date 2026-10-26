@@ -7,12 +7,15 @@ import 'package:journal/modules/notes/models/note_entity.dart';
 import 'package:journal/modules/diary/controllers/diary_repository.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
+import 'package:journal/modules/flow/controllers/thoughts_repository.dart';
+import 'package:journal/modules/flow/models/thought_entity.dart';
 
 List<SyncCollection> journalSyncCollections({
   required ObjectBox db,
   required DeviceIdentityService device,
   required NotesRepository notes,
   required DiaryRepository diary,
+  required ThoughtsRepository thoughts,
   required SyncStateStore storage,
 }) {
   // Once-only bridge for records saved by versions without a durable outbox.
@@ -48,6 +51,7 @@ List<SyncCollection> journalSyncCollections({
   return [
     _NotesCollection(db, device, notes, storage),
     _DiaryCollection(db, device, diary, storage),
+    _ThoughtsCollection(db, device, thoughts, storage),
   ];
 }
 
@@ -201,6 +205,152 @@ class _NotesCollection implements SyncCollection {
         final note = notes.getNoteByUuid(id)!;
         note.status = SyncStatus.localOnly;
         db.noteBox.put(note);
+      }
+    }
+  }
+}
+
+class _ThoughtsCollection implements SyncCollection {
+  final ObjectBox db;
+  final DeviceIdentityService device;
+  final ThoughtsRepository thoughts;
+  final SyncStateStore storage;
+  _ThoughtsCollection(this.db, this.device, this.thoughts, this.storage);
+
+  @override
+  String get type => 'thought';
+  @override
+  String get label => 'thoughts';
+  @override
+  bool get requiresRemoteForCreation => false;
+
+  SyncDocument _snapshot(ThoughtEntity thought) => SyncDocument(
+    id: thought.uuid,
+    payload: thought.toSyncJson(device.deviceName),
+    status: thought.status,
+  );
+
+  @override
+  List<String> get allIds => db.thoughtBox.getAll().map((t) => t.uuid).toList();
+  @override
+  List<String> get pendingIds =>
+      thoughts.getPendingUploadThoughts().map((t) => t.uuid).toList();
+  @override
+  SyncDocument? read(String id) {
+    final thought = thoughts.getThoughtByUuid(id);
+    return thought == null ? null : _snapshot(thought);
+  }
+
+  @override
+  SyncDocument decode(Map<String, dynamic> payload) {
+    final thought = ThoughtEntity.fromSyncJson(payload);
+    if (thought.uuid.trim().isEmpty || thought.content.trim().isEmpty) {
+      throw const FormatException('Empty thought UUID or content.');
+    }
+    return _snapshot(thought);
+  }
+
+  @override
+  bool mergeRemote(SyncDocument document, {required DateTime now}) =>
+      db.store.runInTransaction(TxMode.write, () {
+        final incoming = ThoughtEntity.fromSyncJson(document.payload);
+        final local = thoughts.getThoughtByUuid(document.id);
+        if (local != null) {
+          if (storage.dirty(type, local.uuid) ||
+              local.status == SyncStatus.pendingUpload ||
+              local.status == SyncStatus.localOnly) {
+            if (local.status != SyncStatus.localOnly) markPending(local.uuid);
+            return false;
+          }
+          if (storage.protected(type, local.uuid, 'record', now) &&
+              !_same(read(local.uuid)!.payload, document.payload)) {
+            return true;
+          }
+          incoming.id = local.id;
+        }
+        incoming.status = SyncStatus.synced;
+        db.thoughtBox.put(incoming);
+        return false;
+      });
+
+  @override
+  SyncDocument appendCreations(
+    SyncDocument? remote,
+    List<PendingCreation> operations,
+  ) => remote ?? decode(operations.single.payload);
+
+  @override
+  List<SyncDocument> migrateLegacy(
+    List<RemoteDocument> documents,
+    String primaryDeviceId,
+  ) {
+    final groups = <String, List<RemoteDocument>>{};
+    for (final document in documents) {
+      final decoded = decode(document.payload);
+      if (decoded.id != document.documentId) {
+        throw const FormatException('Legacy thought ID mismatch.');
+      }
+      groups.putIfAbsent(decoded.id, () => []).add(document);
+    }
+    return groups.values.map((group) {
+      group.sort((a, b) => _legacyRank(a, b, primaryDeviceId));
+      return decode(group.last.payload);
+    }).toList();
+  }
+
+  @override
+  void markPending(String id) {
+    final thought = thoughts.getThoughtByUuid(id);
+    if (thought == null) return;
+    thought.status = SyncStatus.pendingUpload;
+    db.thoughtBox.put(thought);
+  }
+
+  @override
+  void acknowledgeUpload(SyncDocument document) {
+    db.store.runInTransaction(TxMode.write, () {
+      final thought = thoughts.getThoughtByUuid(document.id)!;
+      thought.status = SyncStatus.synced;
+      db.thoughtBox.put(thought);
+      storage.clean(type, document.id);
+      for (final operation in storage.pendingCreations.where(
+        (o) => o.type == type && o.documentId == document.id,
+      )) {
+        storage.acknowledgeCreation(operation);
+      }
+    });
+  }
+
+  @override
+  void acknowledgeCreations(
+    List<PendingCreation> operations,
+    SyncDocument uploaded,
+  ) {
+    db.store.runInTransaction(TxMode.write, () {
+      final thought = thoughts.getThoughtByUuid(uploaded.id)!;
+      final unchanged = _same(_snapshot(thought).payload, uploaded.payload);
+      for (final operation in operations) {
+        storage.acknowledgeCreation(operation);
+      }
+      thought.status = unchanged ? SyncStatus.synced : SyncStatus.localOnly;
+      if (unchanged) storage.clean(type, thought.uuid);
+      db.thoughtBox.put(thought);
+    });
+  }
+
+  @override
+  void restrictToSecondary() {
+    final pending = {
+      for (final operation in storage.pendingCreations.where(
+        (o) => o.type == type,
+      ))
+        operation.documentId: operation,
+    };
+    for (final id in pendingIds) {
+      if (!_same(read(id)!.payload, pending[id]?.payload)) {
+        final thought = thoughts.getThoughtByUuid(id)!;
+        thought.status = SyncStatus.localOnly;
+        db.thoughtBox.put(thought);
       }
     }
   }

@@ -39,6 +39,7 @@ class JournalAccountResetData implements AccountResetLocalData {
     db.store.runInTransaction(TxMode.write, () {
       db.noteBox.removeAll();
       db.diaryBox.removeAll();
+      db.thoughtBox.removeAll();
       db.store.box<SyncRecordEntity>().removeAll();
     });
   }

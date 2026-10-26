@@ -6,11 +6,19 @@ flow is adapted from the earlier Journal project's `sync_kit` into the existing
 
 ## Storage and diary writing
 
-Diaries, notes and sync metadata live in the existing `Journal-wise` ObjectBox
+Diaries, notes, Flow thoughts and sync metadata live in the existing `Journal-wise` ObjectBox
 store. Save in the diary text editor writes the entry and its pending upload
 operation in one transaction, then returns to the diary. Reader pages update
 from ObjectBox; calendars and local search read saved entries. An empty database
 shows empty days. Example diary data exists only under `test/support`.
+
+Flow saves thoughts locally before clearing the composer, including while offline.
+Each thought stores a full text `content` and an empty `summary` reserved for future
+use, with no tags, pinning or attachments. Saved thoughts appear newest first;
+tap a card to read its full content. Empty collections show no sample thoughts.
+Saving and viewing are supported; editing and deletion are not yet available.
+Thoughts join the existing Google Drive backup queue and restore with the journal
+on startup/manual primary sync or after reclaiming the primary role.
 
 ## More and tasks
 
@@ -22,9 +30,9 @@ at the top of More, with Settings below the Tasks and People cards.
 ## Sync behavior
 
 - The first registered device is primary. Startup and **Sync now** restore shared
-  notes/days before uploading pending local changes. Later automatic primary
+  notes/days/thoughts before uploading pending local changes. Later automatic primary
   syncs upload pending changes without downloading the whole journal.
-- Secondary devices send new notes and append new items to today's diary. They
+- Secondary devices send new notes/thoughts and append new items to today's diary. They
   fetch only the affected day and preserve its other entries and reflection.
   Existing notes and older diary days are read-only. Offline drafts created
   before a role was known are kept locally if they cannot be sent.
@@ -76,7 +84,7 @@ when the app becomes inactive. Real voice services and capture remain future wor
 `DELETE` in its confirmation. Reset is disabled while syncing, including in an
 open confirmation dialog. Once sync is idle, it pauses sync, persists reset progress,
 deletes all Journal Drive app-data (including legacy backups and primary
-registration), then removes local notes, diary days, trash, sync metadata,
+registration), then removes local notes, diary days, thoughts, trash, sync metadata,
 private note-background copies and cached images. It signs out and clears the
 account binding after cleanup. Original photos/imported files, device identity
 and personalization settings are kept.

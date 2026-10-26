@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
+import 'package:journal/modules/flow/controllers/thoughts_providers.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:sync_wise/sync_wise.dart';
@@ -142,6 +143,15 @@ void main() {
     await container.read(syncEngineProvider.notifier).syncNow(manual: true);
     expect(drive.documents['diary/2026-10-26']!.payload['items'], hasLength(1));
     expect(drive.documents['note/note']!.payload['content'], 'Saved here');
+    final thought = container
+        .read(thoughtsRepositoryProvider)
+        .saveThought(content: 'A thought from Flow');
+    expect(container.read(syncEngineProvider).status, EngineSyncState.pending);
+    await container.read(syncEngineProvider.notifier).syncNow(manual: true);
+    expect(
+      drive.documents['thought/${thought.uuid}']!.payload['content'],
+      'A thought from Flow',
+    );
     await Future<void>.delayed(Duration.zero);
     expect(auth.silentSignIns, 1);
   });

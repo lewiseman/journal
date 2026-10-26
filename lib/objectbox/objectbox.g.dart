@@ -15,6 +15,7 @@ import 'package:objectbox/objectbox.dart' as obx;
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import '../modules/diary/models/diary_day_entity.dart';
+import '../modules/flow/models/thought_entity.dart';
 import '../modules/notes/models/note_entity.dart';
 import '../modules/root/controllers/journal_sync_store.dart';
 
@@ -258,6 +259,65 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(4, 8973498499901449446),
+    name: 'ThoughtEntity',
+    lastPropertyId: const obx_int.IdUid(8, 6281004086819928160),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 253950550958929278),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 7139737207969611192),
+        name: 'uuid',
+        type: 9,
+        flags: 2080,
+        indexId: const obx_int.IdUid(4, 8964008647399668782),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 4226235733963382394),
+        name: 'summary',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 2730227751717900630),
+        name: 'content',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 2817414168231961783),
+        name: 'createdAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 5489666800265285034),
+        name: 'updatedAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 2350688174041914917),
+        name: 'lastEditedByDeviceId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 6281004086819928160),
+        name: 'syncStatus',
+        type: 6,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -299,8 +359,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(3, 8825082589129948949),
-    lastIndexId: const obx_int.IdUid(3, 6584844874022537084),
+    lastEntityId: const obx_int.IdUid(4, 8973498499901449446),
+    lastIndexId: const obx_int.IdUid(4, 8964008647399668782),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -617,6 +677,77 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    ThoughtEntity: obx_int.EntityDefinition<ThoughtEntity>(
+      model: _entities[3],
+      toOneRelations: (ThoughtEntity object) => [],
+      toManyRelations: (ThoughtEntity object) => {},
+      getId: (ThoughtEntity object) => object.id,
+      setId: (ThoughtEntity object, int id) {
+        object.id = id;
+      },
+      objectToFB: (ThoughtEntity object, fb.Builder fbb) {
+        final uuidOffset = fbb.writeString(object.uuid);
+        final summaryOffset = fbb.writeString(object.summary);
+        final contentOffset = fbb.writeString(object.content);
+        final lastEditedByDeviceIdOffset = fbb.writeString(
+          object.lastEditedByDeviceId,
+        );
+        fbb.startTable(9);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, uuidOffset);
+        fbb.addOffset(2, summaryOffset);
+        fbb.addOffset(3, contentOffset);
+        fbb.addInt64(4, object.createdAt.millisecondsSinceEpoch);
+        fbb.addInt64(5, object.updatedAt.millisecondsSinceEpoch);
+        fbb.addOffset(6, lastEditedByDeviceIdOffset);
+        fbb.addInt64(7, object.syncStatus);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final uuidParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 6, '');
+        final summaryParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 8, '');
+        final contentParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 10, '');
+        final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 12, 0),
+        );
+        final updatedAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 14, 0),
+        );
+        final lastEditedByDeviceIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 16, '');
+        final syncStatusParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          18,
+          0,
+        );
+        final object = ThoughtEntity(
+          id: idParam,
+          uuid: uuidParam,
+          summary: summaryParam,
+          content: contentParam,
+          createdAt: createdAtParam,
+          updatedAt: updatedAtParam,
+          lastEditedByDeviceId: lastEditedByDeviceIdParam,
+          syncStatus: syncStatusParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -788,5 +919,48 @@ class SyncRecordEntity_ {
   /// See [SyncRecordEntity.value].
   static final value = obx.QueryStringProperty<SyncRecordEntity>(
     _entities[2].properties[2],
+  );
+}
+
+/// [ThoughtEntity] entity fields to define ObjectBox queries.
+class ThoughtEntity_ {
+  /// See [ThoughtEntity.id].
+  static final id = obx.QueryIntegerProperty<ThoughtEntity>(
+    _entities[3].properties[0],
+  );
+
+  /// See [ThoughtEntity.uuid].
+  static final uuid = obx.QueryStringProperty<ThoughtEntity>(
+    _entities[3].properties[1],
+  );
+
+  /// See [ThoughtEntity.summary].
+  static final summary = obx.QueryStringProperty<ThoughtEntity>(
+    _entities[3].properties[2],
+  );
+
+  /// See [ThoughtEntity.content].
+  static final content = obx.QueryStringProperty<ThoughtEntity>(
+    _entities[3].properties[3],
+  );
+
+  /// See [ThoughtEntity.createdAt].
+  static final createdAt = obx.QueryDateProperty<ThoughtEntity>(
+    _entities[3].properties[4],
+  );
+
+  /// See [ThoughtEntity.updatedAt].
+  static final updatedAt = obx.QueryDateProperty<ThoughtEntity>(
+    _entities[3].properties[5],
+  );
+
+  /// See [ThoughtEntity.lastEditedByDeviceId].
+  static final lastEditedByDeviceId = obx.QueryStringProperty<ThoughtEntity>(
+    _entities[3].properties[6],
+  );
+
+  /// See [ThoughtEntity.syncStatus].
+  static final syncStatus = obx.QueryIntegerProperty<ThoughtEntity>(
+    _entities[3].properties[7],
   );
 }

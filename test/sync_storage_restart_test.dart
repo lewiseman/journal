@@ -7,6 +7,7 @@ import 'package:journal/modules/root/controllers/journal_sync_store.dart';
 import 'package:journal/modules/root/controllers/journal_sync_collections.dart';
 import 'package:journal/modules/diary/controllers/diary_repository.dart';
 import 'package:journal/modules/notes/controllers/notes_repository.dart';
+import 'package:journal/modules/flow/controllers/thoughts_repository.dart';
 import 'package:journal/objectbox/objectbox.g.dart';
 import 'package:sync_wise/sync_wise.dart';
 
@@ -19,6 +20,7 @@ void main() {
     addTearDown(() => directory.delete(recursive: true));
     final device = TestDevice('secondary');
     final now = DateTime(2026, 10, 26, 12);
+    late String thoughtUuid;
     final first = ObjectBox.fromStore(
       Store(getObjectBoxModel(), directory: directory.path),
     );
@@ -41,6 +43,11 @@ void main() {
         dateString: '2026-10-26',
         content: 'Diary saved offline',
       );
+      thoughtUuid = ThoughtsRepository(
+        db: first,
+        device: device,
+        sync: storage,
+      ).saveThought(content: 'Thought saved offline').uuid;
     } finally {
       first.close();
     }
@@ -56,7 +63,7 @@ void main() {
     expect(storage.role, SyncDeviceRole.secondary);
     expect(
       storage.pendingCreations.map((op) => op.documentId),
-      containsAll(['durable', '2026-10-26']),
+      containsAll(['durable', '2026-10-26', thoughtUuid]),
     );
     expect(
       reopened.diaryBox.getAll().single.items.single.content,
@@ -76,6 +83,17 @@ void main() {
     addTearDown(backend.dispose);
     final notes = NotesRepository(db: reopened, device: device, sync: storage);
     final diary = DiaryRepository(db: reopened, device: device, sync: storage);
+    final thoughts = ThoughtsRepository(
+      db: reopened,
+      device: device,
+      sync: storage,
+    );
+    final restoredThought = thoughts.getThoughtByUuid(thoughtUuid)!;
+    expect(restoredThought.content, 'Thought saved offline');
+    expect(restoredThought.summary, '');
+    expect(restoredThought.createdAt, now);
+    expect(restoredThought.lastEditedByDeviceId, 'secondary');
+    expect(restoredThought.status, SyncStatus.pendingUpload);
     final provider = NotifierProvider<SyncEngine, SyncEngineState>(
       () => SyncEngine(
         (ref) => SyncEngineConfig(
@@ -89,6 +107,7 @@ void main() {
             device: device,
             notes: notes,
             diary: diary,
+            thoughts: thoughts,
             storage: storage,
           ),
         ),
@@ -99,6 +118,11 @@ void main() {
     await container.read(provider.notifier).syncNow();
     expect(drive.documents['note/durable']!.payload['content'], 'persist me');
     expect(storage.pendingCreations, isEmpty);
+    expect(
+      drive.documents['thought/$thoughtUuid']!.payload['content'],
+      'Thought saved offline',
+    );
+    expect(thoughts.getThoughtByUuid(thoughtUuid)!.status, SyncStatus.synced);
     expect(
       (drive.documents['diary/2026-10-26']!.payload['items'] as List)
           .single['content'],

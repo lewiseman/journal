@@ -84,7 +84,7 @@ void main() {
       expect(find.text('Connect Account'), findsOneWidget);
       expect(find.text('On this device'), findsWidgets);
       expect(
-        find.text('Connect Memory Cloud to sync notes and diaries.'),
+        find.text('Connect Memory Cloud to sync your journal.'),
         findsOneWidget,
       );
       expect(find.text('owner@example.test'), findsNothing);

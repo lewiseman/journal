@@ -14,9 +14,10 @@ Riverpod code generation is not used.
 | Primary: later automatic sync | Upload pending documents without downloading journal content |
 | Explicit primary recovery | Guardedly transfer the existing registry, then run a full sync |
 | Secondary: note creation | Upload the new note only |
+| Secondary: thought creation | Upload the new thought only |
 | Secondary: diary creation | Fetch the affected day, append unseen item IDs, conditionally upload that day |
 
-Drive contains one shared JSON document per note/day. The primary designation and
+Drive contains one shared JSON document per note/day/thought. The primary designation and
 shared document ID directory live in a private Drive app-data registry. If no
 primary exists, the first device claims the role. Simultaneous registrations
 converge on the earliest server-created claim, breaking ties by file ID. This is
