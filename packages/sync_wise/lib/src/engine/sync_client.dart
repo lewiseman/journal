@@ -10,16 +10,16 @@ class PrimaryDevice {
     this.migrationComplete = false,
   });
   Map<String, dynamic> toJson() => {
-    'deviceId': deviceId,
-    'deviceName': deviceName,
-    'fileId': fileId,
-    'migrationComplete': migrationComplete,
+    'device_id': deviceId,
+    'device_name': deviceName,
+    'file_id': fileId,
+    'migration_complete': migrationComplete,
   };
   factory PrimaryDevice.fromJson(Map<String, dynamic> json) => PrimaryDevice(
-    deviceId: json['deviceId'] as String,
-    deviceName: json['deviceName'] as String,
-    fileId: json['fileId'] as String,
-    migrationComplete: json['migrationComplete'] == true,
+    deviceId: json['device_id'] as String,
+    deviceName: json['device_name'] as String,
+    fileId: json['file_id'] as String,
+    migrationComplete: json['migration_complete'] == true,
   );
 }
 
@@ -44,22 +44,22 @@ class RemoteDocument {
     this.isCanonical = true,
   });
   Map<String, dynamic> toJson() => {
-    'fileId': fileId,
+    'file_id': fileId,
     'type': type,
-    'documentId': documentId,
+    'document_id': documentId,
     'revision': revision,
     'payload': payload,
-    'deviceId': deviceId,
-    'isCanonical': isCanonical,
+    'device_id': deviceId,
+    'is_canonical': isCanonical,
   };
   factory RemoteDocument.fromJson(Map<String, dynamic> json) => RemoteDocument(
-    fileId: json['fileId'] as String,
+    fileId: json['file_id'] as String,
     type: json['type'] as String,
-    documentId: json['documentId'] as String,
+    documentId: json['document_id'] as String,
     revision: json['revision'] as String,
     payload: (json['payload'] as Map).cast<String, dynamic>(),
-    deviceId: json['deviceId'] as String? ?? '',
-    isCanonical: json['isCanonical'] != false,
+    deviceId: json['device_id'] as String? ?? '',
+    isCanonical: json['is_canonical'] != false,
   );
 }
 

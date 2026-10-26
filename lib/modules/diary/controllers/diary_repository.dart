@@ -141,7 +141,7 @@ class DiaryRepository {
             id: newItem.itemUuid,
             type: 'diary',
             documentId: dateString,
-            payload: {'dateString': dateString, 'item': newItem.toJson()},
+            payload: {'date_string': dateString, 'item': newItem.toJson()},
           ),
         );
       }

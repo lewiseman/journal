@@ -32,18 +32,18 @@ class AccountResetStorage {
     if (!await file.exists()) return null;
     final value = jsonDecode(await file.readAsString());
     if (value is! Map ||
-        value['accountId'] is! String ||
-        (value['accountId'] as String).isEmpty ||
-        (value['backendId'] != null && value['backendId'] is! String) ||
-        value['remoteDeleted'] is! bool) {
+        value['account_id'] is! String ||
+        (value['account_id'] as String).isEmpty ||
+        (value['backend_id'] != null && value['backend_id'] is! String) ||
+        value['remote_deleted'] is! bool) {
       throw const FormatException(
         'The saved reset request cannot be read. Sync remains paused.',
       );
     }
     return ResetIntent(
-      value['accountId'] as String,
-      backendId: value['backendId'] as String? ?? 'google_drive',
-      remoteDeleted: value['remoteDeleted'] as bool,
+      value['account_id'] as String,
+      backendId: value['backend_id'] as String? ?? 'google_drive',
+      remoteDeleted: value['remote_deleted'] as bool,
     );
   }
 
@@ -52,9 +52,9 @@ class AccountResetStorage {
     final temporary = File('${file.path}.tmp');
     await temporary.writeAsString(
       jsonEncode({
-        'accountId': intent.accountId,
-        'backendId': intent.backendId,
-        'remoteDeleted': intent.remoteDeleted,
+        'account_id': intent.accountId,
+        'backend_id': intent.backendId,
+        'remote_deleted': intent.remoteDeleted,
       }),
       flush: true,
     );

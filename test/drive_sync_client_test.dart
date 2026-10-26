@@ -12,10 +12,10 @@ http.Response jsonResponse(Object value, {int status = 200}) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 Map<String, dynamic> registry({Map<String, String> documents = const {}}) => {
-  'deviceId': 'primary',
-  'deviceName': 'Phone',
-  'protocolVersion': 2,
-  'migrationComplete': false,
+  'device_id': 'primary',
+  'device_name': 'Phone',
+  'protocol_version': 2,
+  'migration_complete': false,
   'documents': documents,
 };
 Map<String, dynamic> file(

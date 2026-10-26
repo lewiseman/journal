@@ -35,10 +35,10 @@ void main() {
           'uuid',
           'summary',
           'content',
-          'createdAt',
-          'updatedAt',
-          'deviceId',
-          'deviceName',
+          'created_at',
+          'updated_at',
+          'device_id',
+          'device_name',
         ]),
       );
       expect(app.storage.pendingCreations, isEmpty);

@@ -21,8 +21,8 @@ class SyncAccountBinding {
     if (await binding.exists()) {
       final owner = jsonDecode(await binding.readAsString());
       if (owner is! Map ||
-          owner['backendId'] != backendId ||
-          owner['accountId'] != accountId) {
+          owner['backend_id'] != backendId ||
+          owner['account_id'] != accountId) {
         throw StateError(
           'This local data belongs to a different sync account or provider. Reconnect the original account to sync.',
         );
@@ -40,7 +40,7 @@ class SyncAccountBinding {
     }
     final temporary = File('${binding.path}.tmp');
     await temporary.writeAsString(
-      jsonEncode({'backendId': backendId, 'accountId': accountId}),
+      jsonEncode({'backend_id': backendId, 'account_id': accountId}),
       flush: true,
     );
     await temporary.rename(binding.path);

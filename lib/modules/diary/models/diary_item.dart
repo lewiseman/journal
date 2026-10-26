@@ -42,29 +42,29 @@ class DiaryItem {
   }
 
   Map<String, dynamic> toJson() => {
-    'itemUuid': itemUuid,
-    'createdAt': createdAt.toIso8601String(),
+    'item_uuid': itemUuid,
+    'created_at': createdAt.toIso8601String(),
     // Keep the original sync_kit wire field for older diary documents.
     'timestamp': createdAt.toIso8601String(),
     'content': content,
     if (mood != null) 'mood': mood,
-    'attachmentPaths': attachmentPaths,
-    'deviceId': deviceId,
-    'updatedAt': updatedAt.toIso8601String(),
-    'isDeleted': isDeleted,
+    'attachment_paths': attachmentPaths,
+    'device_id': deviceId,
+    'updated_at': updatedAt.toIso8601String(),
+    'is_deleted': isDeleted,
   };
 
   factory DiaryItem.fromJson(Map<String, dynamic> json) => DiaryItem(
-    itemUuid: json['itemUuid'] as String,
+    itemUuid: json['item_uuid'] as String,
     createdAt: DateTime.parse(
-      (json['createdAt'] ?? json['timestamp']) as String,
+      (json['created_at'] ?? json['timestamp']) as String,
     ),
     content: json['content'] as String? ?? '',
     mood: json['mood'] as String?,
     attachmentPaths:
-        (json['attachmentPaths'] as List<dynamic>?)?.cast<String>() ?? const [],
-    deviceId: json['deviceId'] as String? ?? '',
-    updatedAt: DateTime.parse(json['updatedAt'] as String),
-    isDeleted: json['isDeleted'] as bool? ?? false,
+        (json['attachment_paths'] as List<dynamic>?)?.cast<String>() ?? const [],
+    deviceId: json['device_id'] as String? ?? '',
+    updatedAt: DateTime.parse(json['updated_at'] as String),
+    isDeleted: json['is_deleted'] as bool? ?? false,
   );
 }

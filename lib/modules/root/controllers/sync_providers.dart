@@ -34,7 +34,7 @@ final syncBackendProvider = Provider<SyncBackend>((ref) {
     auth: ref.watch(googleAuthServiceProvider),
     documentIdFields: const {
       'note': 'uuid',
-      'diary': 'dateString',
+      'diary': 'date_string',
       'thought': 'uuid',
     },
   );

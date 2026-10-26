@@ -26,14 +26,14 @@ void main() {
     expect(drive.listings.length, listings);
     expect(drive.reads, 1);
     final day = drive.documents['diary/$date']!.payload;
-    expect(day['daySummary'], 'Keep summary');
-    expect(day['dayMood'], 'Happy');
+    expect(day['day_summary'], 'Keep summary');
+    expect(day['day_mood'], 'Happy');
     expect((day['items'] as List).map((i) => i['content']), [
       'primary item',
       'secondary item',
     ]);
     expect(
-      (day['items'] as List).where((i) => i['itemUuid'] == item.itemUuid),
+      (day['items'] as List).where((i) => i['item_uuid'] == item.itemUuid),
       hasLength(1),
     );
     expect(secondary.storage.pendingCreations, isEmpty);
@@ -119,7 +119,7 @@ void main() {
         remote['items'] = [
           {
             ...secondary.diary.getDay(date)!.items.single.toJson(),
-            'itemUuid': 'another',
+            'item_uuid': 'another',
             'content': 'another device',
           },
         ];
@@ -179,7 +179,7 @@ void main() {
       await secondary.sync();
       expect(
         (drive.documents['diary/$date']!.payload['items'] as List)
-            .single['isDeleted'],
+            .single['is_deleted'],
         isTrue,
       );
     },

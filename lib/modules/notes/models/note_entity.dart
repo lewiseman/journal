@@ -89,15 +89,15 @@ class NoteEntity {
     'tags': tags,
     'attachments': attachments,
     'background': background,
-    'isPinned': isPinned,
-    'createdAt': createdAt.toIso8601String(),
-    'updatedAt': updatedAt.toIso8601String(),
-    'isDeleted': isDeleted,
-    'isPermanentlyDeleted': isPermanentlyDeleted,
-    'deletedAt': deletedAt?.toIso8601String(),
-    'deviceId': lastEditedByDeviceId,
-    'deviceName': deviceName,
-    'versionVectorJson': versionVectorJson,
+    'is_pinned': isPinned,
+    'created_at': createdAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+    'is_deleted': isDeleted,
+    'is_permanently_deleted': isPermanentlyDeleted,
+    'deleted_at': deletedAt?.toIso8601String(),
+    'device_id': lastEditedByDeviceId,
+    'device_name': deviceName,
+    'version_vector_json': versionVectorJson,
   };
 
   factory NoteEntity.fromSyncJson(Map<String, dynamic> json) => NoteEntity(
@@ -109,7 +109,7 @@ class NoteEntity {
         (json['attachments'] as List?)
             ?.map((value) => (value as Map).cast<String, dynamic>())
             .toList() ??
-        (json['attachmentPaths'] as List?)
+        (json['attachment_paths'] as List?)
             ?.map(
               (path) => <String, dynamic>{
                 'path': path,
@@ -120,16 +120,16 @@ class NoteEntity {
         const [],
     background:
         (json['background'] as Map?)?.cast<String, dynamic>() ?? const {},
-    isPinned: json['isPinned'] as bool? ?? false,
-    createdAt: DateTime.parse(json['createdAt'] as String),
-    updatedAt: DateTime.parse(json['updatedAt'] as String),
-    isDeleted: json['isDeleted'] as bool? ?? false,
-    isPermanentlyDeleted: json['isPermanentlyDeleted'] as bool? ?? false,
-    deletedAt: json['deletedAt'] == null
+    isPinned: json['is_pinned'] as bool? ?? false,
+    createdAt: DateTime.parse(json['created_at'] as String),
+    updatedAt: DateTime.parse(json['updated_at'] as String),
+    isDeleted: json['is_deleted'] as bool? ?? false,
+    isPermanentlyDeleted: json['is_permanently_deleted'] as bool? ?? false,
+    deletedAt: json['deleted_at'] == null
         ? null
-        : DateTime.parse(json['deletedAt'] as String),
-    lastEditedByDeviceId: json['deviceId'] as String? ?? '',
-    versionVectorJson: json['versionVectorJson'] as String? ?? '{}',
+        : DateTime.parse(json['deleted_at'] as String),
+    lastEditedByDeviceId: json['device_id'] as String? ?? '',
+    versionVectorJson: json['version_vector_json'] as String? ?? '{}',
     syncStatus: SyncStatus.synced.value,
   );
 }

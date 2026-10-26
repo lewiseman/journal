@@ -112,18 +112,18 @@ class DiaryDayEntity {
   /// Exports diary day record as a shared sync document
   Map<String, dynamic> toSyncJson(String deviceName) {
     return {
-      'dateString': dateString,
+      'date_string': dateString,
       'date': date.toIso8601String(),
-      'dayMood': dayMood,
-      'dayTitle': dayTitle,
-      'daySummary': daySummary,
+      'day_mood': dayMood,
+      'day_title': dayTitle,
+      'day_summary': daySummary,
       'items': items.map((e) => e.toJson()).toList(),
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'isDeleted': isDeleted,
-      'deletedAt': deletedAt?.toIso8601String(),
-      'deviceId': lastEditedByDeviceId,
-      'deviceName': deviceName,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'is_deleted': isDeleted,
+      'deleted_at': deletedAt?.toIso8601String(),
+      'device_id': lastEditedByDeviceId,
+      'device_name': deviceName,
     };
   }
 
@@ -135,19 +135,19 @@ class DiaryDayEntity {
         .toList();
 
     return DiaryDayEntity(
-      dateString: json['dateString'] as String,
+      dateString: json['date_string'] as String,
       date: DateTime.parse(json['date'] as String),
-      dayMood: json['dayMood'] as String?,
-      daySummary: json['daySummary'] as String?,
-      dayTitle: json['dayTitle'] as String?,
+      dayMood: json['day_mood'] as String?,
+      daySummary: json['day_summary'] as String?,
+      dayTitle: json['day_title'] as String?,
       itemsJson: jsonEncode(itemsList.map((e) => e.toJson()).toList()),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      isDeleted: json['isDeleted'] as bool? ?? false,
-      deletedAt: json['deletedAt'] != null
-          ? DateTime.parse(json['deletedAt'] as String)
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+      isDeleted: json['is_deleted'] as bool? ?? false,
+      deletedAt: json['deleted_at'] != null
+          ? DateTime.parse(json['deleted_at'] as String)
           : null,
-      lastEditedByDeviceId: json['deviceId'] as String? ?? '',
+      lastEditedByDeviceId: json['device_id'] as String? ?? '',
       syncStatus: SyncStatus.synced.value,
     );
   }

@@ -14,7 +14,7 @@ void main() {
     var guarded = 0;
     var downloads = 0;
     String? created;
-    final note = {'dateString': '2026-10-26', 'items': []};
+    final note = {'date_string': '2026-10-26', 'items': []};
     final client = MockClient((request) async {
       if (request.url.path == '/drive/v3/files') {
         return jsonResponse({

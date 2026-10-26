@@ -40,7 +40,7 @@ List<SyncCollection> journalSyncCollections({
               id: item.itemUuid,
               type: 'diary',
               documentId: day.dateString,
-              payload: {'dateString': day.dateString, 'item': item.toJson()},
+              payload: {'date_string': day.dateString, 'item': item.toJson()},
             ),
           );
         }
@@ -60,8 +60,8 @@ int _legacyRank(RemoteDocument a, RemoteDocument b, String primary) {
   // Shared documents supersede legacy metadata on a partially completed upgrade.
   final shared = (a.isCanonical ? 1 : 0).compareTo(b.isCanonical ? 1 : 0);
   if (shared != 0) return shared;
-  final time = DateTime.parse(a.payload['updatedAt'] as String)
-      .compareTo(DateTime.parse(b.payload['updatedAt'] as String));
+  final time = DateTime.parse(a.payload['updated_at'] as String)
+      .compareTo(DateTime.parse(b.payload['updated_at'] as String));
   if (time != 0) return time;
   final preferred = (a.deviceId == primary ? 1 : 0).compareTo(
     b.deviceId == primary ? 1 : 0,
@@ -464,14 +464,14 @@ class _DiaryCollection implements SyncCollection {
         ? DiaryDayEntity(
             dateString: operations.first.documentId,
             createdAt: DateTime.parse(
-              (operations.first.payload['item'] as Map)['createdAt'] as String,
+              (operations.first.payload['item'] as Map)['created_at'] as String,
             ),
           )
         : DiaryDayEntity.fromSyncJson(remote.payload);
     final items = {for (final item in day.items) item.itemUuid: item};
     for (final operation in operations) {
       if (operation.documentId != day.dateString ||
-          operation.payload['dateString'] != day.dateString) {
+          operation.payload['date_string'] != day.dateString) {
         throw const FormatException('Diary addition targets another date.');
       }
       final item = DiaryItem.fromJson(

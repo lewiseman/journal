@@ -116,7 +116,7 @@ platform identity/auth/reset adapters browser-ready.
 
 The engine does not use conflict copies or version vectors for reconciliation.
 The host retains existing note revision fields for stale-editor draft recovery.
-Diary items accept both `createdAt` and the legacy `timestamp` wire field, and
+Diary items accept both `created_at` and the legacy `timestamp` wire field, and
 day titles, note backgrounds, pinning and attachment metadata are preserved. Old per-device backups are imported once into shared documents. Import
 completion is recorded only after successful uploads; old cloud files are kept
 until account reset. All syncing clients must upgrade to this protocol.

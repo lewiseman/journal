@@ -42,14 +42,14 @@ class PendingCreation {
   Map<String, dynamic> toJson() => {
     'id': id,
     'type': type,
-    'documentId': documentId,
+    'document_id': documentId,
     'payload': payload,
   };
   factory PendingCreation.fromJson(Map<String, dynamic> json) =>
       PendingCreation(
         id: json['id'] as String,
         type: json['type'] as String,
-        documentId: json['documentId'] as String,
+        documentId: json['document_id'] as String,
         payload: (json['payload'] as Map).cast<String, dynamic>(),
       );
 }

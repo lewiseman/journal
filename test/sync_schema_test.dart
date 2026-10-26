@@ -50,7 +50,7 @@ void main() {
         updatedAt: day.updatedAt,
         content: 'From an older journal',
       );
-      final legacy = item.toJson()..remove('createdAt');
+      final legacy = item.toJson()..remove('created_at');
       drive.seed('diary', day.dateString, {
         ...day.toSyncJson('phone'),
         'items': [legacy],

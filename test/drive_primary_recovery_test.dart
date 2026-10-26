@@ -8,10 +8,10 @@ import 'package:sync_wise/sync_wise.dart';
 
 class _RegistryServer {
   Map<String, dynamic> payload = {
-    'deviceId': 'old',
-    'deviceName': 'Old phone',
-    'protocolVersion': 2,
-    'migrationComplete': true,
+    'device_id': 'old',
+    'device_name': 'Old phone',
+    'protocol_version': 2,
+    'migration_complete': true,
     'documents': {'note/one': 'note-file', 'diary/2026-10-26': 'diary-file'},
     'extra': 'preserve unknown fields',
   };
@@ -73,7 +73,7 @@ void main() {
     expect(result.migrationComplete, isTrue);
     expect(server.payload['documents'], documents);
     expect(server.payload['extra'], 'preserve unknown fields');
-    expect(server.payload['deviceName'], 'New phone');
+    expect(server.payload['device_name'], 'New phone');
     expect(server.writes, 1);
     await client.reclaimPrimary(
       expectedPrimary: old,
@@ -109,7 +109,7 @@ void main() {
         deviceName: 'New phone',
       );
       expect((server.payload['documents'] as Map)['note/two'], 'new-file');
-      expect(server.payload['deviceId'], 'new');
+      expect(server.payload['device_id'], 'new');
       expect(server.writes, 2);
     },
   );
@@ -124,7 +124,7 @@ void main() {
         deviceId: 'new',
         deviceName: 'New phone',
       );
-      server.race = () => server.payload['deviceId'] = 'other';
+      server.race = () => server.payload['device_id'] = 'other';
       await expectLater(
         client.reclaimPrimary(
           expectedPrimary: old,
@@ -133,7 +133,7 @@ void main() {
         ),
         throwsA(isA<PrimaryDeviceChanged>()),
       );
-      expect(server.payload['deviceId'], 'other');
+      expect(server.payload['device_id'], 'other');
       expect(server.writes, 1);
     },
   );

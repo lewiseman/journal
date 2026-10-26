@@ -42,10 +42,10 @@ class ThoughtEntity {
     'uuid': uuid,
     'summary': summary,
     'content': content,
-    'createdAt': createdAt.toUtc().toIso8601String(),
-    'updatedAt': updatedAt.toUtc().toIso8601String(),
-    'deviceId': lastEditedByDeviceId,
-    'deviceName': deviceName,
+    'created_at': createdAt.toUtc().toIso8601String(),
+    'updated_at': updatedAt.toUtc().toIso8601String(),
+    'device_id': lastEditedByDeviceId,
+    'device_name': deviceName,
   };
 
   factory ThoughtEntity.fromSyncJson(Map<String, dynamic> json) =>
@@ -53,9 +53,9 @@ class ThoughtEntity {
         uuid: json['uuid'] as String,
         summary: json['summary'] as String? ?? '',
         content: json['content'] as String,
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        updatedAt: DateTime.parse(json['updatedAt'] as String),
-        lastEditedByDeviceId: json['deviceId'] as String? ?? '',
+        createdAt: DateTime.parse(json['created_at'] as String),
+        updatedAt: DateTime.parse(json['updated_at'] as String),
+        lastEditedByDeviceId: json['device_id'] as String? ?? '',
         syncStatus: SyncStatus.synced.value,
       );
 }

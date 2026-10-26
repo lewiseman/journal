@@ -30,7 +30,7 @@ void main() {
         jsonDecode(
           await File('${directory.path}/sync_account.json').readAsString(),
         ),
-        {'backendId': 'google_drive', 'accountId': 'original'},
+        {'backend_id': 'google_drive', 'account_id': 'original'},
       );
     },
   );

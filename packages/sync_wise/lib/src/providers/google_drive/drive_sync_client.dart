@@ -155,11 +155,11 @@ class DriveSyncClient implements SyncClient {
     if (claims.isEmpty) {
       final bytes = utf8.encode(
         jsonEncode({
-          'deviceId': deviceId,
-          'deviceName': deviceName,
-          'protocolVersion': 2,
+          'device_id': deviceId,
+          'device_name': deviceName,
+          'protocol_version': 2,
           'documents': <String, String>{},
-          'migrationComplete': false,
+          'migration_complete': false,
         }),
       );
       await _api.files.create(
@@ -192,12 +192,12 @@ class DriveSyncClient implements SyncClient {
   }
 
   PrimaryDevice _decodePrimary(RemoteDocument record) {
-    final id = record.payload['deviceId'];
-    final name = record.payload['deviceName'];
+    final id = record.payload['device_id'];
+    final name = record.payload['device_name'];
     if (id is! String ||
         id.isEmpty ||
         name is! String ||
-        record.payload['protocolVersion'] != 2 ||
+        record.payload['protocol_version'] != 2 ||
         record.payload['documents'] is! Map) {
       throw const FormatException('Invalid primary registry.');
     }
@@ -205,7 +205,7 @@ class DriveSyncClient implements SyncClient {
       deviceId: id,
       deviceName: name,
       fileId: record.fileId,
-      migrationComplete: record.payload['migrationComplete'] == true,
+      migrationComplete: record.payload['migration_complete'] == true,
     );
   }
 
@@ -227,8 +227,8 @@ class DriveSyncClient implements SyncClient {
       try {
         final updated = await _replace(registry, {
           ...registry.payload,
-          'deviceId': deviceId,
-          'deviceName': deviceName,
+          'device_id': deviceId,
+          'device_name': deviceName,
         });
         return _primary = _decodePrimary(updated);
       } on RemoteDocumentChanged {
@@ -286,11 +286,11 @@ class DriveSyncClient implements SyncClient {
     }
     for (var attempt = 0; attempt < 5; attempt++) {
       final registry = await _registry();
-      if (registry.payload['migrationComplete'] == true) return;
+      if (registry.payload['migration_complete'] == true) return;
       try {
         await _replace(registry, {
           ...registry.payload,
-          'migrationComplete': true,
+          'migration_complete': true,
         });
         return;
       } on RemoteDocumentChanged {
