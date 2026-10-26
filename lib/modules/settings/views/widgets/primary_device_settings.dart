@@ -84,8 +84,7 @@ class _PrimaryDeviceSettingsState extends ConsumerState<PrimaryDeviceSettings> {
   @override
   Widget build(BuildContext context) {
     final sync = ref.watch(syncEngineProvider);
-    final auth = ref.watch(syncAuthProvider);
-    final account = ref.watch(authStateProvider).value ?? auth.currentUser;
+    final account = ref.watch(syncAccountProvider);
     final primary = sync.role == SyncDeviceRole.primary;
     final busy = _working || sync.isSyncing;
     final colors = context.colors;

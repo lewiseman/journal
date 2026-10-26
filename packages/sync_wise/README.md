@@ -134,8 +134,9 @@ additional providers implement the same contracts, including guarded writes.
 
 `SyncAccountBinding` prevents local data from mixing with a different provider or
 account. `AccountResetController` is a handwritten Notifier configured with
-`AccountResetConfig`. It pauses/drains sync, persists reset intent, deletes cloud
-data, invokes the host's idempotent local cleanup, signs out, and clears binding.
+`AccountResetConfig`. New resets reject active sync without interrupting it. Once
+idle, the controller pauses sync, persists reset intent, deletes cloud data,
+invokes the host's idempotent local cleanup, signs out, and clears binding.
 Use `AccountResetStorage.canSync` as the engine gate and block ordinary UI data
 access while `AccountResetState.blocksDataAccess` is true. A persisted reset can
 be resumed without repeating completed cloud deletion. The controller never
@@ -145,4 +146,7 @@ Run `flutter analyze` and `flutter test` in this package and in the Journal root
 ObjectBox bindings in the host still use their existing generator; Riverpod does
 not use generated code.
 
-The reset contracts are available to hosts; this Journal integration does not expose a reset action.
+Journal exposes reset in Settings with a typed `DELETE` confirmation. Its host
+adapter clears ObjectBox and the current app-owned image storage, without using
+synced paths to choose files. A gate above the Navigator blocks unfinished resets
+and startup coordination awaits the reset check before restoring authentication.

@@ -39,8 +39,25 @@ shows empty days. Example diary data exists only under `test/support`.
 
 This is JSON/content sync. Attachment metadata is preserved, but image, voice
 and other attachment bytes are not transferred. Diary image/voice capture is
-still a placeholder. The package includes optional account-reset contracts;
-there is no account-reset UI in this integration.
+still a placeholder.
+
+## Resetting account data
+
+**Settings → Reset account data** requires the connected account and typing
+`DELETE` in its confirmation. Reset is disabled while syncing, including in an
+open confirmation dialog. Once sync is idle, it pauses sync, persists reset progress,
+deletes all Journal Drive app-data (including legacy backups and primary
+registration), then removes local notes, diary days, trash, sync metadata,
+private note-background copies and cached images. It signs out and clears the
+account binding after cleanup. Original photos/imported files, device identity
+and personalization settings are kept.
+
+Cloud deletion needs an internet connection. An interrupted reset blocks journal
+navigation and syncing across restarts and offers **Retry and finish reset**.
+Once cloud deletion is recorded as complete, local cleanup can resume offline.
+Old editors/routes are disposed, including when a reset finishes within a frame.
+Close Journal on other devices first: their local copies are not remotely erased
+and can upload again if reconnected before being cleared.
 
 ## Running and checking
 

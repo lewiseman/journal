@@ -142,16 +142,20 @@ void main() {
     },
   );
 
-  test('drains active sync before starting deletion', () async {
+  test('rejects an active sync without pausing it and allows reset after it finishes', () async {
     final release = Completer<void>();
     engine.drain = release.future;
     final reset = await controller();
-    final resetting = reset.reset(expectedAccountId: 'owner');
-    await Future<void>.delayed(Duration.zero);
-    expect(events, ['pause']);
+    await reset.reset(expectedAccountId: 'owner');
+    expect(_state(reset).error, contains('Wait for sync to finish'));
+    expect(_state(reset).blocksDataAccess, isFalse);
+    expect(events, isEmpty);
     expect(backend.store.deletions, 0);
+    expect(localData.calls, 0);
+    expect(await storage.canSync(), isTrue);
     release.complete();
-    await resetting;
+    engine.drain = null;
+    await reset.reset(expectedAccountId: 'owner');
     expect(_state(reset).completed, isTrue);
   });
   test(
@@ -204,7 +208,12 @@ class _Engine extends Fake implements SyncEngine {
   Future<void>? drain;
   _Engine(this.events);
   @override
-  Future<void> suspendForReset() async {
+  Future<void> suspendForReset({bool requireIdle = false}) async {
+    if (requireIdle && drain != null) {
+      throw StateError(
+        'Wait for sync to finish before resetting account data.',
+      );
+    }
     events.add('pause');
     await drain;
   }

@@ -21,6 +21,24 @@ class TestDevice extends Fake implements DeviceIdentityService {
   String get deviceName => deviceId;
 }
 
+/// Reset storage without platform I/O for unrelated provider/widget tests.
+class TestResetStorage extends AccountResetStorage {
+  ResetIntent? intent;
+  @override
+  Future<bool> canSync() async => intent == null;
+  @override
+  Future<ResetIntent?> read() async => intent;
+  @override
+  Future<void> write(ResetIntent value) async {
+    intent = value;
+  }
+
+  @override
+  Future<void> finish() async {
+    intent = null;
+  }
+}
+
 class SyncFixture {
   final Directory directory;
   late final ObjectBox db;

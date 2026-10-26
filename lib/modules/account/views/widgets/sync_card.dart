@@ -84,11 +84,9 @@ class SyncAccountCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final name = CacheStorage.instance.get(userNameKey);
-    final syncAccountAsync = ref.watch(authStateProvider);
+    final syncAccount = ref.watch(syncAccountProvider);
     final syncState = ref.watch(syncEngineProvider);
     final syncBackend = ref.watch(syncBackendProvider);
-    final syncAccount =
-        syncAccountAsync.value ?? ref.watch(syncAuthProvider).currentUser;
     final isSignedIn = syncAccount != null;
     final colors = context.colors;
     final t = collapseProgress.clamp(0.0, 1.0);

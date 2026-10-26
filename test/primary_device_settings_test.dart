@@ -31,6 +31,7 @@ void main() {
     await fixture.sync();
     scope = ProviderContainer.test(
       overrides: [
+        accountResetStorageProvider.overrideWithValue(TestResetStorage()),
         objectBoxProvider.overrideWithValue(fixture.db),
         deviceIdentityProvider.overrideWithValue(fixture.device),
         networkServiceProvider.overrideWithValue(_Network()),

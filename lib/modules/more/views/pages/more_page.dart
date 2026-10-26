@@ -15,7 +15,7 @@ class _MorePageState extends ConsumerState<MorePage> {
   final _scroll = ScrollController();
   @override
   Widget build(BuildContext context) {
-    final syncAccount = ref.watch(authStateProvider).value;
+    final syncAccount = ref.watch(syncAccountProvider);
     return SafeArea(
       child: Center(
         child: ConstrainedBox(

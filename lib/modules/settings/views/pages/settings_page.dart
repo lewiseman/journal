@@ -1,6 +1,7 @@
 import 'package:journal/common.dart';
 import 'package:journal/modules/settings/views/pages/appearance_page.dart';
 import 'package:journal/modules/settings/views/widgets/primary_device_settings.dart';
+import 'package:journal/modules/settings/views/widgets/reset_account_card.dart';
 
 class SettingsPage extends StatelessWidget {
   const new({super.key});
@@ -18,6 +19,7 @@ class SettingsPage extends StatelessWidget {
             },
           ),
           const PrimaryDeviceSettings(),
+          const ResetAccountCard(),
         ],
       ),
     );

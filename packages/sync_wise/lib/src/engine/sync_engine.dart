@@ -625,8 +625,13 @@ class SyncEngine extends Notifier<SyncEngineState> {
     });
   }
 
-  Future<void> suspendForReset() async {
+  Future<void> suspendForReset({bool requireIdle = false}) async {
     final run = _runtime;
+    if (requireIdle && run.active != null) {
+      throw StateError(
+        'Wait for sync to finish before resetting account data.',
+      );
+    }
     _resetSuspended = true;
     run.suspended = true;
     run.cancelTimers();
@@ -644,7 +649,7 @@ class SyncEngine extends Notifier<SyncEngineState> {
       run.finished = null;
       run.failures = 0;
       run.trailing = false;
-      state = const SyncEngineState();
+      state = const SyncEngineState(status: EngineSyncState.unauthenticated);
     }
   }
 }

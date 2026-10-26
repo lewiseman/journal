@@ -1,5 +1,6 @@
 import 'package:journal/common.dart';
 import 'package:sync_wise/sync_wise.dart';
+import 'package:journal/modules/root/views/widgets/account_reset_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,10 +21,12 @@ class Journal extends ConsumerWidget {
     final themes = ref.watch(appThemesProvider);
     final firstTimeUser = CacheStorage.instance.get(userNameKey) ?? '';
     return MaterialApp(
+      navigatorKey: ref.watch(journalNavigatorKeyProvider),
       debugShowCheckedModeBanner: false,
       theme: themes.light,
       darkTheme: themes.dark,
       title: 'Journal',
+      builder: (context, child) => AccountResetGate(child: child!),
       home: firstTimeUser.isEmpty ? OnboardingPage() : RootLayout(),
       themeMode: themeMode,
     );

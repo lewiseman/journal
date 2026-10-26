@@ -218,6 +218,17 @@ void main() {
     };
     final syncing = h.engine.syncNow();
     await entered.future;
+    await expectLater(
+      h.engine.suspendForReset(requireIdle: true),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('Wait for sync to finish'),
+        ),
+      ),
+    );
+    expect(h.state.isSyncing, isTrue);
     var drained = false;
     final draining = h.engine.suspendForReset().then((_) => drained = true);
     await Future<void>.delayed(Duration.zero);
@@ -228,6 +239,7 @@ void main() {
     h.engine.resumeAfterReset(completed: true);
     expect(h.storage.role, SyncDeviceRole.unknown);
     expect(h.state.lastSyncTime, isNull);
+    expect(h.state.status, EngineSyncState.unauthenticated);
   });
   test('invalidating a provider discards old async continuations', () async {
     final drive = MemoryDrive();

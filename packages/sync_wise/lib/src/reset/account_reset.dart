@@ -118,14 +118,18 @@ class AccountResetController extends Notifier<AccountResetState> {
     final config = run.config;
     final auth = config.backend.auth;
     var durable = state.pending;
-    state = AccountResetState(
-      running: true,
-      pending: durable,
-      activity: 'Pausing sync…',
-    );
+    var suspended = false;
     try {
-      await config.engine.suspendForReset();
+      // Claim the idle engine before publishing reset state. This also closes
+      // the race with sync starting while the confirmation dialog is open.
+      await config.engine.suspendForReset(requireIdle: !durable);
+      suspended = true;
       if (!_alive(run)) return;
+      state = AccountResetState(
+        running: true,
+        pending: durable,
+        activity: 'Pausing sync…',
+      );
       var intent = await config.storage.read();
       if (!_alive(run)) return;
       if (intent != null && intent.backendId != config.backend.id) {
@@ -189,7 +193,9 @@ class AccountResetController extends Notifier<AccountResetState> {
       state = const AccountResetState(completed: true);
     } catch (error) {
       if (!_alive(run)) return;
-      if (!durable) config.engine.resumeAfterReset(completed: false);
+      if (!durable && suspended) {
+        config.engine.resumeAfterReset(completed: false);
+      }
       state = AccountResetState(pending: durable, error: '$error');
     } finally {
       run.session?.close();
