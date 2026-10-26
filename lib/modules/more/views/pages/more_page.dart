@@ -1,5 +1,7 @@
 import 'package:journal/common.dart';
-import 'package:journal/modules/more/views/widgets/more_shortcuts_grid.dart';
+import 'package:journal/modules/more/views/widgets/people_preview_card.dart';
+import 'package:journal/modules/more/views/widgets/tasks_preview_card.dart';
+import 'package:journal/modules/tasks/views/pages/tasks_page.dart';
 
 import 'dart:ui' show lerpDouble;
 import 'dart:math' as math;
@@ -13,6 +15,13 @@ class MorePage extends ConsumerStatefulWidget {
 
 class _MorePageState extends ConsumerState<MorePage> {
   final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final syncAccount = ref.watch(syncAccountProvider);
@@ -60,11 +69,11 @@ class _MorePageState extends ConsumerState<MorePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            MoreShortcutsGrid(
-                              onWatchlist: () {},
-                              onBirthdays: () {},
-                              onBucketList: () {},
+                            TasksPreviewCard(
+                              onOpen: () => context.nav.push(const TasksPage()),
                             ),
+                            const SizedBox(height: 16),
+                            const PeoplePreviewCard(),
                             const SizedBox(height: 32),
                             Text(
                               'Make it yours',

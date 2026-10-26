@@ -12,6 +12,13 @@ operation in one transaction, then returns to the diary. Reader pages update
 from ObjectBox; calendars and local search read saved entries. An empty database
 shows empty days. Example diary data exists only under `test/support`.
 
+## More and tasks
+
+More shows a Tasks preview that opens the full Tasks page. Tasks is UI only
+for now, with no task storage or add, edit, complete or delete actions. People
+is a preview for a future page. The original expandable account sync card stays
+at the top of More, with Settings below the Tasks and People cards.
+
 ## Sync behavior
 
 - The first registered device is primary. Startup and **Sync now** restore shared
