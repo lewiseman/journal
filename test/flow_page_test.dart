@@ -86,17 +86,31 @@ Future<void> _mount(
 
 Future<void> _capture(WidgetTester tester, String name) async {
   if (!const bool.fromEnvironment('FLOW_CAPTURES')) return;
-  await tester.pump();
-  final boundary = tester.renderObject<RenderRepaintBoundary>(
-    find.byKey(_captureKey),
-  );
-  await tester.runAsync(() async {
-    final image = await boundary.toImage(pixelRatio: 2);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    await File('/tmp/journal-flow-$name.png')
-        .writeAsBytes(bytes!.buffer.asUint8List());
-    image.dispose();
-  });
+  final previous = debugDisableShadows;
+  try {
+    // Capture the actual Material shadows, then restore the test debug state.
+    debugDisableShadows = false;
+    for (final object in tester.allRenderObjects) {
+      object.markNeedsPaint();
+    }
+    await tester.pump();
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(_captureKey),
+    );
+    await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      await File('/tmp/journal-flow-$name.png')
+          .writeAsBytes(bytes!.buffer.asUint8List());
+      image.dispose();
+    });
+  } finally {
+    debugDisableShadows = previous;
+    for (final object in tester.allRenderObjects) {
+      object.markNeedsPaint();
+    }
+    await tester.pump();
+  }
 }
 
 void main() {
@@ -119,6 +133,41 @@ void main() {
       await loader.load();
     }
   });
+
+  for (final dark in [false, true]) {
+    testWidgets('same-color clouds remain tappable, dark: $dark', (
+      tester,
+    ) async {
+      final thoughts = sampleThoughts(6);
+      for (var i = 0; i < thoughts.length; i++) {
+        // Unique IDs with the same palette hash reproduce overlapping sand.
+        thoughts[i].uuid = String.fromCharCode(48 + i * 6);
+      }
+      await _mount(
+        tester,
+        dark: dark,
+        repository: MemoryThoughtsRepository(thoughts),
+      );
+      final scheme = Theme.of(tester.element(find.byType(FlowPage)))
+          .colorScheme;
+      expect(
+        thoughts
+            .map((thought) => flowThoughtColors(thought, scheme).background)
+            .toSet(),
+        hasLength(1),
+      );
+      await _capture(tester, dark ? 'same-color-dark' : 'same-color');
+      await tester.tap(
+        find.byKey(ValueKey('flow-thought-${thoughts[2].uuid}')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(SelectableText, thoughts[2].content),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final count in [0, 1, 3, 4, 5, 6, 12, 20]) {
     testWidgets(

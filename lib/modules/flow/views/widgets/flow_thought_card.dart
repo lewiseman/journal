@@ -52,8 +52,9 @@ class FlowThoughtCard extends StatelessWidget {
     final shape = _ThoughtBubbleBorder(
       alternate: _paperIndex(thought).isOdd,
       side: BorderSide(
-        color: colors.foreground.withValues(alpha: .035),
-        width: .7,
+        // Preserve a visible seam when clouds with identical fills overlap.
+        color: colors.foreground.withValues(alpha: context.isDark ? .16 : .12),
+        width: 1,
       ),
     );
     final date = flowThoughtDate(thought.createdAt);
@@ -64,8 +65,10 @@ class FlowThoughtCard extends StatelessWidget {
       excludeSemantics: true,
       child: Material(
         color: background,
-        elevation: .5,
-        shadowColor: context.colors.shadow.withValues(alpha: .08),
+        elevation: 4,
+        shadowColor: context.colors.shadow.withValues(
+          alpha: context.isDark ? .38 : .20,
+        ),
         surfaceTintColor: Colors.transparent,
         shape: shape,
         clipBehavior: Clip.antiAlias,
