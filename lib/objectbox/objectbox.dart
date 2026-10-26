@@ -9,16 +9,20 @@ late ObjectBox objectbox;
 class ObjectBox {
   late final Store store;
   late final Box<NoteEntity> noteBox;
+  late final Box<DiaryDayEntity> diaryBox;
 
-  ObjectBox._create(this.store) {
+  ObjectBox.fromStore(this.store) {
     noteBox = Box<NoteEntity>(store);
+    diaryBox = Box<DiaryDayEntity>(store);
   }
+
+  void close() => store.close();
 
   static Future<ObjectBox> create() async {
     final docsDir = await getApplicationDocumentsDirectory();
     final store = await openStore(
       directory: p.join(docsDir.path, "Journal-wise"),
     );
-    return ObjectBox._create(store);
+    return ObjectBox.fromStore(store);
   }
 }

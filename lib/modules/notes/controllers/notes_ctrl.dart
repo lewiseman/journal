@@ -20,9 +20,18 @@ final StreamProvider<List<NoteEntity>> conflictNotesStreamProvider =
       return repo.watchConflictNotes();
     });
 
-final notesRepositoryProvider = Provider<NotesRepository>((ref) {
-  return NotesRepository(onDataChanged: () {});
-});
+final Provider<NotesRepository> notesRepositoryProvider =
+    Provider<NotesRepository>((ref) {
+      final changes = ref.watch(journalChangesProvider);
+      return NotesRepository(
+        db: ref.watch(objectBoxProvider),
+        device: ref.watch(deviceIdentityProvider),
+        sync: ref.watch(syncStateStoreProvider),
+        onDataChanged: () {
+          if (!changes.isClosed) changes.add(null);
+        },
+      );
+    });
 
 final notesTagProvider = Provider<List<({String name, String emoji})>>((ref) {
   final notes = ref.watch(notesStreamProvider).asData?.value ?? const [];

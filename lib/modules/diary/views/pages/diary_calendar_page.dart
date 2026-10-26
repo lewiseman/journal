@@ -15,13 +15,13 @@ class DiaryCalendarPage extends StatefulWidget {
     required this.initialDate,
     required this.lastDate,
     this.firstDate,
-    this.dayData = DiaryCalendarDay.sample,
+    this.dayData,
   });
 
   final DateTime initialDate;
   final DateTime lastDate;
   final DateTime? firstDate;
-  final DiaryCalendarDay Function(DateTime) dayData;
+  final DiaryCalendarDay Function(DateTime)? dayData;
 
   @override
   State<DiaryCalendarPage> createState() => _DiaryCalendarPageState();
@@ -193,7 +193,16 @@ class _DiaryCalendarPageState extends State<DiaryCalendarPage> {
                                 offset: _yearOffsets[year] ?? 0,
                                 onOffset: (offset) =>
                                     _yearOffsets[year] = offset,
-                                dayData: widget.dayData,
+                                dayData:
+                                    widget.dayData ??
+                                    (date) => DiaryCalendarDay.fromEntity(
+                                      ProviderScope.containerOf(
+                                            context,
+                                            listen: false,
+                                          )
+                                          .read(diaryRepositoryProvider)
+                                          .getDay(TimeHelper.dateKey(date)),
+                                    ),
                                 onSelect: _select,
                               );
                             },

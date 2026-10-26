@@ -14,6 +14,32 @@ class SyncAccountCard extends ConsumerWidget {
   final double collapseProgress;
   final VoidCallback onExpand;
 
+  Future<void> _connectOrSync(
+    BuildContext context,
+    WidgetRef ref,
+    bool isSignedIn,
+  ) async {
+    try {
+      final account = isSignedIn
+          ? ref.read(syncAuthProvider).currentUser
+          : await ref.read(syncAuthProvider).signIn();
+      if (account == null || !context.mounted) return;
+      await ref.read(syncEngineProvider.notifier).syncNow(manual: true);
+      if (!context.mounted) return;
+      final error = ref.read(syncEngineProvider).lastError;
+      if (error != null || !isSignedIn) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error ?? 'Connected as ${account.email}.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
   static double compactHeight(BuildContext context) =>
       48 + MediaQuery.textScalerOf(context).scale(38);
 
@@ -52,7 +78,7 @@ class SyncAccountCard extends ConsumerWidget {
                 28)
             .clamp(368.0, double.infinity);
     // Remove the hidden button and its spacing after applying the minimum.
-    return isSignedIn ? height - 18 - buttonHeight : height;
+    return height;
   }
 
   @override
@@ -61,7 +87,8 @@ class SyncAccountCard extends ConsumerWidget {
     final syncAccountAsync = ref.watch(authStateProvider);
     final syncState = ref.watch(syncEngineProvider);
     final syncBackend = ref.watch(syncBackendProvider);
-    final syncAccount = syncAccountAsync.value;
+    final syncAccount =
+        syncAccountAsync.value ?? ref.watch(syncAuthProvider).currentUser;
     final isSignedIn = syncAccount != null;
     final colors = context.colors;
     final t = collapseProgress.clamp(0.0, 1.0);
@@ -217,16 +244,21 @@ class SyncAccountCard extends ConsumerWidget {
                                             ),
                                           ),
                                           const SizedBox(height: 5),
-                                          Text(
-                                            syncState.descriptionFor(
+                                          Tooltip(
+                                            message: syncState.descriptionFor(
                                               syncBackend,
                                             ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: colors.onSurfaceVariant,
-                                              fontSize: 12,
-                                              height: 1.45,
+                                            child: Text(
+                                              syncState.descriptionFor(
+                                                syncBackend,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: colors.onSurfaceVariant,
+                                                fontSize: 12,
+                                                height: 1.45,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -235,38 +267,17 @@ class SyncAccountCard extends ConsumerWidget {
                                   ],
                                 ),
                               ),
-                              if (!isSignedIn) ...[
+                              ...[
                                 const SizedBox(height: 18),
                                 FilledButton(
                                   key: const ValueKey('sync-card-action'),
-                                  onPressed: () async {
-                                    final user = await ref
-                                        .read(syncAuthProvider)
-                                        .signIn();
-                                    if (user != null && context.mounted) {
-                                      await ref
-                                          .read(syncEngineProvider.notifier)
-                                          .syncNow(manual: true);
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
+                                  onPressed: syncState.isSyncing
+                                      ? null
+                                      : () => _connectOrSync(
                                           context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              ref
-                                                          .read(
-                                                            syncEngineProvider,
-                                                          )
-                                                          .lastError ==
-                                                      null
-                                                  ? 'Connected as ${user.email}.'
-                                                  : 'Connected, but backup is incomplete. See the sync error below.',
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
+                                          ref,
+                                          isSignedIn,
+                                        ),
                                   style: FilledButton.styleFrom(
                                     minimumSize: const Size.fromHeight(48),
                                     padding: const EdgeInsets.symmetric(
@@ -280,8 +291,8 @@ class SyncAccountCard extends ConsumerWidget {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Text(
-                                        'G',
+                                      Text(
+                                        isSignedIn ? '↻' : 'G',
                                         maxLines: 1,
                                         style: TextStyle(
                                           fontWeight: FontWeight.w800,
@@ -292,7 +303,9 @@ class SyncAccountCard extends ConsumerWidget {
                                       const SizedBox(width: 10),
                                       Flexible(
                                         child: Text(
-                                          'Connect  Account',
+                                          isSignedIn
+                                              ? 'Sync now'
+                                              : 'Connect Account',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           textAlign: TextAlign.center,
@@ -314,7 +327,7 @@ class SyncAccountCard extends ConsumerWidget {
                               ],
                               const SizedBox(height: 12),
                               Text(
-                                'Your notes. Your account.',
+                                'Your journal. Your account.',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.center,

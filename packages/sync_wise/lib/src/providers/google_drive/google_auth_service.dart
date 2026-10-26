@@ -3,11 +3,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sync_wise/src/auth/sync_account_binding.dart';
-import 'package:sync_wise/src/auth/sync_auth.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
 import 'package:http/retry.dart';
+
+import '../../auth/sync_auth.dart';
+import '../../auth/sync_account_binding.dart';
 
 class AuthenticatedHttpClient extends http.BaseClient {
   final Future<Map<String, String>> Function() _getHeaders;
@@ -64,9 +65,9 @@ class GoogleAuthService implements SyncAuth {
 
   GoogleAuthService({
     GoogleSignIn? googleSignIn,
-    http.Client Function()? clientFactory,
     Future<Directory> Function()? directory,
     SyncAccountBinding? accountBinding,
+    http.Client Function()? clientFactory,
   }) : _binding = accountBinding ?? SyncAccountBinding(directory: directory),
        _clientFactory = clientFactory ?? http.Client.new,
        _googleSignIn =
@@ -92,6 +93,7 @@ class GoogleAuthService implements SyncAuth {
           id: user.id,
           email: user.email,
           displayName: user.displayName,
+          photoUrl: user.photoUrl,
         );
   @override
   bool get isSignedIn => _currentUser != null;
@@ -99,6 +101,18 @@ class GoogleAuthService implements SyncAuth {
   @override
   Stream<SyncAccount?> get onAuthStateChanged =>
       _googleSignIn.onCurrentUserChanged.map(_account);
+
+  /// Attempts silent sign in on app cold launch without showing UI.
+  @override
+  Future<SyncAccount?> trySilentSignIn() async {
+    try {
+      _currentUser = await _googleSignIn.signInSilently();
+      return currentUser;
+    } catch (e) {
+      debugPrint('Silent Google Sign-In not available: $e');
+      return null;
+    }
+  }
 
   /// Interactive sign in when user taps the "Connect Account" button.
   @override
@@ -154,17 +168,5 @@ class GoogleAuthService implements SyncAuth {
       delay: (_) => Duration.zero,
       onRetry: (_, _, _) => user.clearAuthCache(),
     );
-  }
-
-  /// Attempts silent sign in on app cold launch without showing UI.
-  @override
-  Future<SyncAccount?> trySilentSignIn() async {
-    try {
-      _currentUser = await _googleSignIn.signInSilently();
-      return currentUser;
-    } catch (e) {
-      debugPrint('Silent Google Sign-In not available: $e');
-      return null;
-    }
   }
 }

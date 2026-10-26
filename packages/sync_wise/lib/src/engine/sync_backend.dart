@@ -1,8 +1,9 @@
-import 'package:sync_wise/src/auth/sync_auth.dart';
+import '../auth/sync_auth.dart';
+import 'sync_client.dart';
 
 /// One authenticated attempt. Native providers need not use HTTP clients.
 abstract interface class SyncSession {
-  // SyncClient get client;
+  SyncClient get client;
   void close();
 }
 
@@ -10,9 +11,7 @@ abstract interface class SyncSession {
 abstract interface class SyncBackend {
   String get id;
   String get displayName;
-  String get attachmentScheme;
   SyncAuth get auth;
-  // Future<SyncSession?> openSession();
-  void clearCache();
+  Future<SyncSession?> openSession();
   void dispose();
 }

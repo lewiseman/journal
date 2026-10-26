@@ -1,5 +1,5 @@
 name: sync_wise
-description: "A new Flutter package project."
+description: "Durable journal sync with Google Drive authentication and storage."
 version: 0.0.1
 homepage:
 

@@ -1,5 +1,6 @@
 import 'package:journal/common.dart';
 import 'package:journal/modules/settings/views/pages/appearance_page.dart';
+import 'package:journal/modules/settings/views/widgets/primary_device_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const new({super.key});
@@ -7,7 +8,7 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
           ListTile(
@@ -16,6 +17,7 @@ class SettingsPage extends StatelessWidget {
               context.nav.push(AppearancePage());
             },
           ),
+          const PrimaryDeviceSettings(),
         ],
       ),
     );

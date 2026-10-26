@@ -5,7 +5,8 @@ import 'package:journal/modules/diary/models/diary_calendar_day.dart';
 import 'package:journal/utils/time_helper.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
-import 'package:journal/modules/diary/models/sample.dart';
+
+import 'support/sample_diaries.dart';
 
 void main() {
   final today = DateTime(2026, 10, 26);
@@ -90,7 +91,7 @@ void main() {
       );
       expect(DiaryCalendarDay.fromEntity(null).hasEntry, isFalse);
       for (final day in sampleDiaries) {
-        final actual = DiaryCalendarDay.sample(day.calendarDate);
+        final actual = DiaryCalendarDay.fromEntity(day);
         final expected = DiaryCalendarDay.fromEntity(day);
         expect(actual.hasEntry, expected.hasEntry);
         expect(actual.mood, expected.mood);

@@ -1,8 +1,6 @@
 import 'dart:convert';
 
-import 'package:journal/utils/time_helper.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
-import 'package:journal/modules/diary/models/sample.dart';
 
 enum DiaryCalendarMood {
   happy('Happy', '😊'),
@@ -47,9 +45,6 @@ class DiaryCalendarDay {
     return DiaryCalendarDay(hasEntry: true, mood: mood);
   }
 
-  static DiaryCalendarDay sample(DateTime date) => DiaryCalendarDay.fromEntity(
-    sampleDiaries
-        .where((day) => day.dateString == TimeHelper.dateKey(date))
-        .firstOrNull,
-  );
+  static DiaryCalendarDay empty(DateTime date) =>
+      const DiaryCalendarDay(hasEntry: false);
 }

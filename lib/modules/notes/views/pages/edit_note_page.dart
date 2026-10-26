@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
+
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:journal/common.dart';
@@ -286,6 +288,7 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
       _savedNote = repo.saveNote(
         uuid: _savedNote?.uuid,
         expectedVersionVectorJson: _savedNote?.versionVectorJson,
+        preserveLocalDraft: !_isPreviewMode && _hasUnsavedChanges,
         title: title.isEmpty ? 'Untitled Note' : title,
         content: content,
         tags: _tags,
@@ -314,6 +317,8 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
 
   @override
   Widget build(BuildContext context) {
+    final canModifySaved =
+        ref.watch(syncDeviceRoleProvider) != SyncDeviceRole.secondary;
     final art = NoteArtSelection.fromBackground(_background);
     final colors = art.color.resolveColors(context.colors);
     final paperColor = colors.background;
@@ -376,7 +381,7 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                 scrolledUnderElevation: 0,
                 actionsPadding: const EdgeInsets.only(right: 12),
                 actions: [
-                  if (_isPreviewMode && expansion == 0)
+                  if (_isPreviewMode && expansion == 0 && canModifySaved)
                     NoteActionsMenu(
                       isPinned: _savedNote?.isPinned ?? false,
                       onTogglePin: _togglePin,
@@ -428,6 +433,7 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                 paperOpacity: opacity,
                 controller: _paperController,
                 isPreviewMode: _isPreviewMode,
+                readOnly: !canModifySaved && _savedNote != null,
                 onExpansionChanged: (value) => _paperExpansion.value = value,
                 onEdit: () => setState(() => _isPreviewMode = false),
                 children: _noteSlivers(canEdit, colors),

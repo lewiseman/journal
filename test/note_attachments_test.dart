@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:sync_wise/sync_wise.dart';
+import 'package:journal/modules/root/controllers/sync_providers.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -491,6 +494,7 @@ Widget _harness({
   NotesRepository? repository,
 }) => ProviderScope(
   overrides: [
+    syncDeviceRoleProvider.overrideWithValue(SyncDeviceRole.unknown),
     noteAttachmentServiceProvider.overrideWithValue(service),
     if (repository != null)
       notesRepositoryProvider.overrideWithValue(repository),
@@ -534,7 +538,7 @@ class _AttachmentService extends NoteAttachmentService {
   }
 }
 
-class _NotesRepository extends NotesRepository {
+class _NotesRepository extends Fake implements NotesRepository {
   NoteEntity? saved;
   int saves = 0;
 
@@ -547,6 +551,7 @@ class _NotesRepository extends NotesRepository {
     List<String> tags = const [],
     List<Map> attachmentPaths = const [],
     Map<String, dynamic>? background,
+    bool preserveLocalDraft = false,
   }) {
     saves++;
     return saved = NoteEntity(

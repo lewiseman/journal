@@ -1,9 +1,11 @@
 import 'package:journal/common.dart';
+import 'package:sync_wise/sync_wise.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await CacheStorage.init();
   objectbox = await ObjectBox.create();
+  await DeviceIdentityService.initialize();
   runApp(ProviderScope(child: const Journal()));
 }
 

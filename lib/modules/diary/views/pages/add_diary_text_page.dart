@@ -1,11 +1,50 @@
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
-/// A writing surface for a new diary item. Drafts stay on this route only.
-class AddDiaryTextPage extends StatelessWidget {
+/// A writing surface that commits a diary item and its sync outbox together.
+class AddDiaryTextPage extends StatefulWidget {
   const AddDiaryTextPage({super.key, required this.date});
 
   final DateTime date;
+
+  @override
+  State<AddDiaryTextPage> createState() => _AddDiaryTextPageState();
+}
+
+class _AddDiaryTextPageState extends State<AddDiaryTextPage> {
+  final _text = TextEditingController();
+  bool _saved = false;
+  DateTime get date => widget.date;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (_saved || _text.text.trim().isEmpty) return;
+    try {
+      ProviderScope.containerOf(context, listen: false)
+          .read(diaryRepositoryProvider)
+          .addTimelineItem(
+            dateString: TimeHelper.dateKey(date),
+            content: _text.text.trim(),
+          );
+      _saved = true;
+      context.nav.pop();
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is StateError
+                ? error.message
+                : 'Could not save your diary. Your draft is still here.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -13,6 +52,13 @@ class AddDiaryTextPage extends StatelessWidget {
     appBar: AppBar(
       leading: const BackButton(),
       title: const Text('Add text'),
+      actions: [
+        TextButton(
+          key: const ValueKey('save-diary-text'),
+          onPressed: _text.text.trim().isEmpty ? null : _save,
+          child: const Text('Save'),
+        ),
+      ],
       backgroundColor: context.colors.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
@@ -63,6 +109,8 @@ class AddDiaryTextPage extends StatelessWidget {
                           const SizedBox(height: 24),
                           TextField(
                             key: const ValueKey('diary-text-editor'),
+                            controller: _text,
+                            onChanged: (_) => setState(() {}),
                             autofocus: true,
                             keyboardType: TextInputType.multiline,
                             textInputAction: TextInputAction.newline,

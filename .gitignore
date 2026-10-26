@@ -48,3 +48,5 @@ app.*.map.json
 .widget_preview/
 
 env.json
+# Local native runtime used by ObjectBox integration tests.
+/lib/libobjectbox.dylib

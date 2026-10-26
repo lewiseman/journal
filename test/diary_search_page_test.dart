@@ -8,7 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
-import 'package:journal/modules/diary/models/sample.dart';
+
+import 'support/sample_diaries.dart';
+
 import 'package:journal/modules/diary/models/diary_search_result.dart';
 import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_search_opening.dart';
@@ -91,7 +93,7 @@ Future<void> _mount(
                         lastDate: _today,
                         service:
                             service ??
-                            SampleDiarySearchService(
+                            LocalDiarySearchService(
                               lastDate: _today,
                               diaries: _diaries,
                             ),
@@ -198,7 +200,7 @@ void main() {
       'suggested query $i returns a grounded answer and opens its day',
       (tester) async {
         final results = <DateTime?>[];
-        final response = await SampleDiarySearchService(
+        final response = await LocalDiarySearchService(
           lastDate: _today,
           diaries: _diaries,
         ).search(diarySearchPrompts[i]);
@@ -245,7 +247,7 @@ void main() {
       await tester.tap(conversation);
       await tester.pumpAndSettle();
       expect(find.text('What I found'), findsOneWidget);
-      final response = await SampleDiarySearchService(
+      final response = await LocalDiarySearchService(
         lastDate: _today,
         diaries: _diaries,
       ).search('An ordinary conversation');

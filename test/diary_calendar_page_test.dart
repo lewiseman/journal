@@ -8,7 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_calendar_day.dart';
 import 'package:journal/utils/time_helper.dart';
-import 'package:journal/modules/diary/models/sample.dart';
+
+import 'support/sample_diaries.dart';
+
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/settings/models/local_settings.dart';
 

@@ -16,6 +16,7 @@ import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import '../modules/diary/models/diary_day_entity.dart';
 import '../modules/notes/models/note_entity.dart';
+import '../modules/root/controllers/journal_sync_store.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
 
@@ -228,6 +229,35 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(3, 8825082589129948949),
+    name: 'SyncRecordEntity',
+    lastPropertyId: const obx_int.IdUid(3, 2504568658632301327),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 9100519868856268660),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 4592266756101005759),
+        name: 'key',
+        type: 9,
+        flags: 2080,
+        indexId: const obx_int.IdUid(3, 6584844874022537084),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 2504568658632301327),
+        name: 'value',
+        type: 9,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -269,8 +299,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(2, 7208550162670336586),
-    lastIndexId: const obx_int.IdUid(2, 633249345277581821),
+    lastEntityId: const obx_int.IdUid(3, 8825082589129948949),
+    lastIndexId: const obx_int.IdUid(3, 6584844874022537084),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -547,6 +577,46 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    SyncRecordEntity: obx_int.EntityDefinition<SyncRecordEntity>(
+      model: _entities[2],
+      toOneRelations: (SyncRecordEntity object) => [],
+      toManyRelations: (SyncRecordEntity object) => {},
+      getId: (SyncRecordEntity object) => object.id,
+      setId: (SyncRecordEntity object, int id) {
+        object.id = id;
+      },
+      objectToFB: (SyncRecordEntity object, fb.Builder fbb) {
+        final keyOffset = fbb.writeString(object.key);
+        final valueOffset = fbb.writeString(object.value);
+        fbb.startTable(4);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, keyOffset);
+        fbb.addOffset(2, valueOffset);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final keyParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 6, '');
+        final valueParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 8, '');
+        final object = SyncRecordEntity(
+          id: idParam,
+          key: keyParam,
+          value: valueParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -700,5 +770,23 @@ class DiaryDayEntity_ {
   /// See [DiaryDayEntity.syncStatus].
   static final syncStatus = obx.QueryIntegerProperty<DiaryDayEntity>(
     _entities[1].properties[12],
+  );
+}
+
+/// [SyncRecordEntity] entity fields to define ObjectBox queries.
+class SyncRecordEntity_ {
+  /// See [SyncRecordEntity.id].
+  static final id = obx.QueryIntegerProperty<SyncRecordEntity>(
+    _entities[2].properties[0],
+  );
+
+  /// See [SyncRecordEntity.key].
+  static final key = obx.QueryStringProperty<SyncRecordEntity>(
+    _entities[2].properties[1],
+  );
+
+  /// See [SyncRecordEntity.value].
+  static final value = obx.QueryStringProperty<SyncRecordEntity>(
+    _entities[2].properties[2],
   );
 }

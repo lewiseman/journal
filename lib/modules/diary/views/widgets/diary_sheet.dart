@@ -4,6 +4,21 @@ import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
+/// Applies the cached device role without coupling paper previews to Riverpod.
+class DiaryAccess extends InheritedWidget {
+  const DiaryAccess({
+    super.key,
+    required this.canEdit,
+    required this.today,
+    required super.child,
+  });
+  final bool canEdit;
+  final DateTime today;
+  @override
+  bool updateShouldNotify(DiaryAccess oldWidget) =>
+      canEdit != oldWidget.canEdit || today != oldWidget.today;
+}
+
 NoteColors diaryPaperColors(BuildContext context) => NoteColors(
   background: context.colors.surface,
   foreground: context.colors.onSurface,
@@ -130,7 +145,11 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'SAMPLE DAY  ·  ${TimeHelper.format(day.calendarDate, pattern: TimeFormat.shortWeekdayDate, toLocal: false)}',
+              TimeHelper.format(
+                day.calendarDate,
+                pattern: TimeFormat.shortWeekdayDate,
+                toLocal: false,
+              ),
               style: TextStyle(
                 color: paper.secondary,
                 fontSize: 10,
@@ -196,38 +215,46 @@ class _DiaryAddActions extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: [
-      for (final action in [
-        (
-          label: 'Add text',
-          icon: Icons.notes_rounded,
-          onPressed: () => _openText(context),
-        ),
-        (
-          label: 'Add image',
-          icon: Icons.add_photo_alternate_outlined,
-          onPressed: _noop,
-        ),
-        (label: 'Add voice', icon: Icons.mic_none_rounded, onPressed: _noop),
-      ])
-        TextButton.icon(
-          onPressed: action.onPressed,
-          icon: Icon(action.icon, size: 18),
-          label: Text(action.label),
-          style: TextButton.styleFrom(
-            minimumSize: const Size(44, 44),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            backgroundColor: context.colors.primary.withValues(alpha: .05),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+  Widget build(BuildContext context) {
+    final access = context.dependOnInheritedWidgetOfExactType<DiaryAccess>();
+    if (access != null && !access.canEdit && date != access.today) {
+      return const Text(
+        'This device can add diary entries for today. Older days are read-only.',
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final action in [
+          (
+            label: 'Add text',
+            icon: Icons.notes_rounded,
+            onPressed: () => _openText(context),
+          ),
+          (
+            label: 'Add image',
+            icon: Icons.add_photo_alternate_outlined,
+            onPressed: _noop,
+          ),
+          (label: 'Add voice', icon: Icons.mic_none_rounded, onPressed: _noop),
+        ])
+          TextButton.icon(
+            onPressed: action.onPressed,
+            icon: Icon(action.icon, size: 18),
+            label: Text(action.label),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(44, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              backgroundColor: context.colors.primary.withValues(alpha: .05),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
-        ),
-    ],
-  );
+      ],
+    );
+  }
 
   // Image and voice capture will be connected in a later pass.
   static void _noop() {}

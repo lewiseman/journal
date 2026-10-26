@@ -6,24 +6,60 @@ import 'package:journal/common.dart' hide DiaryDayEntity;
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
 import 'package:journal/modules/diary/models/diary_calendar_day.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
-import 'package:journal/modules/diary/models/sample.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header.dart';
 import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
+import 'package:journal/modules/diary/views/widgets/diary_sheet.dart'
+    show DiaryAccess;
+import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
 
-class DiaryPage extends StatefulWidget {
+class DiaryPage extends StatelessWidget {
   const DiaryPage({super.key, this.clock, this.diaries});
-
-  /// Override the local clock for previews and deterministic calendar tests.
   final DateTime Function()? clock;
   final List<DiaryDayEntity>? diaries;
 
   @override
-  State<DiaryPage> createState() => _DiaryPageState();
+  Widget build(BuildContext context) {
+    if (diaries != null) return _DiaryReader(clock: clock, diaries: diaries!);
+    return Consumer(
+      builder: (context, ref, _) => ref
+          .watch(diaryDaysProvider)
+          .when(
+            data: (days) => DiaryAccess(
+              canEdit:
+                  ref.watch(syncDeviceRoleProvider) != SyncDeviceRole.secondary,
+              today: TimeHelper.dateOnly((clock ?? DateTime.now)()),
+              child: _DiaryReader(clock: clock, diaries: days),
+            ),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stack) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Could not load your diary.'),
+                  TextButton(
+                    onPressed: () => ref.invalidate(diaryDaysProvider),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
 }
 
-class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
+class _DiaryReader extends StatefulWidget {
+  const _DiaryReader({this.clock, required this.diaries});
+  final DateTime Function()? clock;
+  final List<DiaryDayEntity> diaries;
+  @override
+  State<_DiaryReader> createState() => _DiaryPageState();
+}
+
+class _DiaryPageState extends State<_DiaryReader>
+    with TickerProviderStateMixin {
   static const _spring = SpringDescription(
     mass: 1,
     stiffness: 310,
@@ -38,8 +74,8 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
     duration: const Duration(milliseconds: 150),
   );
   late DateTime _selectedDate = _today;
-  late final _diaries = widget.diaries ?? sampleDiaries;
-  late final _days = {for (final day in _diaries) day.dateString: day};
+  List<DiaryDayEntity> get _diaries => widget.diaries;
+  late var _days = {for (final day in _diaries) day.dateString: day};
   late DiaryDayEntity _day = _dayFor(_selectedDate);
   late DiaryDayEntity _previous = _dayFor(
     TimeHelper.addDays(_selectedDate, -1),
@@ -90,6 +126,19 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
         setState(() => _fadingFrom = null);
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant _DiaryReader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.diaries, widget.diaries)) {
+      _days = {for (final day in widget.diaries) day.dateString: day};
+      _day = _dayFor(_selectedDate);
+      _previous = _dayFor(TimeHelper.addDays(_selectedDate, -1));
+      _next = _selectedDate.isBefore(_today)
+          ? _dayFor(TimeHelper.addDays(_selectedDate, 1))
+          : null;
+    }
   }
 
   void _replaceDate(DateTime date, {bool fade = false}) {
@@ -152,7 +201,7 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
     final date = await context.nav.push<DateTime>(
       DiarySearchPage(
         lastDate: _today,
-        service: SampleDiarySearchService(lastDate: _today, diaries: _diaries),
+        service: LocalDiarySearchService(lastDate: _today, diaries: _diaries),
       ),
       transition: _reduced ? NavTransition.none : NavTransition.platform,
     );

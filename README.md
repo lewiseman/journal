@@ -1,17 +1,69 @@
-# journal
+# Journal
 
-A new Flutter project.
+A Flutter journal with local ObjectBox storage and Google Drive sync. The sync
+flow is adapted from the earlier Journal project's `sync_kit` into the existing
+`packages/sync_wise` package. The reference checkout is not modified.
 
-## Getting Started
+## Storage and diary writing
 
-This project is a starting point for a Flutter application.
+Diaries, notes and sync metadata live in the existing `Journal-wise` ObjectBox
+store. Save in the diary text editor writes the entry and its pending upload
+operation in one transaction, then returns to the diary. Reader pages update
+from ObjectBox; calendars and local search read saved entries. An empty database
+shows empty days. Example diary data exists only under `test/support`.
 
-A few resources to get you started if this is your first Flutter project:
+## Sync behavior
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- The first registered device is primary. Startup and **Sync now** restore shared
+  notes/days before uploading pending local changes. Later automatic primary
+  syncs upload pending changes without downloading the whole journal.
+- Secondary devices send new notes and append new items to today's diary. They
+  fetch only the affected day and preserve its other entries and reflection.
+  Existing notes and older diary days are read-only. Offline drafts created
+  before a role was known are kept locally if they cannot be sent.
+- Writes debounce for 300 ms; automatic attempts have a one-minute cooldown.
+  Offline/network failures retry with backoff. Queues, roles, edit protection and
+  remote revisions survive restart. Concurrent edits remain pending until the
+  latest saved snapshot has uploaded.
+- Shared Drive JSON documents use guarded ETag writes. A stale automatic upload
+  waits for startup/manual refresh. The primary imports old per-device documents
+  once, retaining legacy cloud files. Device roles have no automatic promotion.
+- Sync coordinates above tab navigation. More contains **Connect Account** and,
+  once connected, **Sync now**, progress and errors.
+- After reinstalling, use **Settings → Sync & devices → Reclaim primary role**.
+  Confirming transfers the existing primary registration to this installation
+  and restores the journal in a full sync. Backups and document links are kept.
+  The former primary becomes add-only on its next sync. If restore is interrupted
+  after the role changes, **Sync now** resumes it. Recovery requires the original
+  Google account and an internet connection.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+This is JSON/content sync. Attachment metadata is preserved, but image, voice
+and other attachment bytes are not transferred. Diary image/voice capture is
+still a placeholder. The package includes optional account-reset contracts;
+there is no account-reset UI in this integration.
+
+## Running and checking
+
+Configure the app's Google OAuth clients and Drive app-data access. The existing
+ignored `env.json` supplies `GOOGLE_SERVER_CLIENT_ID` and `GOOGLE_CLIENT_ID`:
+
+```sh
+flutter pub get
+flutter run --dart-define-from-file=env.json
+dart run build_runner build
+flutter analyze
+flutter test
+flutter test packages/sync_wise/test
+```
+
+Native platform OAuth registration must match the app's bundle/package ID and
+signing credentials. These automated tests use a memory backend and mocked Drive
+HTTP responses; they do not sign into a real Google account.
+
+ObjectBox integration tests need a matching desktop native ObjectBox library in
+`lib/` (for macOS, `lib/libobjectbox.dylib`). The local ignored runtime used here
+was reused from the earlier project's `lib/`. Flutter mobile builds use
+`objectbox_flutter_libs`. Keep `lib/objectbox/objectbox-model.json` when generating
+bindings so existing database entity/property IDs are preserved.
+
+See `packages/sync_wise/README.md` for backend and collection adapter contracts.

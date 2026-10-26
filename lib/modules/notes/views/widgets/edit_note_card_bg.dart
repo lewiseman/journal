@@ -22,6 +22,7 @@ class EditNoteCardBg extends StatefulWidget {
     required this.children,
     required this.isPreviewMode,
     required this.onEdit,
+    this.readOnly = false,
     this.onExpansionChanged,
     this.controller,
     this.paperOpacity = const AlwaysStoppedAnimation<double>(.8),
@@ -33,6 +34,7 @@ class EditNoteCardBg extends StatefulWidget {
   final Color color;
   final List<Widget> children;
   final bool isPreviewMode;
+  final bool readOnly;
   final VoidCallback onEdit;
   final EditNoteCardController? controller;
 
@@ -125,7 +127,12 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
   }
 
   Future<void> _edit() async {
-    if (_enteringEdit || _collapsing || !widget.isPreviewMode) return;
+    if (widget.readOnly ||
+        _enteringEdit ||
+        _collapsing ||
+        !widget.isPreviewMode) {
+      return;
+    }
     setState(() => _enteringEdit = true);
     try {
       if (_reduceMotion) {
@@ -133,7 +140,7 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
       } else {
         await _animateTo(1);
       }
-      if (mounted && _enteringEdit) widget.onEdit();
+      if (mounted && _enteringEdit && !widget.readOnly) widget.onEdit();
     } on TickerCanceled {
       // Leaving the route cancels the unfold animation.
     } finally {
@@ -166,7 +173,12 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
   void _beginDrag(ScrollMetrics metrics) {
     _dragCanExpand = false;
     _dragChangedExpansion = false;
-    if (_enteringEdit || _collapsing || !widget.isPreviewMode) return;
+    if (widget.readOnly ||
+        _enteringEdit ||
+        _collapsing ||
+        !widget.isPreviewMode) {
+      return;
+    }
     _expansion.stop();
     // Freeze eligibility: the larger viewport can make a previously long note
     // fit without scrolling while the user is still unfolding it.
@@ -293,7 +305,7 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
               fit: StackFit.expand,
               clipBehavior: Clip.none,
               children: [
-                if (widget.isPreviewMode && folded > 0)
+                if (!widget.readOnly && widget.isPreviewMode && folded > 0)
                   Positioned(
                     bottom: 2,
                     right: 2,
@@ -375,7 +387,8 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
                 ),
                 // The icon is painted under the curl, but its full 48px target
                 // sits above it so the paper cannot intercept part of a tap.
-                if (widget.isPreviewMode &&
+                if (!widget.readOnly &&
+                    widget.isPreviewMode &&
                     folded >= .7 &&
                     !_enteringEdit &&
                     !_collapsing)

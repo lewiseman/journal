@@ -10,7 +10,9 @@ import 'package:journal/modules/diary/models/diary_calendar_day.dart';
 import 'package:journal/utils/time_helper.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
-import 'package:journal/modules/diary/models/sample.dart';
+
+import 'support/sample_diaries.dart';
+
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
@@ -217,13 +219,13 @@ void main() {
       final calendar = tester.widget<DiaryCalendarPage>(
         find.byType(DiaryCalendarPage),
       );
-      expect(calendar.dayData(_today).mood, DiaryCalendarMood.calm);
+      expect(calendar.dayData!(_today).mood, DiaryCalendarMood.calm);
       expect(
-        calendar.dayData(TimeHelper.addDays(_today, -1)).hasEntry,
+        calendar.dayData!(TimeHelper.addDays(_today, -1)).hasEntry,
         isFalse,
       );
       expect(
-        calendar.dayData(TimeHelper.addDays(_today, -2)).hasEntry,
+        calendar.dayData!(TimeHelper.addDays(_today, -2)).hasEntry,
         isFalse,
       );
       await tester.tap(find.byType(BackButton));

@@ -67,7 +67,8 @@ void main() {
   ) async {
     final day = DiaryDayEntity(dateString: '2026-10-26');
     await _mount(tester, day);
-    expect(find.textContaining('Mon, 26 Oct 2026'), findsOneWidget);
+    expect(find.text('Mon, 26 Oct 2026'), findsOneWidget);
+    expect(find.textContaining('SAMPLE DAY'), findsNothing);
     expect(find.text('No diary entries for this day.'), findsOneWidget);
     expect(find.text('A day, held here.'), findsNothing);
     expect(find.text(''), findsNothing);

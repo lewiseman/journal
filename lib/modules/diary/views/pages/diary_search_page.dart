@@ -25,7 +25,7 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
   final _focus = FocusNode();
   final _scroll = ScrollController();
   late final _service =
-      widget.service ?? SampleDiarySearchService(lastDate: widget.lastDate);
+      widget.service ?? LocalDiarySearchService(lastDate: widget.lastDate);
   _SearchStage _stage = _SearchStage.opening;
   DiarySearchResult? _result;
   String _submitted = '';

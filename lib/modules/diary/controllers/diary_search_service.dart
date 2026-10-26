@@ -1,23 +1,23 @@
 import 'package:journal/utils/time_helper.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_search_result.dart';
-import 'package:journal/modules/diary/models/sample.dart';
+import 'package:journal/objectbox/objectbox.dart';
 
 abstract interface class DiarySearchService {
   Future<DiarySearchResult> search(String query);
 }
 
-/// Read-only preview retrieval, with no network, storage, or generated claims.
-/// Replace this adapter when real diary retrieval and AI are available.
-class SampleDiarySearchService implements DiarySearchService {
-  SampleDiarySearchService({
+/// Local keyword retrieval over saved diary entries from the last thirty days.
+class LocalDiarySearchService implements DiarySearchService {
+  LocalDiarySearchService({
     required DateTime lastDate,
     List<DiaryDayEntity>? diaries,
   }) : lastDate = TimeHelper.dateOnly(lastDate),
-       diaries = diaries ?? sampleDiaries;
+       _diaries = diaries == null ? null : List.unmodifiable(diaries);
 
   final DateTime lastDate;
-  final List<DiaryDayEntity> diaries;
+  final List<DiaryDayEntity>? _diaries;
+  List<DiaryDayEntity> get diaries => _diaries ?? objectbox.diaryBox.getAll();
 
   static const _stopWords = {
     'a',
@@ -133,7 +133,7 @@ class SampleDiarySearchService implements DiarySearchService {
             terms.intersection(words).length * 3 +
             expanded.intersection(words).length;
         if (score == 0) continue;
-        // Newest-first traversal keeps the latest source of repeated samples.
+        // Newest-first traversal keeps the latest source of repeated passages.
         unique.putIfAbsent(
           excerpt,
           () => (

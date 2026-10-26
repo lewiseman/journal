@@ -3,7 +3,8 @@ import 'package:journal/modules/diary/controllers/diary_search_service.dart';
 import 'package:journal/utils/time_helper.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
-import 'package:journal/modules/diary/models/sample.dart';
+
+import 'support/sample_diaries.dart';
 
 DiaryDayEntity _day(DateTime date, String content, {String? title}) =>
     DiaryDayEntity(dateString: TimeHelper.dateKey(date), dayTitle: title)
@@ -19,7 +20,7 @@ DiaryDayEntity _day(DateTime date, String content, {String? title}) =>
 void main() {
   final today = DateTime(2026, 10, 26);
   final diaries = buildSampleDiaries(today);
-  final service = SampleDiarySearchService(lastDate: today, diaries: diaries);
+  final service = LocalDiarySearchService(lastDate: today, diaries: diaries);
 
   test('suggested concepts find the corresponding sample passages', () async {
     for (final example in [
@@ -70,7 +71,7 @@ void main() {
   test('excerpts come from their newest source in the 30 day window', () async {
     for (final last in [DateTime(2026, 1, 2, 23), DateTime(2024, 3, 1, 17)]) {
       final source = buildSampleDiaries(last);
-      final search = SampleDiarySearchService(lastDate: last, diaries: source);
+      final search = LocalDiarySearchService(lastDate: last, diaries: source);
       final result = await search.search(
         'calm walk conversation rain coffee space room',
       );
@@ -124,7 +125,7 @@ void main() {
         hiddenItems.items.single.copyWith(isDeleted: true),
         hiddenItems.items.single.copyWith(itemUuid: 'blank', content: ' \n '),
       ];
-      final result = await SampleDiarySearchService(
+      final result = await LocalDiarySearchService(
         lastDate: DateTime(2026, 10, 26, 23),
         diaries: [
           _day(TimeHelper.addDays(today, -30), 'copper too old'),
@@ -148,7 +149,7 @@ void main() {
   test(
     'titles are searchable and matching content determines relevance',
     () async {
-      final result = await SampleDiarySearchService(
+      final result = await LocalDiarySearchService(
         lastDate: today,
         diaries: [
           _day(today, 'A brief pause.', title: 'Copper'),
@@ -165,7 +166,7 @@ void main() {
     'repeated content keeps its latest source even with different titles',
     () async {
       final latest = _day(today, 'A copper sunrise.', title: 'Today');
-      final result = await SampleDiarySearchService(
+      final result = await LocalDiarySearchService(
         lastDate: today,
         diaries: [
           _day(
@@ -184,7 +185,7 @@ void main() {
   test(
     'an explicitly empty collection does not fall back to samples',
     () async {
-      final result = await SampleDiarySearchService(
+      final result = await LocalDiarySearchService(
         lastDate: today,
         diaries: [],
       ).search('calm');

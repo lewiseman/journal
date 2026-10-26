@@ -85,6 +85,7 @@ class DiaryDayEntity {
         );
 
   /// Parses items JSON into a list of DiaryItem objects
+  @Transient()
   List<DiaryItem> get items {
     if (itemsJson.trim().isEmpty) return [];
     final decoded = jsonDecode(itemsJson);
@@ -101,6 +102,7 @@ class DiaryDayEntity {
     itemsJson = jsonEncode(list.map((e) => e.toJson()).toList());
   }
 
+  @Transient()
   SyncStatus get status => SyncStatus.fromValue(syncStatus);
 
   set status(SyncStatus s) {

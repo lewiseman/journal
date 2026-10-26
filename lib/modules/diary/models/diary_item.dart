@@ -44,6 +44,8 @@ class DiaryItem {
   Map<String, dynamic> toJson() => {
     'itemUuid': itemUuid,
     'createdAt': createdAt.toIso8601String(),
+    // Keep the original sync_kit wire field for older diary documents.
+    'timestamp': createdAt.toIso8601String(),
     'content': content,
     if (mood != null) 'mood': mood,
     'attachmentPaths': attachmentPaths,
@@ -54,7 +56,9 @@ class DiaryItem {
 
   factory DiaryItem.fromJson(Map<String, dynamic> json) => DiaryItem(
     itemUuid: json['itemUuid'] as String,
-    createdAt: DateTime.parse(json['createdAt'] as String),
+    createdAt: DateTime.parse(
+      (json['createdAt'] ?? json['timestamp']) as String,
+    ),
     content: json['content'] as String? ?? '',
     mood: json['mood'] as String?,
     attachmentPaths:

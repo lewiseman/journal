@@ -32,20 +32,6 @@ class _RootLayoutState extends ConsumerState<RootLayout>
   }
 
   @override
-  void initState() {
-    super.initState();
-
-    // Reactive sync on startup: try silent sign in, then sync if authenticated
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final auth = ref.read(syncAuthProvider);
-      final user = await auth.trySilentSignIn();
-      if (user != null && mounted) {
-        ref.read(syncEngineProvider.notifier).syncNow();
-      }
-    });
-  }
-
-  @override
   void dispose() {
     _reveal.dispose();
     super.dispose();
@@ -53,6 +39,7 @@ class _RootLayoutState extends ConsumerState<RootLayout>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(syncCoordinatorProvider);
     return Scaffold(
       body: FadeTransition(
         opacity: Tween<double>(

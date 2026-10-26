@@ -2,15 +2,65 @@ import 'package:journal/common.dart';
 import 'package:journal/objectbox/objectbox.g.dart';
 import 'package:sync_wise/sync_wise.dart';
 import 'package:uuid/uuid.dart';
+import 'package:journal/modules/root/controllers/journal_sync_store.dart';
 
 class NotesRepository {
   final void Function()? onDataChanged;
 
-  NotesRepository({this.onDataChanged});
+  final ObjectBox _db;
+  final DeviceIdentityService _identity;
+  final SyncStateStore sync;
 
-  Box<NoteEntity> get _box => objectbox.noteBox;
+  NotesRepository({
+    ObjectBox? db,
+    DeviceIdentityService? device,
+    SyncStateStore? sync,
+    this.onDataChanged,
+  }) : _db = db ?? objectbox,
+       _identity = device ?? DeviceIdentityService.instance,
+       sync =
+           sync ??
+           SyncStateStore(
+             storage: JournalSyncKeyValueStore((db ?? objectbox).store),
+             deviceId: (device ?? DeviceIdentityService.instance).deviceId,
+           );
 
-  final device = 'Dummy-id';
+  void _editable() {
+    if (!sync.canEdit) {
+      throw StateError('Existing notes are read-only on this device.');
+    }
+  }
+
+  List<NoteEntity> getPendingUploadNotes() => _box
+      .getAll()
+      .where(
+        (note) =>
+            note.status != SyncStatus.synced &&
+            note.status != SyncStatus.localOnly,
+      )
+      .toList();
+
+  void _persist(NoteEntity note, {bool creation = false}) {
+    _db.store.runInTransaction(TxMode.write, () {
+      _box.put(note);
+      sync.edited('note', note.uuid);
+      if (creation) {
+        sync.enqueue(
+          PendingCreation(
+            id: note.uuid,
+            type: 'note',
+            documentId: note.uuid,
+            payload: note.toSyncJson(_identity.deviceName),
+          ),
+        );
+      }
+    });
+    onDataChanged?.call();
+  }
+
+  Box<NoteEntity> get _box => _db.noteBox;
+
+  String get device => _identity.deviceId;
 
   /// Returns a stream of non-deleted notes, ordered by update time descending.
   Stream<List<NoteEntity>> watchActiveNotes() {
@@ -66,10 +116,13 @@ class NotesRepository {
     List<String> tags = const [],
     List<Map> attachmentPaths = const [],
     Map<String, dynamic>? background,
+    bool preserveLocalDraft = false,
   }) {
     final effectiveUuid = uuid ?? const Uuid().v4();
     var existing = getNoteByUuid(effectiveUuid);
-    final now = DateTime.now();
+    final now = sync.now();
+    final isNew = existing == null;
+    if (!isNew && !preserveLocalDraft) _editable();
     if (existing != null &&
         expectedVersionVectorJson != null &&
         !existing.versionVector.isEqualTo(
@@ -93,8 +146,7 @@ class NotesRepository {
         conflictedWithUuid: effectiveUuid,
       );
       draft.versionVector = draft.versionVector.increment(device);
-      _box.put(draft);
-      onDataChanged?.call();
+      _persist(draft, creation: true);
       return draft;
     }
     if (existing == null) {
@@ -130,38 +182,38 @@ class NotesRepository {
       existing.status = SyncStatus.pendingUpload;
     }
 
-    _box.put(existing);
-    onDataChanged?.call();
+    if (!sync.canEdit && !isNew) existing.status = SyncStatus.localOnly;
+    _persist(existing, creation: isNew);
     return existing;
   }
 
   /// Soft deletes a note (creates tombstone).
   void deleteNote(String uuid) {
+    _editable();
     final note = getNoteByUuid(uuid);
     if (note == null) return;
 
     note.isDeleted = true;
-    note.deletedAt = DateTime.now();
-    note.updatedAt = DateTime.now();
+    note.deletedAt = sync.now();
+    note.updatedAt = sync.now();
     note.lastEditedByDeviceId = device;
     note.versionVector = note.versionVector.increment(device);
     note.status = SyncStatus.pendingUpload;
 
-    _box.put(note);
-    onDataChanged?.call();
+    _persist(note);
   }
 
   void pinNote(String uuid) {
+    _editable();
     final note = getNoteByUuid(uuid);
     if (note == null) return;
 
     note.isPinned = !note.isPinned;
-    note.updatedAt = DateTime.now();
+    note.updatedAt = sync.now();
     note.lastEditedByDeviceId = device;
     note.versionVector = note.versionVector.increment(device);
     note.status = SyncStatus.pendingUpload;
 
-    _box.put(note);
-    onDataChanged?.call();
+    _persist(note);
   }
 }
