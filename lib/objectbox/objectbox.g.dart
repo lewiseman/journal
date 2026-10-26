@@ -14,6 +14,7 @@ import 'package:objectbox/internal.dart'
 import 'package:objectbox/objectbox.dart' as obx;
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
+import '../modules/diary/models/diary_day_entity.dart';
 import '../modules/notes/models/note_entity.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
@@ -138,6 +139,95 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(2, 7208550162670336586),
+    name: 'DiaryDayEntity',
+    lastPropertyId: const obx_int.IdUid(13, 1056146348533662325),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 2800538910753118418),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 3305181412423342058),
+        name: 'dateString',
+        type: 9,
+        flags: 2080,
+        indexId: const obx_int.IdUid(2, 633249345277581821),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 7266924159420438544),
+        name: 'date',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 3669926887996546604),
+        name: 'dayMood',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 8159700721152754132),
+        name: 'daySummary',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 2938454756476834909),
+        name: 'dayTitle',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 7759441708017661154),
+        name: 'itemsJson',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 6886136672241406709),
+        name: 'createdAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(9, 3488522496239126443),
+        name: 'updatedAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(10, 4437682562125908917),
+        name: 'isDeleted',
+        type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(11, 1066250517904443179),
+        name: 'deletedAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(12, 7432670028997041036),
+        name: 'lastEditedByDeviceId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(13, 1056146348533662325),
+        name: 'syncStatus',
+        type: 6,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -179,8 +269,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(1, 2813851369649388054),
-    lastIndexId: const obx_int.IdUid(1, 1187237982892789379),
+    lastEntityId: const obx_int.IdUid(2, 7208550162670336586),
+    lastIndexId: const obx_int.IdUid(2, 633249345277581821),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -347,6 +437,116 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    DiaryDayEntity: obx_int.EntityDefinition<DiaryDayEntity>(
+      model: _entities[1],
+      toOneRelations: (DiaryDayEntity object) => [],
+      toManyRelations: (DiaryDayEntity object) => {},
+      getId: (DiaryDayEntity object) => object.id,
+      setId: (DiaryDayEntity object, int id) {
+        object.id = id;
+      },
+      objectToFB: (DiaryDayEntity object, fb.Builder fbb) {
+        final dateStringOffset = fbb.writeString(object.dateString);
+        final dayMoodOffset = object.dayMood == null
+            ? null
+            : fbb.writeString(object.dayMood!);
+        final daySummaryOffset = object.daySummary == null
+            ? null
+            : fbb.writeString(object.daySummary!);
+        final dayTitleOffset = object.dayTitle == null
+            ? null
+            : fbb.writeString(object.dayTitle!);
+        final itemsJsonOffset = fbb.writeString(object.itemsJson);
+        final lastEditedByDeviceIdOffset = fbb.writeString(
+          object.lastEditedByDeviceId,
+        );
+        fbb.startTable(14);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, dateStringOffset);
+        fbb.addInt64(2, object.date.millisecondsSinceEpoch);
+        fbb.addOffset(3, dayMoodOffset);
+        fbb.addOffset(4, daySummaryOffset);
+        fbb.addOffset(5, dayTitleOffset);
+        fbb.addOffset(6, itemsJsonOffset);
+        fbb.addInt64(7, object.createdAt.millisecondsSinceEpoch);
+        fbb.addInt64(8, object.updatedAt.millisecondsSinceEpoch);
+        fbb.addBool(9, object.isDeleted);
+        fbb.addInt64(10, object.deletedAt?.millisecondsSinceEpoch);
+        fbb.addOffset(11, lastEditedByDeviceIdOffset);
+        fbb.addInt64(12, object.syncStatus);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final deletedAtValue = const fb.Int64Reader().vTableGetNullable(
+          buffer,
+          rootOffset,
+          24,
+        );
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final dateStringParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 6, '');
+        final dateParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0),
+        );
+        final dayMoodParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGetNullable(buffer, rootOffset, 10);
+        final dayTitleParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGetNullable(buffer, rootOffset, 14);
+        final daySummaryParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGetNullable(buffer, rootOffset, 12);
+        final itemsJsonParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 16, '');
+        final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 18, 0),
+        );
+        final updatedAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 20, 0),
+        );
+        final isDeletedParam = const fb.BoolReader().vTableGet(
+          buffer,
+          rootOffset,
+          22,
+          false,
+        );
+        final deletedAtParam = deletedAtValue == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(deletedAtValue);
+        final lastEditedByDeviceIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 26, '');
+        final syncStatusParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          28,
+          0,
+        );
+        final object = DiaryDayEntity(
+          id: idParam,
+          dateString: dateStringParam,
+          date: dateParam,
+          dayMood: dayMoodParam,
+          dayTitle: dayTitleParam,
+          daySummary: daySummaryParam,
+          itemsJson: itemsJsonParam,
+          createdAt: createdAtParam,
+          updatedAt: updatedAtParam,
+          isDeleted: isDeletedParam,
+          deletedAt: deletedAtParam,
+          lastEditedByDeviceId: lastEditedByDeviceIdParam,
+          syncStatus: syncStatusParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -432,5 +632,73 @@ class NoteEntity_ {
   /// See [NoteEntity.isPinned].
   static final isPinned = obx.QueryBooleanProperty<NoteEntity>(
     _entities[0].properties[17],
+  );
+}
+
+/// [DiaryDayEntity] entity fields to define ObjectBox queries.
+class DiaryDayEntity_ {
+  /// See [DiaryDayEntity.id].
+  static final id = obx.QueryIntegerProperty<DiaryDayEntity>(
+    _entities[1].properties[0],
+  );
+
+  /// See [DiaryDayEntity.dateString].
+  static final dateString = obx.QueryStringProperty<DiaryDayEntity>(
+    _entities[1].properties[1],
+  );
+
+  /// See [DiaryDayEntity.date].
+  static final date = obx.QueryDateProperty<DiaryDayEntity>(
+    _entities[1].properties[2],
+  );
+
+  /// See [DiaryDayEntity.dayMood].
+  static final dayMood = obx.QueryStringProperty<DiaryDayEntity>(
+    _entities[1].properties[3],
+  );
+
+  /// See [DiaryDayEntity.daySummary].
+  static final daySummary = obx.QueryStringProperty<DiaryDayEntity>(
+    _entities[1].properties[4],
+  );
+
+  /// See [DiaryDayEntity.dayTitle].
+  static final dayTitle = obx.QueryStringProperty<DiaryDayEntity>(
+    _entities[1].properties[5],
+  );
+
+  /// See [DiaryDayEntity.itemsJson].
+  static final itemsJson = obx.QueryStringProperty<DiaryDayEntity>(
+    _entities[1].properties[6],
+  );
+
+  /// See [DiaryDayEntity.createdAt].
+  static final createdAt = obx.QueryDateProperty<DiaryDayEntity>(
+    _entities[1].properties[7],
+  );
+
+  /// See [DiaryDayEntity.updatedAt].
+  static final updatedAt = obx.QueryDateProperty<DiaryDayEntity>(
+    _entities[1].properties[8],
+  );
+
+  /// See [DiaryDayEntity.isDeleted].
+  static final isDeleted = obx.QueryBooleanProperty<DiaryDayEntity>(
+    _entities[1].properties[9],
+  );
+
+  /// See [DiaryDayEntity.deletedAt].
+  static final deletedAt = obx.QueryDateProperty<DiaryDayEntity>(
+    _entities[1].properties[10],
+  );
+
+  /// See [DiaryDayEntity.lastEditedByDeviceId].
+  static final lastEditedByDeviceId = obx.QueryStringProperty<DiaryDayEntity>(
+    _entities[1].properties[11],
+  );
+
+  /// See [DiaryDayEntity.syncStatus].
+  static final syncStatus = obx.QueryIntegerProperty<DiaryDayEntity>(
+    _entities[1].properties[12],
   );
 }

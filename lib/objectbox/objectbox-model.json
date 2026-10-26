@@ -103,10 +103,86 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "2:7208550162670336586",
+      "lastPropertyId": "13:1056146348533662325",
+      "name": "DiaryDayEntity",
+      "properties": [
+        {
+          "id": "1:2800538910753118418",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:3305181412423342058",
+          "name": "dateString",
+          "indexId": "2:633249345277581821",
+          "type": 9,
+          "flags": 2080
+        },
+        {
+          "id": "3:7266924159420438544",
+          "name": "date",
+          "type": 10
+        },
+        {
+          "id": "4:3669926887996546604",
+          "name": "dayMood",
+          "type": 9
+        },
+        {
+          "id": "5:8159700721152754132",
+          "name": "daySummary",
+          "type": 9
+        },
+        {
+          "id": "6:2938454756476834909",
+          "name": "dayTitle",
+          "type": 9
+        },
+        {
+          "id": "7:7759441708017661154",
+          "name": "itemsJson",
+          "type": 9
+        },
+        {
+          "id": "8:6886136672241406709",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "9:3488522496239126443",
+          "name": "updatedAt",
+          "type": 10
+        },
+        {
+          "id": "10:4437682562125908917",
+          "name": "isDeleted",
+          "type": 1
+        },
+        {
+          "id": "11:1066250517904443179",
+          "name": "deletedAt",
+          "type": 10
+        },
+        {
+          "id": "12:7432670028997041036",
+          "name": "lastEditedByDeviceId",
+          "type": 9
+        },
+        {
+          "id": "13:1056146348533662325",
+          "name": "syncStatus",
+          "type": 6
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "1:2813851369649388054",
-  "lastIndexId": "1:1187237982892789379",
+  "lastEntityId": "2:7208550162670336586",
+  "lastIndexId": "2:633249345277581821",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,
