@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
+import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
+import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
+
+final _prompt = find.byKey(const ValueKey('diary-writing-prompt'));
+final _actions = find.byKey(const ValueKey('diary-add-actions'));
+final _lines = find.byKey(const ValueKey('diary-prompt-lines'));
 
 DiaryItem _item(String id, String content, {bool deleted = false}) => DiaryItem(
   itemUuid: id,
@@ -12,16 +20,44 @@ DiaryItem _item(String id, String content, {bool deleted = false}) => DiaryItem(
   isDeleted: deleted,
 );
 
-Future<void> _mount(WidgetTester tester, DiaryDayEntity day) =>
-    tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: DiaryDayContent(key: const ValueKey('content'), day: day),
+Future<void> _mount(
+  WidgetTester tester,
+  DiaryDayEntity day, {
+  double width = 390,
+  double minimumHeight = 0,
+  double scale = 1,
+  bool dark = false,
+  bool canEdit = true,
+  TextDirection direction = TextDirection.ltr,
+}) => tester.pumpWidget(
+  MaterialApp(
+    theme: dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: TextScaler.linear(scale)),
+      child: Directionality(textDirection: direction, child: child!),
+    ),
+    home: Scaffold(
+      body: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: width,
+          child: SingleChildScrollView(
+            child: DiaryAccess(
+              canEdit: canEdit,
+              today: DateTime(2026, 10, 26),
+              child: DiaryDayContent(
+                key: const ValueKey('content'),
+                day: day,
+                minimumHeight: minimumHeight,
+              ),
+            ),
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
 
 void main() {
   testWidgets('items render as ordered paragraphs with embedded line breaks', (
@@ -49,8 +85,13 @@ void main() {
     expect(tester.getTopLeft(first).dy, lessThan(tester.getTopLeft(last).dy));
     expect(find.text('Deleted prose.'), findsNothing);
     expect(find.text('No diary entries for this day.'), findsNothing);
-    for (final label in ['Add text', 'Add image', 'Add voice']) {
-      final button = find.widgetWithText(TextButton, label);
+    expect(find.text(DiaryWritingPrompt.question), findsOneWidget);
+    for (final tooltip in [
+      'Add voice entry',
+      'Add image entry',
+      'More diary actions',
+    ]) {
+      final button = find.byTooltip(tooltip);
       expect(button, findsOneWidget);
       expect(
         tester.getTopLeft(button).dy,
@@ -69,11 +110,16 @@ void main() {
     await _mount(tester, day);
     expect(find.text('Mon, 26 Oct 2026'), findsOneWidget);
     expect(find.textContaining('SAMPLE DAY'), findsNothing);
-    expect(find.text('No diary entries for this day.'), findsOneWidget);
+    expect(find.text('No diary entries for this day.'), findsNothing);
+    expect(_prompt, findsOneWidget);
     expect(find.text('A day, held here.'), findsNothing);
     expect(find.text(''), findsNothing);
-    for (final label in ['Add text', 'Add image', 'Add voice']) {
-      expect(find.widgetWithText(TextButton, label), findsOneWidget);
+    for (final tooltip in [
+      'Add voice entry',
+      'Add image entry',
+      'More diary actions',
+    ]) {
+      expect(find.byTooltip(tooltip), findsOneWidget);
     }
 
     day.dayTitle = '  ';
@@ -88,7 +134,8 @@ void main() {
     await _mount(tester, day);
     expect(find.text('Deleted title'), findsNothing);
     expect(find.text('Visible prose.'), findsNothing);
-    expect(find.text('No diary entries for this day.'), findsOneWidget);
+    expect(find.text('No diary entries for this day.'), findsNothing);
+    expect(_prompt, findsOneWidget);
   });
 
   testWidgets('cached content updates when the same entity is edited', (
@@ -109,4 +156,205 @@ void main() {
     expect(find.text('Changed title'), findsOneWidget);
     expect(find.text('Changed paragraph.'), findsOneWidget);
   });
+
+  testWidgets('empty and title-only days center below the heading', (
+    tester,
+  ) async {
+    final day = DiaryDayEntity(dateString: '2026-10-26');
+    for (final title in [null, 'A quiet day']) {
+      day.dayTitle = title;
+      await _mount(tester, day, minimumHeight: 700);
+      final content = tester.getRect(find.byType(DiaryDayContent));
+      final heading = tester.getRect(
+        find.byKey(const ValueKey('diary-day-heading')),
+      );
+      final actions = tester.getRect(_actions);
+      expect(content.height, 700);
+      expect(heading.top, content.top + 24);
+      expect(actions.center.dx, closeTo(content.center.dx, .01));
+      expect(
+        actions.center.dy,
+        closeTo((heading.bottom + content.bottom - 24) / 2, .01),
+      );
+      expect(actions.width, lessThanOrEqualTo(320));
+    }
+
+    final previousPainter = tester.widget<CustomPaint>(_lines).painter!;
+    final previousQuestion = tester.widget(
+      find.byKey(const ValueKey('diary-prompt-question')),
+    );
+    await _mount(tester, day, minimumHeight: 760);
+    final painter = tester.widget<CustomPaint>(_lines).painter!;
+    expect(painter.shouldRepaint(previousPainter), isFalse);
+    expect(
+      tester.widget(find.byKey(const ValueKey('diary-prompt-question'))),
+      same(previousQuestion),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'read-only days retain their explanation and today can be edited',
+    (tester) async {
+      await _mount(
+        tester,
+        DiaryDayEntity(dateString: '2026-10-25'),
+        canEdit: false,
+        minimumHeight: 500,
+      );
+      expect(_prompt, findsNothing);
+      expect(find.byType(IconButton), findsNothing);
+      expect(
+        find.text(
+          'This device can add diary entries for today. Older days are read-only.',
+        ),
+        findsOneWidget,
+      );
+      await _mount(
+        tester,
+        DiaryDayEntity(dateString: '2026-10-26'),
+        canEdit: false,
+      );
+      expect(_prompt, findsOneWidget);
+      await _mount(tester, DiaryDayEntity(dateString: '2026-10-25'));
+      expect(_prompt, findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'prompt is accessible and the three capture buttons are placeholders',
+    (tester) async {
+      final day = DiaryDayEntity(dateString: '2026-10-26');
+      final before = day.toSyncJson('test');
+      await _mount(tester, day);
+      for (final label in ['Voice', 'Image', 'More']) {
+        expect(find.text(label), findsNothing);
+      }
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(DiaryWritingPrompt.question)),
+        matchesSemantics(
+          label: DiaryWritingPrompt.question,
+          hint: 'Write a diary entry',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      for (final tooltip in [
+        'Add voice entry',
+        'Add image entry',
+        'More diary actions',
+      ]) {
+        final button = find.byTooltip(tooltip);
+        expect(tester.getSize(button), const Size(48, 48));
+        final description = tester.getSemantics(button).getSemanticsData();
+        expect(
+          '${description.label} ${description.tooltip}',
+          contains(tooltip),
+        );
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        expect(_prompt, findsOneWidget);
+        expect(day.toSyncJson('test'), before);
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('the question opens text entry for the selected day', (
+    tester,
+  ) async {
+    await _mount(tester, DiaryDayEntity(dateString: '2026-10-24'));
+    await tester.tap(find.text(DiaryWritingPrompt.question));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<AddDiaryTextPage>(find.byType(AddDiaryTextPage)).date,
+      DateTime(2026, 10, 24),
+    );
+  });
+
+  for (final config in [
+    (width: 320.0, scale: 1.0, dark: false, direction: TextDirection.ltr),
+    (width: 240.0, scale: 2.0, dark: true, direction: TextDirection.ltr),
+    (width: 390.0, scale: 1.8, dark: true, direction: TextDirection.rtl),
+  ]) {
+    testWidgets(
+      'every wrapped question line has a rule plus two blank rules: $config',
+      (tester) async {
+        await _mount(
+          tester,
+          DiaryDayEntity(dateString: '2026-10-26'),
+          width: config.width,
+          scale: config.scale,
+          dark: config.dark,
+          direction: config.direction,
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: find.byKey(const ValueKey('diary-prompt-question')),
+            matching: find.byType(RichText),
+          ),
+        );
+        // Union actual glyph boxes per line, excluding trailing whitespace and
+        // combining separate bidi runs on the same visual line.
+        final byBottom = <double, Rect>{};
+        for (
+          var index = 0;
+          index < DiaryWritingPrompt.question.length;
+          index++
+        ) {
+          if (DiaryWritingPrompt.question[index] == ' ') continue;
+          for (final box in paragraph.getBoxesForSelection(
+            TextSelection(baseOffset: index, extentOffset: index + 1),
+          )) {
+            final rect = box.toRect();
+            byBottom[box.bottom] =
+                byBottom[box.bottom]?.expandToInclude(rect) ?? rect;
+          }
+        }
+        final boxes = byBottom.values.toList()
+          ..sort((a, b) => a.top.compareTo(b.top));
+        expect(boxes.length, greaterThan(1));
+        final painter = tester.widget<CustomPaint>(_lines).painter!;
+        final size = tester.getSize(_lines);
+        void draw(Canvas canvas) => painter.paint(canvas, size);
+        expect(draw, paintsExactlyCountTimes(#drawPath, boxes.length + 2));
+        final paths = <Path>[];
+        expect(
+          draw,
+          paints..everything((method, arguments) {
+            if (method == #drawPath) paths.add(arguments.first as Path);
+            return true;
+          }),
+        );
+        for (final (index, box) in boxes.indexed) {
+          final rule = paths[index].getBounds();
+          expect(rule.left, closeTo(box.left, 2));
+          expect(rule.right, closeTo(box.right, 2));
+          expect(rule.top, greaterThan(box.bottom));
+          expect(
+            rule.bottom,
+            lessThan(
+              index + 1 < boxes.length
+                  ? boxes[index + 1].top
+                  : paragraph.size.height,
+            ),
+          );
+        }
+        for (final rule in paths.skip(boxes.length)) {
+          final bounds = rule.getBounds();
+          expect(bounds.top, greaterThan(paragraph.size.height));
+          expect(bounds.bottom, lessThan(size.height));
+          expect(bounds.left, greaterThanOrEqualTo(0));
+          expect(bounds.right, lessThanOrEqualTo(size.width));
+        }
+        await tester.ensureVisible(find.byTooltip('More diary actions'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byTooltip('More diary actions').hitTestable(),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

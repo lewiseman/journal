@@ -1,8 +1,10 @@
 import 'package:journal/common.dart' hide DiaryDayEntity;
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
+import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
 
 /// Applies the cached device role without coupling paper previews to Riverpod.
 class DiaryAccess extends InheritedWidget {
@@ -36,6 +38,7 @@ class DiarySheet extends StatelessWidget {
     this.shape,
     this.shadow = false,
     this.detailed = true,
+    this.minimumHeight = 0,
   });
 
   final DiaryDayEntity day;
@@ -44,6 +47,9 @@ class DiarySheet extends StatelessWidget {
   final DiaryPaperShape? shape;
   final bool shadow;
   final bool detailed;
+
+  // Use the fixed face bounds without a layout callback during page turns.
+  final double minimumHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +63,7 @@ class DiarySheet extends StatelessWidget {
       maxHeight: double.infinity,
       child: Transform.translate(
         offset: Offset(0, -scrollOffset),
-        child: DiaryDayContent(day: day),
+        child: DiaryDayContent(day: day, minimumHeight: minimumHeight),
       ),
     );
     return CustomPaint(
@@ -100,9 +106,14 @@ class _StampContentClipper extends CustomClipper<Rect> {
 }
 
 class DiaryDayContent extends StatefulWidget {
-  const DiaryDayContent({super.key, required this.day});
+  const DiaryDayContent({super.key, required this.day, this.minimumHeight = 0})
+    : assert(minimumHeight >= 0 && minimumHeight < double.infinity);
 
   final DiaryDayEntity day;
+
+  /// Centers an empty invitation while leaving the cached prose independent
+  /// of the changing paper viewport.
+  final double minimumHeight;
 
   @override
   State<DiaryDayContent> createState() => _DiaryDayContentState();
@@ -127,7 +138,10 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
       _content = _buildContent(context, day);
       _contentKey = key;
     }
-    return _content!;
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: widget.minimumHeight),
+      child: _content,
+    );
   }
 
   // Moving wrappers reuse their paragraphs until the entity or theme changes.
@@ -142,37 +156,45 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
             .copyWith(color: paper.foreground, fontSize: 16, height: 1.65),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: items.isEmpty
+              ? MainAxisAlignment.spaceBetween
+              : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              TimeHelper.format(
-                day.calendarDate,
-                pattern: TimeFormat.shortWeekdayDate,
-                toLocal: false,
-              ),
-              style: TextStyle(
-                color: paper.secondary,
-                fontSize: 10,
-                letterSpacing: 1.1,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 18),
-            if (title.isNotEmpty) ...[
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 29,
-                  height: 1.16,
-                  letterSpacing: -.9,
-                  fontWeight: FontWeight.w500,
+            Column(
+              key: const ValueKey('diary-day-heading'),
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  TimeHelper.format(
+                    day.calendarDate,
+                    pattern: TimeFormat.shortWeekdayDate,
+                    toLocal: false,
+                  ),
+                  style: TextStyle(
+                    color: paper.secondary,
+                    fontSize: 10,
+                    letterSpacing: 1.1,
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 26),
-            ],
-            if (items.isEmpty)
-              const Text('No diary entries for this day.')
-            else ...[
+                const SizedBox(height: 18),
+                if (title.isNotEmpty) ...[
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 29,
+                      height: 1.16,
+                      letterSpacing: -.9,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                ],
+              ],
+            ),
+            if (items.isNotEmpty) ...[
               for (final item in items) ...[
                 Text(item.content.trim(), key: ValueKey(item.itemUuid)),
                 const SizedBox(height: 26),
@@ -189,8 +211,12 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            _DiaryAddActions(date: day.calendarDate),
+            Padding(
+              padding: EdgeInsets.only(top: 20, bottom: items.isEmpty ? 20 : 0),
+              child: _DiaryAddActions(date: day.calendarDate),
+            ),
+            // A zero-height footer balances the space around the invitation.
+            if (items.isEmpty) const SizedBox.shrink(),
           ],
         ),
       ),
@@ -222,40 +248,35 @@ class _DiaryAddActions extends StatelessWidget {
         'This device can add diary entries for today. Older days are read-only.',
       );
     }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final action in [
-          (
-            label: 'Add text',
-            icon: Icons.notes_rounded,
-            onPressed: () => _openText(context),
-          ),
-          (
-            label: 'Add image',
-            icon: Icons.add_photo_alternate_outlined,
-            onPressed: _noop,
-          ),
-          (label: 'Add voice', icon: Icons.mic_none_rounded, onPressed: _noop),
-        ])
-          TextButton.icon(
-            onPressed: action.onPressed,
-            icon: Icon(action.icon, size: 18),
-            label: Text(action.label),
-            style: TextButton.styleFrom(
-              minimumSize: const Size(44, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              backgroundColor: context.colors.primary.withValues(alpha: .05),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+    return Align(
+      alignment: Alignment.center,
+      child: ConstrainedBox(
+        key: const ValueKey('diary-add-actions'),
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: DiaryWritingPrompt(onTap: () => _openText(context)),
             ),
-          ),
-      ],
+            const SizedBox(height: 24),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                for (final action in DiaryPaperAction.values)
+                  DiaryPaperActionButton(action: action, onPressed: _noop),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  // Image and voice capture will be connected in a later pass.
+  // Capture and the additional actions menu will be connected in a later pass.
   static void _noop() {}
 }

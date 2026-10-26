@@ -22,6 +22,7 @@ import 'package:journal/modules/diary/views/widgets/diary_header_control.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
+import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
 
 final _today = DateTime(2026, 10, 25); // Short; the preceding day is long.
@@ -255,7 +256,7 @@ void main() {
         expect(
           find.descendant(
             of: find.byKey(const PageStorageKey('diary-content')),
-            matching: find.text('No diary entries for this day.'),
+            matching: find.byKey(const ValueKey('diary-writing-prompt')),
           ),
           findsOneWidget,
         );
@@ -280,7 +281,7 @@ void main() {
     ),
   ]) {
     testWidgets(
-      'Add text opens a writing page without saving: ${config.name}',
+      'Writing prompt opens a writing page without saving: ${config.name}',
       (tester) async {
         await _mount(
           tester,
@@ -297,14 +298,16 @@ void main() {
         await tester.pumpAndSettle();
         final addText = find.descendant(
           of: find.byKey(const PageStorageKey('diary-content')),
-          matching: find.widgetWithText(TextButton, 'Add text'),
+          matching: find.byKey(const ValueKey('diary-writing-prompt')),
         );
-        await tester.ensureVisible(addText);
-        await tester.pumpAndSettle();
         final day = _scene(tester).day;
         final before = day.toSyncJson('test');
         final offset = inner.offset;
-        await tester.tap(addText);
+        // The last ruled line stays reachable even when large text makes the
+        // whole invitation taller than the paper viewport.
+        await tester.tapAt(
+          tester.getBottomLeft(addText) + const Offset(16, -16),
+        );
         await tester.pumpAndSettle();
         final editor = find.byKey(const ValueKey('diary-text-editor'));
         expect(find.byType(AddDiaryTextPage), findsOneWidget);
@@ -899,6 +902,70 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final config in [
+    (name: 'light', size: const Size(390, 844), scale: 1.0, dark: false),
+    (name: 'dark', size: const Size(390, 844), scale: 1.0, dark: true),
+    (name: 'large-type', size: const Size(320, 640), scale: 2.0, dark: false),
+    (name: 'tablet', size: const Size(1024, 1100), scale: 1.0, dark: true),
+  ]) {
+    testWidgets('empty writing invitation and preview: ${config.name}', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: config.size,
+        scale: config.scale,
+        dark: config.dark,
+        diaries: [],
+      );
+      final live = find.byKey(const PageStorageKey('diary-content'));
+      Finder within(Finder parent, String key) =>
+          find.descendant(of: parent, matching: find.byKey(ValueKey(key)));
+      final content = find.descendant(
+        of: live,
+        matching: find.byType(DiaryDayContent),
+      );
+      expect(
+        tester.widget<DiaryDayContent>(content).minimumHeight,
+        tester.getRect(_paper).height,
+      );
+      final actions = tester.getRect(within(live, 'diary-add-actions'));
+      final preview = tester.getRect(
+        within(_face(_today), 'diary-add-actions'),
+      );
+      expect(preview.left, closeTo(actions.left, .01));
+      expect(preview.top, closeTo(actions.top, .01));
+      expect(preview.size, actions.size);
+      if (config.scale == 1) {
+        final heading = tester.getRect(within(live, 'diary-day-heading'));
+        expect(
+          actions.center.dy,
+          closeTo(
+            (heading.bottom + tester.getRect(_paper).bottom - 24) / 2,
+            .01,
+          ),
+        );
+      }
+      await _capture(tester, 'empty-${config.name}');
+      _scroll(tester).outerController.jumpTo(80);
+      await tester.pumpAndSettle();
+      final inner = _scroll(tester).innerController;
+      inner.jumpTo(inner.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(
+        find
+            .descendant(
+              of: live,
+              matching: find.byTooltip('More diary actions'),
+            )
+            .hitTestable(),
+        findsOneWidget,
+      );
+      await _capture(tester, 'empty-${config.name}-expanded');
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final config in [
     (

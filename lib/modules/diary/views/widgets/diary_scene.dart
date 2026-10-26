@@ -152,7 +152,10 @@ class DiaryScene extends StatelessWidget {
                           !busy &&
                           !reduced &&
                           fadingFrom == null,
-                      child: DiarySheet(day: sheet),
+                      child: DiarySheet(
+                        day: sheet,
+                        minimumHeight: restRect.height,
+                      ),
                     ),
                   ),
                 ),
@@ -204,7 +207,12 @@ class DiaryScene extends StatelessWidget {
                     ),
                   ),
                   SliverToBoxAdapter(child: SizedBox(height: gap)),
-                  SliverToBoxAdapter(child: DiaryDayContent(day: day)),
+                  SliverToBoxAdapter(
+                    child: DiaryDayContent(
+                      day: day,
+                      minimumHeight: rect.height,
+                    ),
+                  ),
                   SliverToBoxAdapter(child: SizedBox(height: bottom)),
                   const SliverFillRemaining(
                     hasScrollBody: false,
@@ -266,6 +274,7 @@ class DiaryScene extends StatelessWidget {
                                 expansion: collapse,
                               ),
                               scrollOffset: fadingOffset,
+                              minimumHeight: rect.height,
                             ),
                           ),
                         ),
