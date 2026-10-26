@@ -9,6 +9,7 @@ import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
+import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header_control.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
@@ -569,6 +570,79 @@ void main() {
       expect(find.byType(DiaryCalendarPage), findsNothing);
       expect(_selected(tester), target);
       expect(_calendar(tester).selectedDate, target);
+      expect(_scene(tester).collapse, 1);
+      expect(_scroll(tester).innerController.offset, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('expanded diary opens search and a result selects its day', (
+    tester,
+  ) async {
+    await _mount(tester, reduced: true);
+    await tester.tap(find.byTooltip('Search diary'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DiarySearchPage), findsOneWidget);
+    expect(find.bySemanticsLabel('Notes tab').hitTestable(), findsNothing);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(_selected(tester), _today);
+    expect(_scene(tester).collapse, 0);
+
+    await tester.tap(find.byTooltip('Search diary'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('diary-search-input')),
+      'walk',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    final result = find.byKey(const ValueKey('diary-search-match-0'));
+    await tester.ensureVisible(result);
+    await tester.tap(result);
+    await tester.pumpAndSettle();
+    expect(find.byType(DiarySearchPage), findsNothing);
+    expect(_selected(tester), diaryDayAfter(_today, -1));
+    expect(_calendar(tester).selectedDate, _selected(tester));
+    expect(_scroll(tester).innerController.offset, 0);
+    expect(find.bySemanticsLabel('Notes tab').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'collapsed search cancels in place and reopens the same day at its start',
+    (tester) async {
+      await _mount(tester, reduced: true);
+      await _choose(tester, diaryDayAfter(_today, -1));
+      await tester.dragFrom(
+        tester.getRect(_paper).center,
+        const Offset(0, -450),
+      );
+      await tester.pumpAndSettle();
+      final date = _selected(tester);
+      final offset = _scroll(tester).innerController.offset;
+      expect(offset, greaterThan(0));
+      expect(_scene(tester).collapse, 1);
+      await tester.tap(find.byTooltip('Search diary'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(_selected(tester), date);
+      expect(_scroll(tester).innerController.offset, offset);
+
+      await tester.tap(find.byTooltip('Search diary'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('diary-search-input')),
+        'walk',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      final result = find.byKey(const ValueKey('diary-search-match-0'));
+      await tester.ensureVisible(result);
+      await tester.tap(result);
+      await tester.pumpAndSettle();
+      expect(_selected(tester), date);
       expect(_scene(tester).collapse, 1);
       expect(_scroll(tester).innerController.offset, 0);
       expect(tester.takeException(), isNull);

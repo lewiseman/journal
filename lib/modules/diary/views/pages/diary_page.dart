@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
+import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header.dart';
 import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
 
@@ -121,6 +122,19 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
       transition: _reduced ? NavTransition.none : NavTransition.platform,
     );
     if (date != null && mounted) _selectDate(date);
+  }
+
+  Future<void> _openSearch() async {
+    if (_busy) return;
+    final date = await context.nav.push<DateTime>(
+      DiarySearchPage(lastDate: _today),
+      transition: _reduced ? NavTransition.none : NavTransition.platform,
+    );
+    if (date == null || !mounted) return;
+    final selected = diaryDate(date);
+    if (selected.isAfter(_today)) return;
+    // Search selections reopen the beginning, even for the current day.
+    _replaceDate(selected, fade: true);
   }
 
   void _dragStart(DragStartDetails details) {
@@ -338,7 +352,7 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
                         lastDate: _today,
                         controlsHeight: _controlsHeight,
                         onDateChanged: _selectDate,
-                        onSearch: null,
+                        onSearch: _openSearch,
                         onPickDate: _pickDate,
                         enabled: !_busy,
                         turn: _turn,
