@@ -596,6 +596,7 @@ void main() {
       'walk',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     final result = find.byKey(const ValueKey('diary-search-match-0'));
     await tester.ensureVisible(result);
@@ -637,6 +638,7 @@ void main() {
         'walk',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       final result = find.byKey(const ValueKey('diary-search-match-0'));
       await tester.ensureVisible(result);

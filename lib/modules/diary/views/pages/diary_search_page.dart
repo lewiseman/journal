@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
 import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/models/diary_search_result.dart';
 import 'package:journal/modules/diary/views/widgets/diary_search_opening.dart';
+import 'package:journal/modules/diary/views/widgets/diary_search_loading.dart';
 import 'package:journal/modules/diary/views/widgets/diary_search_paper.dart';
 
 enum _SearchStage { opening, searching, results, empty, error }
@@ -30,6 +33,8 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
   String _submitted = '';
   int _request = 0;
   bool _returning = false;
+  Timer? _loadingTimer;
+  Completer<void>? _loadingBeat;
 
   bool get _reduced =>
       MediaQuery.disableAnimationsOf(context) ||
@@ -41,7 +46,17 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
         (_stage == _SearchStage.searching && query == _submitted)) {
       return;
     }
+    _cancelLoadingBeat();
     final request = ++_request;
+    // Keep a quick response visible long enough for the search scene to read.
+    // This runs alongside retrieval, so slower searches incur no extra delay.
+    final beat = Completer<void>();
+    _loadingBeat = beat;
+    _loadingTimer = Timer(const Duration(milliseconds: 1000), () {
+      beat.complete();
+      _loadingBeat = null;
+      _loadingTimer = null;
+    });
     _draft.value = TextEditingValue(
       text: query,
       selection: TextSelection.collapsed(offset: query.length),
@@ -55,6 +70,7 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
     });
     try {
       final result = await _service.search(query);
+      await beat.future;
       if (!mounted || request != _request) return;
       setState(() {
         _result = result;
@@ -63,12 +79,22 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
             : _SearchStage.results;
       });
     } catch (_) {
+      await beat.future;
       if (!mounted || request != _request) return;
       setState(() => _stage = _SearchStage.error);
     }
   }
 
+  void _cancelLoadingBeat() {
+    _loadingTimer?.cancel();
+    _loadingTimer = null;
+    final beat = _loadingBeat;
+    _loadingBeat = null;
+    if (beat != null && !beat.isCompleted) beat.complete();
+  }
+
   void _clear() {
+    _cancelLoadingBeat();
     _request++;
     _draft.clear();
     if (_scroll.hasClients) _scroll.jumpTo(0);
@@ -89,6 +115,7 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
 
   @override
   void dispose() {
+    _cancelLoadingBeat();
     _request++;
     _draft.dispose();
     _focus.dispose();
@@ -97,150 +124,152 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: context.colors.surface,
-    body: Stack(
-      children: [
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 320,
-          child: ExcludeSemantics(
-            child: IgnorePointer(
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: -165,
-                    left: 0,
-                    right: 0,
-                    height: 420,
-                    child: Opacity(
-                      opacity: context.isDark ? .16 : .10,
-                      child: Image.asset(
-                        'assets/images/diary_top_bg.png',
-                        color: context.colors.primary,
-                        colorBlendMode: BlendMode.color,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  // Reach opaque paper before the image ends at y=255.
-                  // Covering that edge avoids a GPU mask seam on devices.
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: const [0, .45, .72, 1],
-                          colors: [
-                            context.colors.surface.withValues(alpha: 0),
-                            context.colors.surface.withValues(alpha: .65),
-                            context.colors.surface,
-                            context.colors.surface,
-                          ],
+  Widget build(BuildContext context) => Semantics(
+    namesRoute: true,
+    label: 'Search journal',
+    child: Scaffold(
+      backgroundColor: context.colors.surface,
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 320,
+            child: ExcludeSemantics(
+              child: IgnorePointer(
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: -165,
+                      left: 0,
+                      right: 0,
+                      height: 420,
+                      child: Opacity(
+                        opacity: context.isDark ? .16 : .10,
+                        child: Image.asset(
+                          'assets/images/diary_top_bg.png',
+                          color: context.colors.primary,
+                          colorBlendMode: BlendMode.color,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 700),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact =
-                      constraints.maxHeight < 420 ||
-                      MediaQuery.viewInsetsOf(context).bottom > 0;
-                  return Column(
-                    children: [
-                      _header(),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          key: const ValueKey('diary-search-scroll'),
-                          controller: _scroll,
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-                          child: AnimatedSwitcher(
-                            duration: _reduced
-                                ? Duration.zero
-                                : const Duration(milliseconds: 240),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            layoutBuilder: (current, previous) => Stack(
-                              alignment: Alignment.topCenter,
-                              children: [
-                                for (final child in previous)
-                                  ExcludeSemantics(
-                                    child: IgnorePointer(child: child),
-                                  ),
-                                ?current,
-                              ],
-                            ),
-                            transitionBuilder: (child, animation) =>
-                                FadeTransition(
-                                  opacity: animation,
-                                  child: SlideTransition(
-                                    position: Tween<Offset>(
-                                      begin: _reduced
-                                          ? Offset.zero
-                                          : const Offset(0, .025),
-                                      end: Offset.zero,
-                                    ).animate(animation),
-                                    child: child,
-                                  ),
-                                ),
-                            child: SizedBox(
-                              key: ValueKey('${_stage.name}-$_request'),
-                              width: double.infinity,
-                              child: _body(),
-                            ),
+                    // Reach opaque paper before the image ends at y=255.
+                    // Covering that edge avoids a GPU mask seam on devices.
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: const [0, .45, .72, 1],
+                            colors: [
+                              context.colors.surface.withValues(alpha: 0),
+                              context.colors.surface.withValues(alpha: .65),
+                              context.colors.surface,
+                              context.colors.surface,
+                            ],
                           ),
                         ),
                       ),
-                      _composer(compact: compact),
-                    ],
-                  );
-                },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 700),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact =
+                        constraints.maxHeight < 420 ||
+                        MediaQuery.viewInsetsOf(context).bottom > 0;
+                    return Column(
+                      children: [
+                        _header(),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            key: const ValueKey('diary-search-scroll'),
+                            controller: _scroll,
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                            child: AnimatedSwitcher(
+                              duration: _reduced
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 240),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              layoutBuilder: (current, previous) => Stack(
+                                alignment: Alignment.topCenter,
+                                children: [
+                                  for (final child in previous)
+                                    ExcludeSemantics(
+                                      child: IgnorePointer(child: child),
+                                    ),
+                                  ?current,
+                                ],
+                              ),
+                              transitionBuilder: (child, animation) =>
+                                  FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: _reduced
+                                            ? Offset.zero
+                                            : const Offset(0, .025),
+                                        end: Offset.zero,
+                                      ).animate(animation),
+                                      child: child,
+                                    ),
+                                  ),
+                              child: SizedBox(
+                                key: ValueKey('${_stage.name}-$_request'),
+                                width: double.infinity,
+                                child: _body(
+                                  compactOpening: constraints.maxHeight < 680,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        _composer(compact: compact),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 
   Widget _header() => Padding(
     padding: const EdgeInsets.fromLTRB(12, 4, 20, 10),
-    child: Row(
-      children: [
-        BackButton(onPressed: () => context.nav.pop()),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(
-            'Search journal',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              letterSpacing: -.5,
-              color: context.colors.onSurface,
-            ),
-          ),
-        ),
-      ],
-    ),
+    child: Row(children: [BackButton(onPressed: () => context.nav.pop())]),
   );
 
-  Widget _body() {
+  Widget _body({required bool compactOpening}) {
     if (_stage == _SearchStage.opening) {
-      return DiarySearchOpening(onSearch: _search, reduced: _reduced);
+      return DiarySearchOpening(
+        onSearch: _search,
+        reduced: _reduced,
+        compact: compactOpening,
+      );
+    }
+    if (_stage == _SearchStage.searching) {
+      return DiarySearchLoading(
+        key: const ValueKey('diary-search-loading'),
+        query: _submitted,
+        reduced: _reduced,
+        compact: compactOpening,
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,16 +285,6 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
           ),
         ),
         const SizedBox(height: 24),
-        if (_stage == _SearchStage.searching)
-          _message(
-            title: 'Looking through the pages…',
-            child: const Padding(
-              padding: EdgeInsets.only(top: 22, bottom: 8),
-              child: LinearProgressIndicator(
-                semanticsLabel: 'Searching journal entries',
-              ),
-            ),
-          ),
         if (_stage == _SearchStage.error)
           _message(
             title: 'The pages need a moment.',

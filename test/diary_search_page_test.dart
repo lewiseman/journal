@@ -111,7 +111,11 @@ Future<void> _submit(WidgetTester tester, String query) async {
   await tester.pump();
 }
 
-Future<void> _capture(WidgetTester tester, String name) async {
+Future<void> _capture(
+  WidgetTester tester,
+  String name, {
+  bool settle = true,
+}) async {
   if (!const bool.fromEnvironment('SEARCH_CAPTURES')) return;
   await tester.runAsync(
     () => precacheImage(
@@ -119,7 +123,11 @@ Future<void> _capture(WidgetTester tester, String name) async {
       tester.element(find.byType(DiarySearchPage)),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find.byKey(_captureKey),
   );
@@ -154,8 +162,20 @@ void main() {
     (tester) async {
       final results = <DateTime?>[];
       await _mount(tester, results: results);
-      expect(find.text('Find a moment.'), findsOneWidget);
-      expect(find.text('Search journal'), findsOneWidget);
+      expect(find.byType(DiarySearchOpening), findsOneWidget);
+      expect(find.text('Find a moment.'), findsNothing);
+      expect(find.text('Search journal'), findsNothing);
+      expect(find.textContaining('A feeling, a person'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('diary-search-prompt-5')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('diary-search-prompt-0')))
+            .height,
+        greaterThanOrEqualTo(72),
+      );
       expect(find.text('Preview'), findsNothing);
       expect(find.text('Sample entries · last 30 days'), findsNothing);
       expect(tester.widget<TextField>(_input).focusNode!.hasFocus, isFalse);
@@ -194,6 +214,80 @@ void main() {
   }
 
   testWidgets(
+    'more ideas refreshes the questions and searches the chosen idea',
+    (tester) async {
+      await _mount(tester);
+      final more = find.byKey(const ValueKey('diary-search-more-ideas'));
+      await tester.ensureVisible(more);
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(find.text('A different route on my walk'), findsOneWidget);
+      expect(find.text('A familiar album on a busy day'), findsOneWidget);
+      expect(find.text('An ordinary conversation'), findsOneWidget);
+      expect(find.text('What I found'), findsNothing);
+      await _capture(tester, 'more-ideas');
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(find.text(diarySearchPrompts.first), findsOneWidget);
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      final conversation = find.byKey(const ValueKey('diary-search-prompt-5'));
+      await tester.ensureVisible(conversation);
+      await tester.tap(conversation);
+      await tester.pumpAndSettle();
+      expect(find.text('What I found'), findsOneWidget);
+      expect(find.text('A conversation to keep'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(_input).controller!.text,
+        'An ordinary conversation',
+      );
+    },
+  );
+
+  for (final reduced in [false, true]) {
+    testWidgets(
+      'fast searches retain a visible loading phase; reduced=$reduced',
+      (tester) async {
+        await _mount(tester, reduced: reduced);
+        await _submit(tester, 'walk');
+        await tester.pump(const Duration(milliseconds: 450));
+        expect(
+          find.byKey(const ValueKey('diary-search-loading')),
+          findsOneWidget,
+        );
+        expect(find.text('What I found'), findsNothing);
+        if (reduced) expect(tester.binding.hasScheduledFrame, isFalse);
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('diary-search-loading')),
+          findsNothing,
+        );
+        expect(find.text('What I found'), findsOneWidget);
+      },
+    );
+  }
+
+  testWidgets(
+    'slow retrieval keeps loading and finishes without another delay',
+    (tester) async {
+      final service = _ControlledSearch();
+      await _mount(tester, service: service);
+      await _submit(tester, 'walk');
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(
+        find.byKey(const ValueKey('diary-search-loading')),
+        findsOneWidget,
+      );
+      service.pending.single.complete(_response('The search is ready.'));
+      await tester.pump();
+      expect(find.text('The search is ready.'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('diary-search-loading')), findsNothing);
+    },
+  );
+
+  testWidgets(
     'typed search submits by button, clear restores opening, blank is inert',
     (tester) async {
       final service = _ControlledSearch();
@@ -205,13 +299,13 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('diary-search-submit')));
       await tester.pump(const Duration(milliseconds: 400));
       expect(service.queries, ['walk']);
-      expect(find.text('Looking through the pages…'), findsOneWidget);
+      expect(find.text('Looking through\nyour journal…'), findsOneWidget);
       service.pending.single.complete(_response('A walk in the garden.'));
       await tester.pumpAndSettle();
       expect(find.text('A walk in the garden.'), findsOneWidget);
       await tester.tap(find.byTooltip('Clear search'));
       await tester.pumpAndSettle();
-      expect(find.text('Find a moment.'), findsOneWidget);
+      expect(find.byType(DiarySearchOpening), findsOneWidget);
       expect(tester.widget<TextField>(_input).controller!.text, isEmpty);
       expect(find.text('What I found'), findsNothing);
     },
@@ -262,7 +356,7 @@ void main() {
       await tester.tap(find.byTooltip('Clear search'));
       service.pending[2].complete(_response('Cleared answer.'));
       await tester.pumpAndSettle();
-      expect(find.text('Find a moment.'), findsOneWidget);
+      expect(find.byType(DiarySearchOpening), findsOneWidget);
       expect(find.text('Cleared answer.'), findsNothing);
 
       await _submit(tester, 'fourth');
@@ -291,6 +385,7 @@ void main() {
       );
       await _submit(tester, 'walk');
       service.pending.single.complete(_response('A memory.'));
+      await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       await tester.ensureVisible(_firstMatch);
       await tester.tap(_firstMatch);
@@ -362,7 +457,19 @@ void main() {
         );
         await _capture(tester, '${config.name}-opening');
         expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const ValueKey('diary-search-prompt-5')),
+          findsOneWidget,
+        );
         await _submit(tester, 'That walk I wrote about');
+        await tester.pump(const Duration(milliseconds: 380));
+        await _capture(tester, '${config.name}-loading', settle: false);
+        expect(
+          find.byKey(const ValueKey('diary-search-loading')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(milliseconds: 700));
         await tester.pumpAndSettle();
         await _capture(tester, '${config.name}-results');
         expect(tester.takeException(), isNull);
