@@ -6,21 +6,26 @@ import 'package:intl/intl.dart';
 /// DateFormat.yMMMd(locale) instead of a fixed pattern.
 abstract final class TimeFormat {
   // Dates
-  static const shortDate = 'd MMM yyyy';          // 16 Oct 2026
-  static const longDate = 'd MMMM yyyy';         // 16 October 2026
-  static const fullDate = 'EEEE, d MMMM yyyy';  // Friday, 16 October 2026
-  static const numericDate = 'dd/MM/yyyy';      // 16/10/2026
-  static const isoDate = 'yyyy-MM-dd';           // 2026-10-16
-  static const monthDay = 'd MMM';              // 16 Oct
-  static const monthYear = 'MMMM yyyy';         // October 2026
-  static const month = 'MMMM';                  // October
-  static const weekday = 'EEEE';               // Friday
-  static const shortWeekday = 'EEE';            // Fri
+  static const shortDate = 'd MMM yyyy'; // 16 Oct 2026
+  static const longDate = 'd MMMM yyyy'; // 16 October 2026
+  static const fullDate = 'EEEE, d MMMM yyyy'; // Friday, 16 October 2026
+  static const numericDate = 'dd/MM/yyyy'; // 16/10/2026
+  static const isoDate = 'yyyy-MM-dd'; // 2026-10-16
+  static const monthDay = 'd MMM'; // 16 Oct
+  static const monthYear = 'MMMM yyyy'; // October 2026
+  static const month = 'MMMM'; // October
+  static const weekday = 'EEEE'; // Friday
+  static const shortWeekday = 'EEE'; // Fri
+  static const shortWeekdayDate = 'EEE, d MMM y'; // Fri, 16 Oct 2026
+
+  // Locale-specific ordering
+  static const localizedDate = 'yMMMd';
+  static const localizedMonthDay = 'MMMd';
 
   // Times
-  static const time12 = 'h:mm a';               // 3:42 PM
-  static const time24 = 'HH:mm';                // 15:42
-  static const timeWithSeconds = 'HH:mm:ss';   // 15:42:00
+  static const time12 = 'h:mm a'; // 3:42 PM
+  static const time24 = 'HH:mm'; // 15:42
+  static const timeWithSeconds = 'HH:mm:ss'; // 15:42:00
 
   // Combined
   static const dateTime = 'd MMM yyyy, h:mm a';
@@ -34,6 +39,29 @@ abstract final class TimeFormat {
 /// Date formatting/parsing supports intl locales. Friendly/relative labels
 /// (Today, Yesterday, "ago", etc.) are currently English-only.
 abstract final class TimeHelper {
+  /// Local midnight for the supplied calendar date, without timezone conversion.
+  static DateTime dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  /// Moves by calendar days and returns local midnight, including across DST.
+  static DateTime addDays(DateTime value, int days) =>
+      DateTime(value.year, value.month, value.day + days);
+
+  /// Signed calendar-day distance, independent of elapsed hours or timezones.
+  static int daysBetween(DateTime from, DateTime to) => DateTime.utc(
+    to.year,
+    to.month,
+    to.day,
+  ).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
+
+  /// A stable ISO calendar-date key, without converting the supplied date.
+  static String dateKey(DateTime value) => format(
+    value,
+    pattern: TimeFormat.isoDate,
+    locale: 'en_US',
+    toLocal: false,
+  );
+
   // ------------------------------------------------------------
   // FORMATTING: DateTime -> String
   // ------------------------------------------------------------
@@ -44,15 +72,13 @@ abstract final class TimeHelper {
     String? locale,
     bool toLocal = true,
   }) {
-    return DateFormat(pattern, locale).format(
-      toLocal ? value.toLocal() : value,
-    );
+    return DateFormat(
+      pattern,
+      locale,
+    ).format(toLocal ? value.toLocal() : value);
   }
 
-  static String now({
-    String pattern = TimeFormat.dateTime,
-    String? locale,
-  }) {
+  static String now({String pattern = TimeFormat.dateTime, String? locale}) {
     return format(DateTime.now(), pattern: pattern, locale: locale);
   }
 
@@ -128,10 +154,11 @@ abstract final class TimeHelper {
     // Guard against DateTime.parse normalizing impossible calendar days.
     if (RegExp(r'^\d{4}-\d{2}-\d{2}').hasMatch(text) &&
         tryParse(
-          text.substring(0, 10),
-          pattern: TimeFormat.isoDate,
-          utc: true,
-        ) == null) {
+              text.substring(0, 10),
+              pattern: TimeFormat.isoDate,
+              utc: true,
+            ) ==
+            null) {
       return null;
     }
     return DateTime.tryParse(text);
@@ -144,11 +171,7 @@ abstract final class TimeHelper {
   /// Examples: "moments ago", "5 minutes ago", "in 2 hours".
   /// Compact form: "now", "5m ago", "in 2h".
   /// Months and years are approximate elapsed-time units (30/365 days).
-  static String timeAgo(
-    DateTime value, {
-    DateTime? now,
-    bool short = false,
-  }) {
+  static String timeAgo(DateTime value, {DateTime? now, bool short = false}) {
     final current = now ?? DateTime.now();
     final difference = value.difference(current);
     final future = !difference.isNegative && difference != Duration.zero;
@@ -282,11 +305,7 @@ abstract final class TimeHelper {
   // Using UTC midnight *of each local calendar date* prevents daylight-saving
   // transitions from making a calendar day appear 23 or 25 hours long.
   static int _calendarDayDifference(DateTime from, DateTime to) {
-    final a = from.toLocal();
-    final b = to.toLocal();
-    final aDay = DateTime.utc(a.year, a.month, a.day);
-    final bDay = DateTime.utc(b.year, b.month, b.day);
-    return bDay.difference(aDay).inDays;
+    return daysBetween(from.toLocal(), to.toLocal());
   }
 
   // ------------------------------------------------------------
@@ -300,10 +319,7 @@ abstract final class TimeHelper {
 
   static DateTime? tryFromIso(String input) => DateTime.tryParse(input);
 
-  static int toTimestamp(
-    DateTime value, {
-    bool milliseconds = true,
-  }) {
+  static int toTimestamp(DateTime value, {bool milliseconds = true}) {
     final ms = value.millisecondsSinceEpoch;
     return milliseconds ? ms : (ms / 1000).floor();
   }

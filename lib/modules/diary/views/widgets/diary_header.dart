@@ -1,5 +1,4 @@
 import 'package:journal/common.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header_control.dart';
 
@@ -60,10 +59,12 @@ class DiaryHeaderDelegate extends SliverPersistentHeaderDelegate {
         final offset = turning
             ? -turnDirection * turn.value.clamp(0.0, 1.0)
             : 0.0;
-        final incoming = diaryDayAfter(selectedDate, -turnDirection);
+        final incoming = TimeHelper.addDays(selectedDate, -turnDirection);
         final displayDate =
             offset.abs() >= .5 &&
-                !incoming.isAfter(diaryDate(lastDate ?? DateTime.now()))
+                !incoming.isAfter(
+                  TimeHelper.dateOnly(lastDate ?? DateTime.now()),
+                )
             ? incoming
             : selectedDate;
         return ClipRect(

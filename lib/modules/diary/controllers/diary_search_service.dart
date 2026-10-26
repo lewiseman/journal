@@ -1,5 +1,7 @@
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/utils/time_helper.dart';
+import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_search_result.dart';
+import 'package:journal/modules/diary/models/sample.dart';
 
 abstract interface class DiarySearchService {
   Future<DiarySearchResult> search(String query);
@@ -8,10 +10,14 @@ abstract interface class DiarySearchService {
 /// Read-only preview retrieval, with no network, storage, or generated claims.
 /// Replace this adapter when real diary retrieval and AI are available.
 class SampleDiarySearchService implements DiarySearchService {
-  SampleDiarySearchService({required DateTime lastDate})
-    : lastDate = diaryDate(lastDate);
+  SampleDiarySearchService({
+    required DateTime lastDate,
+    List<DiaryDayEntity>? diaries,
+  }) : lastDate = TimeHelper.dateOnly(lastDate),
+       diaries = diaries ?? sampleDiaries;
 
   final DateTime lastDate;
+  final List<DiaryDayEntity> diaries;
 
   static const _stopWords = {
     'a',
@@ -114,27 +120,27 @@ class SampleDiarySearchService implements DiarySearchService {
         if (concept.intersection(terms).isNotEmpty) ...concept,
     };
     final unique = <String, ({DiarySearchMatch match, int score})>{};
-    for (var offset = 0; offset < 30; offset++) {
-      final day = DiaryDay.sample(diaryDayAfter(lastDate, -offset));
-      for (final item in day.items) {
-        final excerpt = item.text.isNotEmpty
-            ? item.text
-            : item.tasks.map((task) => task.text).join('\n');
-        final words = _words('${item.title} $excerpt');
+    final days = diaries.where((day) {
+      final age = TimeHelper.daysBetween(day.calendarDate, lastDate);
+      return !day.isDeleted && age >= 0 && age < 30;
+    }).toList()..sort((a, b) => b.dateString.compareTo(a.dateString));
+    for (final day in days) {
+      final title = day.dayTitle?.trim() ?? '';
+      for (final item in day.visibleItems) {
+        final excerpt = item.content.trim();
+        final words = _words('$title $excerpt');
         final score =
             terms.intersection(words).length * 3 +
             expanded.intersection(words).length;
         if (score == 0) continue;
-        final identity = '${item.kind.name}\n${item.title}\n$excerpt';
         // Newest-first traversal keeps the latest source of repeated samples.
         unique.putIfAbsent(
-          identity,
+          excerpt,
           () => (
             match: DiarySearchMatch(
-              date: day.date,
-              title: item.title,
+              date: day.calendarDate,
+              title: title,
               excerpt: excerpt,
-              kind: item.kind,
             ),
             score: score,
           ),
@@ -155,7 +161,9 @@ class SampleDiarySearchService implements DiarySearchService {
     final first = matches.first;
     final sentence = first.excerpt.split(RegExp(r'(?<=[.!?])\s+')).first;
     return DiarySearchResult(
-      answer: 'In “${first.title}”, you wrote: “$sentence”',
+      answer: first.title.isEmpty
+          ? 'You wrote: “$sentence”'
+          : 'In “${first.title}”, you wrote: “$sentence”',
       matches: matches,
     );
   }

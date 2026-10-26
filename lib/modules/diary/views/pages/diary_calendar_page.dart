@@ -1,9 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/models/diary_calendar_day.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
 DateTime _month(DateTime date) => DateTime(date.year, date.month);
@@ -39,9 +37,10 @@ class _DiaryCalendarPageState extends State<DiaryCalendarPage> {
   final _currentYear = GlobalKey<_CalendarYearState>();
   bool _returning = false;
 
-  DateTime get _firstDate => diaryDate(widget.firstDate ?? DateTime(1));
-  DateTime get _lastDate => diaryDate(widget.lastDate);
-  DateTime get _selectedDate => diaryDate(widget.initialDate);
+  DateTime get _firstDate =>
+      TimeHelper.dateOnly(widget.firstDate ?? DateTime(1));
+  DateTime get _lastDate => TimeHelper.dateOnly(widget.lastDate);
+  DateTime get _selectedDate => TimeHelper.dateOnly(widget.initialDate);
   bool get _reduced =>
       MediaQuery.disableAnimationsOf(context) ||
       MediaQuery.accessibleNavigationOf(context);
@@ -143,8 +142,12 @@ class _DiaryCalendarPageState extends State<DiaryCalendarPage> {
                                 for (var day = 0; day < 7; day++)
                                   Expanded(
                                     child: Text(
-                                      DateFormat.E(locale)
-                                          .format(DateTime(2024, 1, 1 + day)),
+                                      TimeHelper.format(
+                                        DateTime(2024, 1, 1 + day),
+                                        pattern: TimeFormat.shortWeekday,
+                                        locale: locale,
+                                        toLocal: false,
+                                      ),
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         fontSize: 10,
@@ -502,9 +505,9 @@ class _CalendarMonth extends StatelessWidget {
     final nextMonth = DateTime(month.year, month.month + 1);
     final end = nextMonth.isAfter(lastDate)
         ? lastDate
-        : diaryDayAfter(nextMonth, -1);
-    final monday = diaryDayAfter(month, 1 - month.weekday);
-    final weeks = (diaryDaysBetween(monday, end) + 1 + 6) ~/ 7;
+        : TimeHelper.addDays(nextMonth, -1);
+    final monday = TimeHelper.addDays(month, 1 - month.weekday);
+    final weeks = (TimeHelper.daysBetween(monday, end) + 1 + 6) ~/ 7;
     // The lower inset keeps the sticker's overhang inside the day's tap area.
     final dayHeight =
         math.max(54.0, MediaQuery.textScalerOf(context).scale(16) * 1.25 + 34) +
@@ -559,7 +562,12 @@ class _CalendarMonth extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        DateFormat.MMMM(locale).format(month),
+                        TimeHelper.format(
+                          month,
+                          pattern: TimeFormat.month,
+                          locale: locale,
+                          toLocal: false,
+                        ),
                         style: const TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w500,
@@ -603,14 +611,18 @@ class _CalendarMonth extends StatelessWidget {
                       Expanded(
                         child: _day(
                           context,
-                          diaryDayAfter(monday, week * 7 + day),
+                          TimeHelper.addDays(monday, week * 7 + day),
                         ),
                       ),
                   ],
                 ),
               ),
-              if (_weekComplete(diaryDayAfter(monday, week * 7 + 6)))
-                _weekSummary(context, diaryDayAfter(monday, week * 7), locale)
+              if (_weekComplete(TimeHelper.addDays(monday, week * 7 + 6)))
+                _weekSummary(
+                  context,
+                  TimeHelper.addDays(monday, week * 7),
+                  locale,
+                )
               else if (week < weeks - 1)
                 const SizedBox(height: 8),
             ],
@@ -625,9 +637,10 @@ class _CalendarMonth extends StatelessWidget {
       sunday.month == month.month && sunday.isBefore(lastDate);
 
   Widget _weekSummary(BuildContext context, DateTime monday, String locale) {
-    final sunday = diaryDayAfter(monday, 6);
+    final sunday = TimeHelper.addDays(monday, 6);
     final range =
-        '${DateFormat.MMMd(locale).format(monday)} – ${DateFormat.MMMd(locale).format(sunday)}';
+        '${TimeHelper.format(monday, pattern: TimeFormat.localizedMonthDay, locale: locale, toLocal: false)} – '
+        '${TimeHelper.format(sunday, pattern: TimeFormat.localizedMonthDay, locale: locale, toLocal: false)}';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(

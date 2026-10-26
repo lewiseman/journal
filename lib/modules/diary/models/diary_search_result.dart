@@ -1,17 +1,13 @@
-import 'package:journal/modules/diary/models/diary_day.dart';
-
 class DiarySearchMatch {
   const DiarySearchMatch({
     required this.date,
     required this.title,
     required this.excerpt,
-    required this.kind,
   });
 
   final DateTime date;
   final String title;
   final String excerpt;
-  final DiaryItemKind kind;
 }
 
 class DiarySearchResult {

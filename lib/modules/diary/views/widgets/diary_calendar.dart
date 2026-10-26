@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:journal/config/theme.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/utils/time_helper.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
 const _calendarPinSize = 24.0;
@@ -46,10 +46,10 @@ class DiaryCalendar extends StatelessWidget {
 
   bool _available(DateTime date) =>
       !date.isBefore(DateTime(1)) &&
-      !date.isAfter(diaryDate(lastDate ?? DateTime.now()));
+      !date.isAfter(TimeHelper.dateOnly(lastDate ?? DateTime.now()));
 
   void _selectDay(int offset) {
-    final date = diaryDayAfter(selectedDate, offset);
+    final date = TimeHelper.addDays(selectedDate, offset);
     if (enabled && offset != 0 && _available(date)) onDateChanged(date);
   }
 
@@ -77,8 +77,8 @@ class DiaryCalendar extends StatelessWidget {
                   collapse,
                 )!;
                 final middleDay = dayOffset.round();
-                final previous = diaryDayAfter(selectedDate, -1);
-                final next = diaryDayAfter(selectedDate, 1);
+                final previous = TimeHelper.addDays(selectedDate, -1);
+                final next = TimeHelper.addDays(selectedDate, 1);
                 return Semantics(
                   container: true,
                   explicitChildNodes: true,
@@ -198,7 +198,7 @@ class DiaryCalendar extends StatelessWidget {
         )! -
         lift;
     final targetWidth = ui.lerpDouble(76, compactDayWidth, collapse)!;
-    final date = diaryDayAfter(selectedDate, day);
+    final date = TimeHelper.addDays(selectedDate, day);
     final available = _available(date);
     final canSelect = enabled && available;
     final inactiveInk = Color.lerp(

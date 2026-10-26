@@ -6,7 +6,11 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/modules/diary/models/diary_calendar_day.dart';
+import 'package:journal/utils/time_helper.dart';
+import 'package:journal/modules/diary/models/diary_day_entity.dart';
+import 'package:journal/modules/diary/models/diary_item.dart';
+import 'package:journal/modules/diary/models/sample.dart';
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
@@ -28,7 +32,7 @@ Finder _preview(WidgetTester tester) => find.byWidgetPredicate(
       widget.visible &&
       widget.flat &&
       widget.shape ==
-          DiaryPaperShape.forDate(diaryDayAfter(_selected(tester), -1)),
+          DiaryPaperShape.forDate(TimeHelper.addDays(_selected(tester), -1)),
 );
 Finder _face(DateTime date) => find.byWidgetPredicate(
   (widget) =>
@@ -40,7 +44,7 @@ NestedScrollViewState _scroll(WidgetTester tester) =>
     tester.state<NestedScrollViewState>(find.byType(NestedScrollView));
 DiaryScene _scene(WidgetTester tester) =>
     tester.widget(find.byType(DiaryScene));
-DateTime _selected(WidgetTester tester) => _scene(tester).day.date;
+DateTime _selected(WidgetTester tester) => _scene(tester).day.calendarDate;
 DiaryCalendar _calendar(WidgetTester tester) =>
     tester.widget<DiaryCalendar>(find.byType(DiaryCalendar));
 Finder _calendarDate(DateTime date) =>
@@ -48,7 +52,7 @@ Finder _calendarDate(DateTime date) =>
 
 void _expectCalendarWithPaper(WidgetTester tester) {
   final scene = _scene(tester);
-  expect(_calendar(tester).selectedDate, scene.day.date);
+  expect(_calendar(tester).selectedDate, scene.day.calendarDate);
   expect(
     _calendar(tester).dayOffset,
     closeTo(-scene.direction * scene.turn, .00001),
@@ -61,6 +65,7 @@ Future<void> _mount(
   double scale = 1,
   bool dark = false,
   bool reduced = false,
+  List<DiaryDayEntity>? diaries,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -87,7 +92,7 @@ Future<void> _mount(
           ),
           child: child!,
         ),
-        home: _Tabs(today: _today),
+        home: _Tabs(today: _today, diaries: diaries),
       ),
     ),
   );
@@ -160,24 +165,100 @@ void main() {
   });
 
   test('samples are stable and civil days cross calendar boundaries', () {
-    final first = DiaryDay.sample(DateTime(2026, 10, 24, 23));
-    final again = DiaryDay.sample(DateTime(2026, 10, 24));
-    expect(first.title, again.title);
+    final first = buildSampleDiaries(DateTime(2026, 10, 25, 23));
+    final again = buildSampleDiaries(_today);
     expect(
-      first.items.map((item) => item.text),
-      again.items.map((item) => item.text),
+      first.map((day) => day.itemsJson),
+      again.map((day) => day.itemsJson),
     );
-    expect(first.date, DateTime(2026, 10, 24));
+    expect(first.first.calendarDate, _today);
+    expect(first[1].items.length, greaterThan(first.first.items.length));
+    expect(TimeHelper.addDays(DateTime(2024, 3, 1), -1), DateTime(2024, 2, 29));
+    expect(TimeHelper.addDays(DateTime(2026), -1), DateTime(2025, 12, 31));
     expect(
-      first.items.length,
-      greaterThan(DiaryDay.sample(_today).items.length),
+      TimeHelper.daysBetween(DateTime(2024, 2, 28), DateTime(2024, 3, 1)),
+      2,
     );
-    expect(DiaryDay.sample(DateTime(1900)).items, isNotEmpty);
-    expect(diaryDayAfter(DateTime(2024, 3, 1), -1), DateTime(2024, 2, 29));
-    expect(diaryDayAfter(DateTime(2026), -1), DateTime(2025, 12, 31));
-    expect(diaryDaysBetween(DateTime(2024, 2, 28), DateTime(2024, 3, 1)), 2);
-    expect(diaryDaysBetween(DateTime(2026, 3, 8), DateTime(2026, 3, 9)), 1);
+    expect(
+      TimeHelper.daysBetween(DateTime(2026, 3, 8), DateTime(2026, 3, 9)),
+      1,
+    );
   });
+
+  testWidgets(
+    'injected entities drive reader, calendar, search, and empty days',
+    (tester) async {
+      final day =
+          DiaryDayEntity(
+              dateString: TimeHelper.dateKey(_today),
+              dayTitle: 'Copper morning',
+              dayMood: '{"emoji":"😌","name":"Calm","category":"calm"}',
+            )
+            ..items = [
+              DiaryItem(
+                itemUuid: 'custom-item',
+                createdAt: _today,
+                updatedAt: _today,
+                content: 'A copper sunrise outside my window.',
+              ),
+            ];
+      final deleted = DiaryDayEntity(
+        dateString: TimeHelper.dateKey(TimeHelper.addDays(_today, -1)),
+        isDeleted: true,
+      )..items = day.items;
+      await _mount(tester, reduced: true, diaries: [day, deleted]);
+      expect(_scene(tester).day, same(day));
+      expect(day.date.isUtc, isTrue);
+      expect(_selected(tester), _today);
+      await tester.tap(find.byTooltip('Choose date'));
+      await tester.pumpAndSettle();
+      final calendar = tester.widget<DiaryCalendarPage>(
+        find.byType(DiaryCalendarPage),
+      );
+      expect(calendar.dayData(_today).mood, DiaryCalendarMood.calm);
+      expect(
+        calendar.dayData(TimeHelper.addDays(_today, -1)).hasEntry,
+        isFalse,
+      );
+      expect(
+        calendar.dayData(TimeHelper.addDays(_today, -2)).hasEntry,
+        isFalse,
+      );
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Search diary'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('diary-search-input')),
+        'copper',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      final result = find.byKey(const ValueKey('diary-search-match-0'));
+      expect(find.text('A copper sunrise outside my window.'), findsWidgets);
+      await tester.ensureVisible(result);
+      await tester.tap(result);
+      await tester.pumpAndSettle();
+      expect(_scene(tester).day, same(day));
+      expect(_selected(tester), _today);
+
+      for (final offset in [-1, -2]) {
+        _calendar(tester).onDateChanged(TimeHelper.addDays(_today, offset));
+        await tester.pumpAndSettle();
+        expect(_selected(tester), TimeHelper.addDays(_today, offset));
+        expect(
+          find.descendant(
+            of: find.byKey(const PageStorageKey('diary-content')),
+            matching: find.text('No diary entries for this day.'),
+          ),
+          findsOneWidget,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('short and long sheets share expansion and restoration', (
     tester,
@@ -217,7 +298,7 @@ void main() {
     _scroll(tester).outerController.jumpTo(0);
     await tester.pumpAndSettle();
 
-    await _choose(tester, diaryDayAfter(_today, -1));
+    await _choose(tester, TimeHelper.addDays(_today, -1));
     expect(_selected(tester), DateTime(2026, 10, 24));
     expect(tester.getRect(_paper), rest);
     await tester.dragFrom(rest.center, const Offset(0, -350));
@@ -241,7 +322,7 @@ void main() {
     await _mount(tester);
     for (final direction in [1, 1, 1, -1, -1, -1]) {
       final from = _selected(tester);
-      final target = diaryDayAfter(from, -direction);
+      final target = TimeHelper.addDays(from, -direction);
       final incoming = tester.renderObject<RenderDiaryCurl>(_face(target));
       expect(incoming.debugReady, isTrue);
       final captures = (
@@ -312,7 +393,7 @@ void main() {
 
       await tester.dragFrom(center, const Offset(170, 0));
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_selected(tester), TimeHelper.addDays(_today, -1));
       expect(
         tester.widget<DiaryCalendar>(find.byType(DiaryCalendar)).selectedDate,
         _selected(tester),
@@ -342,10 +423,10 @@ void main() {
     tester,
   ) async {
     await _mount(tester);
-    await _choose(tester, diaryDayAfter(_today, -1));
+    await _choose(tester, TimeHelper.addDays(_today, -1));
     for (final direction in [1, -1]) {
       final from = _selected(tester);
-      final target = diaryDayAfter(from, -direction);
+      final target = TimeHelper.addDays(from, -direction);
       final before = tester.getCenter(_calendarDate(target)).dx;
       final calendarCenter = tester.getCenter(find.byType(DiaryCalendar)).dx;
       final gesture = await tester.startGesture(tester.getRect(_paper).center);
@@ -408,7 +489,7 @@ void main() {
 
       await tester.dragFrom(center, const Offset(80, 0));
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_selected(tester), TimeHelper.addDays(_today, -1));
       _scroll(tester).outerController.jumpTo(80);
       await tester.pumpAndSettle();
       _scroll(tester).innerController.jumpTo(100);
@@ -424,7 +505,7 @@ void main() {
       expect(_turnFace, findsNothing);
       await reading.up();
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -2));
+      expect(_selected(tester), TimeHelper.addDays(_today, -2));
       expect(_scene(tester).collapse, 1);
       expect(_scroll(tester).innerController.offset, 0);
       expect(_calendar(tester).dayOffset, 0);
@@ -482,7 +563,7 @@ void main() {
     'header changes preserve reading mode and reset long-to-short content',
     (tester) async {
       await _mount(tester);
-      await _choose(tester, diaryDayAfter(_today, -1));
+      await _choose(tester, TimeHelper.addDays(_today, -1));
       await tester.dragFrom(
         tester.getRect(_paper).center,
         const Offset(0, -450),
@@ -505,7 +586,7 @@ void main() {
       await _choose(tester, DateTime(1980, 2, 4));
       expect(_selected(tester), DateTime(1980, 2, 4));
       expect(_scene(tester).collapse, 1);
-      await _choose(tester, diaryDayAfter(_today, 1));
+      await _choose(tester, TimeHelper.addDays(_today, 1));
       expect(_selected(tester), DateTime(1980, 2, 4));
       expect(tester.takeException(), isNull);
     },
@@ -526,7 +607,7 @@ void main() {
       expect(find.byType(DatePickerDialog), findsNothing);
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
-      await _choose(tester, diaryDayAfter(_today, -1));
+      await _choose(tester, TimeHelper.addDays(_today, -1));
       await tester.dragFrom(
         tester.getRect(_paper).center,
         const Offset(0, -350),
@@ -537,13 +618,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_selected(tester), TimeHelper.addDays(_today, -1));
       expect(_scroll(tester).innerController.offset, offset);
       await tester.tap(find.bySemanticsLabel('Notes tab'));
       await tester.pumpAndSettle();
       await tester.tap(find.bySemanticsLabel('Diary tab'));
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_selected(tester), TimeHelper.addDays(_today, -1));
       expect(_scroll(tester).innerController.offset, offset);
       expect(_scene(tester).collapse, 1);
       expect(tester.takeException(), isNull);
@@ -603,7 +684,7 @@ void main() {
     await tester.tap(result);
     await tester.pumpAndSettle();
     expect(find.byType(DiarySearchPage), findsNothing);
-    expect(_selected(tester), diaryDayAfter(_today, -1));
+    expect(_selected(tester), TimeHelper.addDays(_today, -1));
     expect(_calendar(tester).selectedDate, _selected(tester));
     expect(_scroll(tester).innerController.offset, 0);
     expect(find.bySemanticsLabel('Notes tab').hitTestable(), findsOneWidget);
@@ -614,7 +695,7 @@ void main() {
     'collapsed search cancels in place and reopens the same day at its start',
     (tester) async {
       await _mount(tester, reduced: true);
-      await _choose(tester, diaryDayAfter(_today, -1));
+      await _choose(tester, TimeHelper.addDays(_today, -1));
       await tester.dragFrom(
         tester.getRect(_paper).center,
         const Offset(0, -450),
@@ -674,10 +755,10 @@ void main() {
       expect(_selected(tester), _today);
       await tester.flingFrom(rect.center, const Offset(70, 0), 1400);
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_selected(tester), TimeHelper.addDays(_today, -1));
       await tester.dragFrom(rect.center, const Offset(20, -160));
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_selected(tester), TimeHelper.addDays(_today, -1));
       expect(_scene(tester).collapse, 1);
       expect(tester.takeException(), isNull);
     },
@@ -689,7 +770,7 @@ void main() {
       await _mount(tester);
       final calendar = tester.element(find.byType(DiaryCalendar));
       final label = MaterialLocalizations.of(calendar)
-          .formatFullDate(diaryDayAfter(_today, -1));
+          .formatFullDate(TimeHelper.addDays(_today, -1));
       await tester.tap(find.bySemanticsLabel(label).hitTestable());
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 80));
@@ -697,7 +778,7 @@ void main() {
       expect(_selected(tester), _today);
       _expectCalendarWithPaper(tester);
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_selected(tester), TimeHelper.addDays(_today, -1));
       await tester.dragFrom(
         tester.getRect(_paper).center,
         const Offset(0, -280),
@@ -773,7 +854,7 @@ void main() {
         Offset(tester.getRect(_paper).width * .5, 0),
       );
       await tester.pumpAndSettle();
-      expect(_selected(tester), diaryDayAfter(_today, -1));
+      expect(_selected(tester), TimeHelper.addDays(_today, -1));
       if (config.reduced) expect(_turnFace, findsNothing);
       _scroll(tester).outerController.jumpTo(200);
       await tester.pumpAndSettle();
@@ -785,8 +866,9 @@ void main() {
 }
 
 class _Tabs extends StatefulWidget {
-  const _Tabs({required this.today});
+  const _Tabs({required this.today, this.diaries});
   final DateTime today;
+  final List<DiaryDayEntity>? diaries;
   @override
   State<_Tabs> createState() => _TabsState();
 }
@@ -800,7 +882,10 @@ class _TabsState extends State<_Tabs> {
       children: [
         TickerMode(
           enabled: diary,
-          child: DiaryPage(clock: () => widget.today),
+          child: DiaryPage(
+            clock: () => widget.today,
+            diaries: widget.diaries ?? buildSampleDiaries(widget.today),
+          ),
         ),
         const Center(child: Text('Notes')),
       ],

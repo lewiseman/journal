@@ -1,4 +1,8 @@
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'dart:convert';
+
+import 'package:journal/utils/time_helper.dart';
+import 'package:journal/modules/diary/models/diary_day_entity.dart';
+import 'package:journal/modules/diary/models/sample.dart';
 
 enum DiaryCalendarMood {
   happy('Happy', '😊'),
@@ -21,19 +25,31 @@ class DiaryCalendarDay {
   final bool hasEntry;
   final DiaryCalendarMood? mood;
 
-  /// Preview data is tied to civil dates, never the current viewport or clock.
-  /// Empty days and entries without a mood deliberately remain in the mix.
-  static DiaryCalendarDay sample(DateTime date) {
-    final seed = diaryDaysBetween(DateTime(1970), date);
-    final bucket = (seed * 17 + 23) % 19;
-    if (const [1, 4, 9, 13, 18].contains(bucket)) {
+  factory DiaryCalendarDay.fromEntity(DiaryDayEntity? day) {
+    if (day == null || day.visibleItems.isEmpty) {
       return const DiaryCalendarDay(hasEntry: false);
     }
-    return DiaryCalendarDay(
-      hasEntry: true,
-      mood: bucket % 4 == 0
-          ? null
-          : DiaryCalendarMood.values[bucket % DiaryCalendarMood.values.length],
-    );
+    DiaryCalendarMood? mood;
+    try {
+      final decoded = jsonDecode(day.dayMood ?? 'null');
+      if (decoded is Map<String, dynamic>) {
+        for (final candidate in DiaryCalendarMood.values) {
+          if (decoded['category'] == candidate.name ||
+              decoded['name'] == candidate.label) {
+            mood = candidate;
+            break;
+          }
+        }
+      }
+    } on FormatException {
+      // A malformed optional mood should not hide the day's entry marker.
+    }
+    return DiaryCalendarDay(hasEntry: true, mood: mood);
   }
+
+  static DiaryCalendarDay sample(DateTime date) => DiaryCalendarDay.fromEntity(
+    sampleDiaries
+        .where((day) => day.dateString == TimeHelper.dateKey(date))
+        .firstOrNull,
+  );
 }

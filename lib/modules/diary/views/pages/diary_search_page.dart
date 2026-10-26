@@ -1,9 +1,7 @@
 import 'dart:async';
 
-import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
 import 'package:journal/modules/diary/models/diary_search_result.dart';
 import 'package:journal/modules/diary/views/widgets/diary_search_opening.dart';
 import 'package:journal/modules/diary/views/widgets/diary_search_loading.dart';
@@ -106,8 +104,10 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
   }
 
   void _open(DiarySearchMatch match) {
-    final date = diaryDate(match.date);
-    if (_returning || date.isAfter(diaryDate(widget.lastDate))) return;
+    final date = TimeHelper.dateOnly(match.date);
+    if (_returning || date.isAfter(TimeHelper.dateOnly(widget.lastDate))) {
+      return;
+    }
     _returning = true;
     _focus.unfocus();
     context.nav.pop<DateTime>(date);
@@ -508,14 +508,12 @@ class _MemoryCard extends StatelessWidget {
       NoteColorPreset.sage,
       NoteColorPreset.lavender,
     ][variant % 3].resolveColors(context.colors);
-    final kind = switch (match.kind) {
-      DiaryItemKind.reflection => 'Reflection',
-      DiaryItemKind.note => 'Note',
-      DiaryItemKind.mood => 'Mood',
-      DiaryItemKind.checklist => 'Intentions',
-    };
-    final date = DateFormat.yMMMd(Localizations.localeOf(context).toString())
-        .format(match.date);
+    final date = TimeHelper.format(
+      match.date,
+      pattern: TimeFormat.localizedDate,
+      locale: Localizations.localeOf(context).toString(),
+      toLocal: false,
+    );
     return DiarySearchPaper(
       color: paper.background,
       variant: variant,
@@ -523,31 +521,20 @@ class _MemoryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 14,
-            runSpacing: 6,
-            children: [
-              Text(
-                date,
-                style: TextStyle(fontSize: 11, color: paper.secondary),
-              ),
-              Text(
-                kind,
-                style: TextStyle(fontSize: 11, color: paper.secondary),
-              ),
-            ],
-          ),
+          Text(date, style: TextStyle(fontSize: 11, color: paper.secondary)),
           const SizedBox(height: 12),
-          Text(
-            match.title,
-            style: TextStyle(
-              fontSize: 21,
-              height: 1.25,
-              letterSpacing: -.4,
-              color: paper.foreground,
+          if (match.title.isNotEmpty) ...[
+            Text(
+              match.title,
+              style: TextStyle(
+                fontSize: 21,
+                height: 1.25,
+                letterSpacing: -.4,
+                color: paper.foreground,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
           Text(
             match.excerpt,
             maxLines: 4,

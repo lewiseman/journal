@@ -8,13 +8,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/modules/diary/models/sample.dart';
 import 'package:journal/modules/diary/models/diary_search_result.dart';
 import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_search_opening.dart';
 import 'package:journal/modules/settings/models/local_settings.dart';
 
 final _today = DateTime(2026, 10, 26);
+final _diaries = buildSampleDiaries(_today);
 final _captureKey = GlobalKey();
 final _input = find.byKey(const ValueKey('diary-search-input'));
 final _firstMatch = find.byKey(const ValueKey('diary-search-match-0'));
@@ -39,7 +40,6 @@ DiarySearchResult _response(String answer) => DiarySearchResult(
       date: DateTime(2026, 10, 24, 15),
       title: 'Taking the long way',
       excerpt: 'I took a different route on my walk.',
-      kind: DiaryItemKind.reflection,
     ),
   ],
 );
@@ -87,8 +87,15 @@ Future<void> _mount(
                 onPressed: () async {
                   final date = await Navigator.of(context).push<DateTime>(
                     MaterialPageRoute(
-                      builder: (_) =>
-                          DiarySearchPage(lastDate: _today, service: service),
+                      builder: (_) => DiarySearchPage(
+                        lastDate: _today,
+                        service:
+                            service ??
+                            SampleDiarySearchService(
+                              lastDate: _today,
+                              diaries: _diaries,
+                            ),
+                      ),
                     ),
                   );
                   results?.add(date);
@@ -191,8 +198,10 @@ void main() {
       'suggested query $i returns a grounded answer and opens its day',
       (tester) async {
         final results = <DateTime?>[];
-        final response = await SampleDiarySearchService(lastDate: _today)
-            .search(diarySearchPrompts[i]);
+        final response = await SampleDiarySearchService(
+          lastDate: _today,
+          diaries: _diaries,
+        ).search(diarySearchPrompts[i]);
         await _mount(tester, results: results);
         final prompt = find.byKey(ValueKey('diary-search-prompt-$i'));
         await tester.ensureVisible(prompt);
@@ -236,7 +245,11 @@ void main() {
       await tester.tap(conversation);
       await tester.pumpAndSettle();
       expect(find.text('What I found'), findsOneWidget);
-      expect(find.text('A conversation to keep'), findsOneWidget);
+      final response = await SampleDiarySearchService(
+        lastDate: _today,
+        diaries: _diaries,
+      ).search('An ordinary conversation');
+      expect(find.text(response.answer), findsOneWidget);
       expect(
         tester.widget<TextField>(_input).controller!.text,
         'An ordinary conversation',

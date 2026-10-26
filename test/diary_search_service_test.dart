@@ -1,21 +1,36 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/utils/time_helper.dart';
+import 'package:journal/modules/diary/models/diary_day_entity.dart';
+import 'package:journal/modules/diary/models/diary_item.dart';
+import 'package:journal/modules/diary/models/sample.dart';
+
+DiaryDayEntity _day(DateTime date, String content, {String? title}) =>
+    DiaryDayEntity(dateString: TimeHelper.dateKey(date), dayTitle: title)
+      ..items = [
+        DiaryItem(
+          itemUuid: TimeHelper.dateKey(date),
+          createdAt: date,
+          updatedAt: date,
+          content: content,
+        ),
+      ];
 
 void main() {
   final today = DateTime(2026, 10, 26);
-  final service = SampleDiarySearchService(lastDate: today);
+  final diaries = buildSampleDiaries(today);
+  final service = SampleDiarySearchService(lastDate: today, diaries: diaries);
 
   test('suggested concepts find the corresponding sample passages', () async {
     for (final example in [
-      ('When did I feel calm?', 'A little more present'),
-      ('That walk I wrote about', 'Taking the long way'),
-      ('A conversation worth keeping', 'A conversation to keep'),
+      ('When did I feel calm?', 'I felt calm'),
+      ('That walk I wrote about', 'on my walk'),
+      ('A conversation worth keeping', 'our conversation'),
     ]) {
       final result = await service.search(example.$1);
       expect(result.matches, isNotEmpty);
-      expect(result.matches.first.title, example.$2);
-      expect(result.answer, contains(example.$2));
+      expect(result.matches.first.excerpt, contains(example.$2));
+      expect(result.answer, contains(result.matches.first.title));
       expect(
         result.answer,
         contains(result.matches.first.excerpt.split('. ').first),
@@ -23,84 +38,158 @@ void main() {
     }
   });
 
-  test(
-    'blank, filler-only, and unknown queries return no fabricated answer',
-    () async {
-      for (final query in [
-        '',
-        '   ',
-        'what did I write about?',
-        'submarine zeppelin',
-      ]) {
-        final result = await service.search(query);
-        expect(result.matches, isEmpty);
-        expect(result.answer, isEmpty);
-      }
-    },
-  );
+  test('blank, filler-only, and unknown queries return no answer', () async {
+    for (final query in [
+      '',
+      '   ',
+      'what did I write about?',
+      'submarine zeppelin',
+    ]) {
+      final result = await service.search(query);
+      expect(result.matches, isEmpty);
+      expect(result.answer, isEmpty);
+    }
+  });
 
-  test(
-    'free text is case insensitive and results are capped and deduplicated',
-    () async {
-      final result = await service.search(
-        'CALM walk conversation rain coffee space room',
-      );
-      expect(result.matches.length, 5);
-      expect(result.matches.map((match) => match.excerpt).toSet().length, 5);
-      final again = await service.search(
+  test('free text is case insensitive, capped, and deduplicated', () async {
+    final result = await service.search(
+      'CALM walk conversation rain coffee space room',
+    );
+    expect(result.matches.length, 5);
+    expect(result.matches.map((match) => match.excerpt).toSet().length, 5);
+    final again = await service.search(
+      'calm walk conversation rain coffee space room',
+    );
+    expect(
+      again.matches.map((match) => match.excerpt),
+      result.matches.map((match) => match.excerpt),
+    );
+    expect(again.answer, result.answer);
+  });
+
+  test('excerpts come from their newest source in the 30 day window', () async {
+    for (final last in [DateTime(2026, 1, 2, 23), DateTime(2024, 3, 1, 17)]) {
+      final source = buildSampleDiaries(last);
+      final search = SampleDiarySearchService(lastDate: last, diaries: source);
+      final result = await search.search(
         'calm walk conversation rain coffee space room',
       );
-      expect(
-        again.matches.map((match) => match.title),
-        result.matches.map((match) => match.title),
-      );
-      expect(again.answer, result.answer);
-    },
-  );
-
-  test('every excerpt exists on its latest source day in the 30 day window', () async {
-    // Exercise month, year, and leap-day boundaries with a non-midnight input.
-    for (final last in [DateTime(2026, 1, 2, 23), DateTime(2024, 3, 1, 17)]) {
-      final search = SampleDiarySearchService(lastDate: last);
-      final result = await search.search(
-        'calm walk conversation rain coffee space room intentions',
-      );
-      final normalized = diaryDate(last);
+      expect(result.matches, isNotEmpty);
       for (final match in result.matches) {
-        expect(match.date, diaryDate(match.date));
-        expect(match.date.isAfter(normalized), isFalse);
-        expect(diaryDaysBetween(match.date, normalized), lessThan(30));
-        String passage(DiaryItem item) => item.text.isNotEmpty
-            ? item.text
-            : item.tasks.map((task) => task.text).join('\n');
-        bool contains(DateTime date) => DiaryDay.sample(date).items.any(
-          (item) =>
-              item.kind == match.kind &&
-              item.title == match.title &&
-              passage(item) == match.excerpt,
+        expect(match.date, TimeHelper.dateOnly(match.date));
+        expect(
+          TimeHelper.daysBetween(match.date, last),
+          inInclusiveRange(0, 29),
         );
-        expect(contains(match.date), isTrue);
-        for (
-          var date = diaryDayAfter(match.date, 1);
-          !date.isAfter(normalized);
-          date = diaryDayAfter(date, 1)
-        ) {
-          expect(
-            contains(date),
-            isFalse,
-            reason: 'Repeated sample must keep its newest source',
-          );
-        }
+        final day = source.singleWhere(
+          (day) => day.dateString == TimeHelper.dateKey(match.date),
+        );
+        expect(day.dayTitle, match.title);
+        expect(
+          day.visibleItems.any((item) => item.content.trim() == match.excerpt),
+          isTrue,
+        );
+        expect(
+          source
+              .where((day) => day.calendarDate.isAfter(match.date))
+              .any(
+                (day) => day.visibleItems.any(
+                  (item) => item.content.trim() == match.excerpt,
+                ),
+              ),
+          isFalse,
+        );
       }
     }
   });
 
-  test('checklist retrieval retains the source task text', () async {
-    final result = await service.search('intentions');
-    expect(result.matches.single.kind, DiaryItemKind.checklist);
-    expect(
-      result.matches.single.excerpt,
-      contains('Step outside for a little while'),
-    );
-  });
+  test(
+    'injected data respects civil dates, deletions, blanks, and bounds',
+    () async {
+      final retained = _day(
+        TimeHelper.addDays(today, -29),
+        'copper at the boundary',
+      );
+      final keyed = _day(today, 'copper on the keyed day')
+        ..date = DateTime.utc(2026, 10, 25, 23);
+      final deletedDay = _day(
+        TimeHelper.addDays(today, -1),
+        'copper deleted day',
+      )..isDeleted = true;
+      final hiddenItems = _day(
+        TimeHelper.addDays(today, -2),
+        'copper deleted item',
+      );
+      hiddenItems.items = [
+        hiddenItems.items.single.copyWith(isDeleted: true),
+        hiddenItems.items.single.copyWith(itemUuid: 'blank', content: ' \n '),
+      ];
+      final result = await SampleDiarySearchService(
+        lastDate: DateTime(2026, 10, 26, 23),
+        diaries: [
+          _day(TimeHelper.addDays(today, -30), 'copper too old'),
+          _day(TimeHelper.addDays(today, 1), 'copper tomorrow'),
+          retained,
+          keyed,
+          deletedDay,
+          hiddenItems,
+        ],
+      ).search('copper');
+      expect(result.matches.map((match) => match.excerpt), [
+        'copper on the keyed day',
+        'copper at the boundary',
+      ]);
+      expect(result.matches.first.date, today);
+      expect(result.matches.first.title, isEmpty);
+      expect(result.answer, 'You wrote: “copper on the keyed day”');
+    },
+  );
+
+  test(
+    'titles are searchable and matching content determines relevance',
+    () async {
+      final result = await SampleDiarySearchService(
+        lastDate: today,
+        diaries: [
+          _day(today, 'A brief pause.', title: 'Copper'),
+          _day(TimeHelper.addDays(today, -1), 'Copper garden flowers.'),
+          _day(TimeHelper.addDays(today, -2), 'A garden bench.'),
+        ],
+      ).search('copper garden');
+      expect(result.matches.first.excerpt, 'Copper garden flowers.');
+      expect(result.matches.any((match) => match.title == 'Copper'), isTrue);
+    },
+  );
+
+  test(
+    'repeated content keeps its latest source even with different titles',
+    () async {
+      final latest = _day(today, 'A copper sunrise.', title: 'Today');
+      final result = await SampleDiarySearchService(
+        lastDate: today,
+        diaries: [
+          _day(
+            TimeHelper.addDays(today, -2),
+            'A copper sunrise.',
+            title: 'Earlier',
+          ),
+          latest,
+        ],
+      ).search('copper');
+      expect(result.matches.single.date, today);
+      expect(result.matches.single.title, 'Today');
+    },
+  );
+
+  test(
+    'an explicitly empty collection does not fall back to samples',
+    () async {
+      final result = await SampleDiarySearchService(
+        lastDate: today,
+        diaries: [],
+      ).search('calm');
+      expect(result.matches, isEmpty);
+      expect(result.answer, isEmpty);
+    },
+  );
 }

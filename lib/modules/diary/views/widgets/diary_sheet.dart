@@ -1,6 +1,5 @@
-import 'package:intl/intl.dart';
-import 'package:journal/common.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/common.dart' hide DiaryDayEntity;
+import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
@@ -23,7 +22,7 @@ class DiarySheet extends StatelessWidget {
     this.detailed = true,
   });
 
-  final DiaryDay day;
+  final DiaryDayEntity day;
   final double radius;
   final double scrollOffset;
   final DiaryPaperShape? shape;
@@ -33,7 +32,8 @@ class DiarySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final outline =
-        shape ?? DiaryPaperShape.forDate(day.date, cornerRadius: radius);
+        shape ??
+        DiaryPaperShape.forDate(day.calendarDate, cornerRadius: radius);
     final paper = diaryPaperColors(context);
     final content = OverflowBox(
       alignment: Alignment.topCenter,
@@ -58,7 +58,7 @@ class DiarySheet extends StatelessWidget {
               ink: paper.foreground,
               shadow: shadow,
               shadowColor: context.colors.shadow,
-              variant: day.date.weekday,
+              variant: day.calendarDate.weekday,
               flatten: outline.expansion,
             ),
       child: detailed
@@ -86,7 +86,7 @@ class _StampContentClipper extends CustomClipper<Rect> {
 class DiaryDayContent extends StatefulWidget {
   const DiaryDayContent({super.key, required this.day});
 
-  final DiaryDay day;
+  final DiaryDayEntity day;
 
   @override
   State<DiaryDayContent> createState() => _DiaryDayContentState();
@@ -101,19 +101,23 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
     _content = null;
   }
 
+  (String, String?, String, bool)? _contentKey;
+
   @override
-  void didUpdateWidget(DiaryDayContent oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.day != widget.day) _content = null;
+  Widget build(BuildContext context) {
+    final day = widget.day;
+    final key = (day.dateString, day.dayTitle, day.itemsJson, day.isDeleted);
+    if (_content == null || _contentKey != key) {
+      _content = _buildContent(context, day);
+      _contentKey = key;
+    }
+    return _content!;
   }
 
-  @override
-  Widget build(BuildContext context) =>
-      _content ??= _buildContent(context, widget.day);
-
-  // A turn rebuilds the moving wrappers, not every paragraph and checklist.
-  // Inherited theme changes and a replacement day invalidate this small cache.
-  Widget _buildContent(BuildContext context, DiaryDay day) {
+  // Moving wrappers reuse their paragraphs until the entity or theme changes.
+  Widget _buildContent(BuildContext context, DiaryDayEntity day) {
+    final items = day.visibleItems.toList();
+    final title = day.isDeleted ? '' : day.dayTitle?.trim() ?? '';
     final paper = diaryPaperColors(context);
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -125,7 +129,7 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'SAMPLE DAY  ·  ${DateFormat('EEE, d MMM y').format(day.date)}',
+              'SAMPLE DAY  ·  ${TimeHelper.format(day.calendarDate, pattern: TimeFormat.shortWeekdayDate, toLocal: false)}',
               style: TextStyle(
                 color: paper.secondary,
                 fontSize: 10,
@@ -134,139 +138,40 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
               ),
             ),
             const SizedBox(height: 18),
-            Text(
-              day.title,
-              style: TextStyle(
-                fontSize: 29,
-                height: 1.16,
-                letterSpacing: -.9,
-                fontWeight: FontWeight.w500,
+            if (title.isNotEmpty) ...[
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 29,
+                  height: 1.16,
+                  letterSpacing: -.9,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: 26),
-            for (final item in day.items) ...[
-              _DiaryItemView(item: item, paper: paper),
               const SizedBox(height: 26),
             ],
-            Text(
-              'A day, held here.',
-              key: ValueKey('diary-end-${day.date.toIso8601String()}'),
-              style: TextStyle(
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-                color: paper.secondary,
+            if (items.isEmpty)
+              const Text('No diary entries for this day.')
+            else ...[
+              for (final item in items) ...[
+                Text(item.content.trim(), key: ValueKey(item.itemUuid)),
+                const SizedBox(height: 26),
+              ],
+              Text(
+                'A day, held here.',
+                key: ValueKey(
+                  'diary-end-${day.calendarDate.toIso8601String()}',
+                ),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: paper.secondary,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
-  }
-}
-
-class _DiaryItemView extends StatelessWidget {
-  const _DiaryItemView({required this.item, required this.paper});
-
-  final DiaryItem item;
-  final NoteColors paper;
-
-  @override
-  Widget build(BuildContext context) {
-    final heading = TextStyle(
-      color: paper.secondary,
-      fontSize: 11,
-      fontWeight: FontWeight.w600,
-      letterSpacing: .6,
-    );
-    switch (item.kind) {
-      case DiaryItemKind.mood:
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.wb_sunny_outlined, color: paper.secondary, size: 23),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.title, style: heading),
-                  Text(item.text, style: const TextStyle(fontSize: 13)),
-                ],
-              ),
-            ),
-          ],
-        );
-      case DiaryItemKind.note:
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: paper.foreground.withValues(alpha: .045),
-            borderRadius: BorderRadius.circular(14),
-            border: Border(
-              left: BorderSide(
-                color: context.colors.primary.withValues(alpha: .35),
-                width: 3,
-              ),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(item.title, style: heading),
-              const SizedBox(height: 6),
-              Text(item.text, style: const TextStyle(fontSize: 15)),
-            ],
-          ),
-        );
-      case DiaryItemKind.checklist:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(item.title, style: heading),
-            const SizedBox(height: 10),
-            for (final task in item.tasks)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Semantics(
-                  label:
-                      '${task.text}, ${task.done ? 'completed' : 'not completed'}',
-                  excludeSemantics: true,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Icon(
-                          task.done
-                              ? Icons.check_circle_outline_rounded
-                              : Icons.circle_outlined,
-                          size: 19,
-                          color: paper.secondary,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          task.text,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        );
-      case DiaryItemKind.reflection:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(item.title, style: heading),
-            const SizedBox(height: 8),
-            Text(item.text),
-          ],
-        );
-    }
   }
 }

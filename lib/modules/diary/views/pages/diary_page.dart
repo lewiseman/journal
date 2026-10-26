@@ -2,18 +2,22 @@ import 'dart:math' as math;
 
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
-import 'package:journal/common.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/common.dart' hide DiaryDayEntity;
+import 'package:journal/modules/diary/controllers/diary_search_service.dart';
+import 'package:journal/modules/diary/models/diary_calendar_day.dart';
+import 'package:journal/modules/diary/models/diary_day_entity.dart';
+import 'package:journal/modules/diary/models/sample.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header.dart';
 import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
 
 class DiaryPage extends StatefulWidget {
-  const DiaryPage({super.key, this.clock});
+  const DiaryPage({super.key, this.clock, this.diaries});
 
   /// Override the local clock for previews and deterministic calendar tests.
   final DateTime Function()? clock;
+  final List<DiaryDayEntity>? diaries;
 
   @override
   State<DiaryPage> createState() => _DiaryPageState();
@@ -34,10 +38,14 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
     duration: const Duration(milliseconds: 150),
   );
   late DateTime _selectedDate = _today;
-  late DiaryDay _day = DiaryDay.sample(_selectedDate);
-  late DiaryDay _previous = DiaryDay.sample(diaryDayAfter(_selectedDate, -1));
-  DiaryDay? _next;
-  DiaryDay? _fadingFrom;
+  late final _diaries = widget.diaries ?? sampleDiaries;
+  late final _days = {for (final day in _diaries) day.dateString: day};
+  late DiaryDayEntity _day = _dayFor(_selectedDate);
+  late DiaryDayEntity _previous = _dayFor(
+    TimeHelper.addDays(_selectedDate, -1),
+  );
+  DiaryDayEntity? _next;
+  DiaryDayEntity? _fadingFrom;
   double _fadingOffset = 0;
   double _cardWidth = 320;
   double _dragDistance = 0;
@@ -46,7 +54,15 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
   bool _settling = false;
   bool _readingTurn = false;
 
-  DateTime get _today => diaryDate((widget.clock ?? DateTime.now)());
+  DateTime get _today => TimeHelper.dateOnly((widget.clock ?? DateTime.now)());
+  DiaryDayEntity _dayFor(DateTime date) {
+    final key = TimeHelper.dateKey(date);
+    final day = _days[key];
+    return day != null && !day.isDeleted
+        ? day
+        : DiaryDayEntity(dateString: key);
+  }
+
   bool get _busy => _dragging || _settling;
   bool get _reduced =>
       MediaQuery.disableAnimationsOf(context) ||
@@ -80,9 +96,9 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
     final crossfade = fade && !_reduced;
     final oldDay = _day;
     final neighbors = [_day, _previous, ?_next];
-    DiaryDay sample(DateTime value) => neighbors.firstWhere(
-      (day) => day.date == value,
-      orElse: () => DiaryDay.sample(value),
+    DiaryDayEntity findDay(DateTime value) => neighbors.firstWhere(
+      (day) => day.dateString == TimeHelper.dateKey(value),
+      orElse: () => _dayFor(value),
     );
     final oldOffset = _innerOffset;
     // The outer nested controller resets the inner offset while retaining
@@ -93,9 +109,11 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
     }
     setState(() {
       _selectedDate = date;
-      _day = sample(date);
-      _previous = sample(diaryDayAfter(date, -1));
-      _next = date.isBefore(_today) ? sample(diaryDayAfter(date, 1)) : null;
+      _day = findDay(date);
+      _previous = findDay(TimeHelper.addDays(date, -1));
+      _next = date.isBefore(_today)
+          ? findDay(TimeHelper.addDays(date, 1))
+          : null;
       _fadingFrom = crossfade ? oldDay : null;
       _fadingOffset = oldOffset;
     });
@@ -104,9 +122,9 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
   }
 
   void _selectDate(DateTime value) {
-    final date = diaryDate(value);
+    final date = TimeHelper.dateOnly(value);
     if (_busy || date.isAfter(_today) || date == _selectedDate) return;
-    final distance = diaryDaysBetween(_selectedDate, date);
+    final distance = TimeHelper.daysBetween(_selectedDate, date);
     if (_atTop && distance.abs() == 1 && !_reduced) {
       _direction = distance < 0 ? 1 : -1;
       _settle(commit: true);
@@ -118,7 +136,12 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
   Future<void> _pickDate() async {
     if (_busy) return;
     final date = await context.nav.push<DateTime>(
-      DiaryCalendarPage(initialDate: _selectedDate, lastDate: _today),
+      DiaryCalendarPage(
+        initialDate: _selectedDate,
+        lastDate: _today,
+        dayData: (date) =>
+            DiaryCalendarDay.fromEntity(_days[TimeHelper.dateKey(date)]),
+      ),
       transition: _reduced ? NavTransition.none : NavTransition.platform,
     );
     if (date != null && mounted) _selectDate(date);
@@ -127,11 +150,14 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
   Future<void> _openSearch() async {
     if (_busy) return;
     final date = await context.nav.push<DateTime>(
-      DiarySearchPage(lastDate: _today),
+      DiarySearchPage(
+        lastDate: _today,
+        service: SampleDiarySearchService(lastDate: _today, diaries: _diaries),
+      ),
       transition: _reduced ? NavTransition.none : NavTransition.platform,
     );
     if (date == null || !mounted) return;
-    final selected = diaryDate(date);
+    final selected = TimeHelper.dateOnly(date);
     if (selected.isAfter(_today)) return;
     // Search selections reopen the beginning, even for the current day.
     _replaceDate(selected, fade: true);
@@ -211,7 +237,7 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
       if (!mounted) return;
       if (commit) {
         _replaceDate(
-          diaryDayAfter(_selectedDate, -_direction),
+          TimeHelper.addDays(_selectedDate, -_direction),
           fade: _readingTurn,
         );
       }
@@ -374,8 +400,8 @@ class _DiaryPageState extends State<DiaryPage> with TickerProviderStateMixin {
                     builder: (context, _) => DiaryScene(
                       day: _day,
                       previous: _previous,
-                      next: () => _next ??= DiaryDay.sample(
-                        diaryDayAfter(_selectedDate, 1),
+                      next: () => _next ??= _dayFor(
+                        TimeHelper.addDays(_selectedDate, 1),
                       ),
                       today: _today,
                       collapse: (_outerOffset / _collapseExtent).clamp(0, 1),

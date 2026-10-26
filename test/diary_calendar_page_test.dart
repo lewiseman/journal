@@ -7,10 +7,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_calendar_day.dart';
+import 'package:journal/utils/time_helper.dart';
+import 'package:journal/modules/diary/models/sample.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/settings/models/local_settings.dart';
 
 final _today = DateTime(2026, 10, 26);
+final _diaries = buildSampleDiaries(_today);
+DiaryCalendarDay _dayData(DateTime date) => DiaryCalendarDay.fromEntity(
+  _diaries
+      .where((day) => day.dateString == TimeHelper.dateKey(date))
+      .firstOrNull,
+);
 final _captureKey = GlobalKey();
 final _scroll = find.byKey(const ValueKey('diary-calendar-scroll'));
 final _yearPages = find.byKey(const ValueKey('calendar-year-pages'));
@@ -71,7 +79,7 @@ Future<void> _mount(
                         initialDate: initialDate ?? _today,
                         lastDate: lastDate ?? _today,
                         firstDate: firstDate,
-                        dayData: dayData ?? DiaryCalendarDay.sample,
+                        dayData: dayData ?? _dayData,
                       ),
                     ),
                   );
@@ -143,12 +151,10 @@ void main() {
     final moods = <DiaryCalendarMood>{};
     var empty = false;
     var entryWithoutMood = false;
-    for (var i = 0; i < 366; i++) {
-      final date = DateTime(2024, 1, 1 + i);
-      final first = DiaryCalendarDay.sample(date);
-      final again = DiaryCalendarDay.sample(
-        DateTime(date.year, date.month, date.day, 23),
-      );
+    for (var i = 0; i < 30; i++) {
+      final date = TimeHelper.addDays(_today, -i);
+      final first = _dayData(date);
+      final again = _dayData(DateTime(date.year, date.month, date.day, 23));
       expect(first.hasEntry, again.hasEntry);
       expect(first.mood, again.mood);
       empty |= !first.hasEntry;
@@ -158,7 +164,7 @@ void main() {
     expect(moods, DiaryCalendarMood.values.toSet());
     expect(empty, isTrue);
     expect(entryWithoutMood, isTrue);
-    expect(DiaryCalendarDay.sample(DateTime(1)).hasEntry, isA<bool>());
+    expect(_dayData(DateTime(1)).hasEntry, isA<bool>());
   });
 
   testWidgets(
@@ -172,7 +178,7 @@ void main() {
         results: results,
         dayData: (date) {
           datesBuilt.add(date);
-          return DiaryCalendarDay.sample(date);
+          return _dayData(date);
         },
       );
       expect(_month(DateTime(1980, 2)), findsOneWidget);
@@ -338,7 +344,7 @@ void main() {
       expect(today.flagsCollection.isSelected, ui.Tristate.isTrue);
       for (var i = 1; i <= _today.day; i++) {
         final date = DateTime(2026, 10, i);
-        final data = DiaryCalendarDay.sample(date);
+        final data = _dayData(date);
         if (data.mood != null) {
           expect(
             tester.getSemantics(_day(date)).label,
@@ -527,10 +533,10 @@ void main() {
       await _capture(tester, '${config.name}-history');
       await tester.tap(find.byKey(const ValueKey('calendar-today')));
       await tester.pumpAndSettle();
-      final moodDate = DateTime(2026, 10, 2);
+      final moodDate = DateTime(2026, 10, 3);
       final sticker = find.descendant(
         of: _day(moodDate),
-        matching: find.text(DiaryCalendarDay.sample(moodDate).mood!.emoji),
+        matching: find.text(_dayData(moodDate).mood!.emoji),
       );
       // Tap the part of the sticker below the paper, inside the day's target.
       await tester.tapAt(tester.getCenter(sticker) + const Offset(0, 8));

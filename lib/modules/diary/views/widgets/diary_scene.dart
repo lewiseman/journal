@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/semantics.dart';
-import 'package:journal/common.dart';
-import 'package:journal/modules/diary/models/diary_day.dart';
+import 'package:journal/common.dart' hide DiaryDayEntity;
+import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
@@ -35,15 +35,15 @@ class DiaryScene extends StatelessWidget {
     this.onDragCancel,
   });
 
-  final DiaryDay day;
-  final DiaryDay previous;
-  final DiaryDay Function() next;
+  final DiaryDayEntity day;
+  final DiaryDayEntity previous;
+  final DiaryDayEntity Function() next;
   final DateTime today;
   final double collapse, headerHeight, turn, collapseExtent;
   final int direction;
   final bool busy, blocked, reduced;
   final Animation<double> fade;
-  final DiaryDay? fadingFrom;
+  final DiaryDayEntity? fadingFrom;
   final double fadingOffset;
   final ValueChanged<double> onCardWidth;
   final ValueChanged<DateTime> onDateChanged;
@@ -61,7 +61,10 @@ class DiaryScene extends StatelessWidget {
       final right = 20 * (1 - collapse);
       final gap = 12 * (1 - collapse);
       final bottom = 40 * (1 - collapse);
-      final shape = DiaryPaperShape.forDate(day.date, expansion: collapse);
+      final shape = DiaryPaperShape.forDate(
+        day.calendarDate,
+        expansion: collapse,
+      );
       final rect = Rect.fromLTRB(
         left,
         headerHeight + gap,
@@ -73,7 +76,7 @@ class DiaryScene extends StatelessWidget {
       final showTurn = busy && turn > 0 && !blocked && !reduced;
       final paper = diaryPaperColors(context);
       final fullDate = MaterialLocalizations.of(context)
-          .formatFullDate(day.date);
+          .formatFullDate(day.calendarDate);
       final restLeft = (w * .123).clamp(32.0, 64.0);
       // The nested viewport grows as its header collapses. Keep captured faces
       // at their resting size so scrolling never invalidates their textures.
@@ -85,14 +88,17 @@ class DiaryScene extends StatelessWidget {
       );
       final showPreview = collapse < 1 && previewLeft + rect.width > 0;
 
-      Widget face(DiaryDay sheet, {required bool current}) {
+      Widget face(DiaryDayEntity sheet, {required bool current}) {
         final incoming =
             !current &&
             showTurn &&
             (direction > 0
-                ? sheet.date == previous.date
-                : sheet.date.isAfter(day.date));
-        final preview = !current && sheet.date == previous.date && !incoming;
+                ? sheet.calendarDate == previous.calendarDate
+                : sheet.calendarDate.isAfter(day.calendarDate));
+        final preview =
+            !current &&
+            sheet.calendarDate == previous.calendarDate &&
+            !incoming;
         final x = current
             ? restRect.left + (blocked && busy ? -turn * rect.width : 0)
             : incoming
@@ -116,7 +122,7 @@ class DiaryScene extends StatelessWidget {
             ? (direction > 0 ? .72 + .28 * turn : 1.0)
             : .72 * (1 - collapse);
         return Positioned.fromRect(
-          key: ValueKey('diary-face-${sheet.date.toIso8601String()}'),
+          key: ValueKey('diary-face-${sheet.calendarDate.toIso8601String()}'),
           rect: restRect,
           child: ExcludeSemantics(
             child: IgnorePointer(
@@ -136,7 +142,7 @@ class DiaryScene extends StatelessWidget {
                       travel: w + restRect.width * .4,
                       paper: paper.background,
                       ink: paper.foreground,
-                      shape: DiaryPaperShape.forDate(sheet.date),
+                      shape: DiaryPaperShape.forDate(sheet.calendarDate),
                       flat: !(current && showTurn),
                       visible: current
                           ? showTurn
@@ -215,10 +221,10 @@ class DiaryScene extends StatelessWidget {
         container: true,
         customSemanticsActions: {
           const CustomSemanticsAction(label: 'Previous day'): () =>
-              onDateChanged(diaryDayAfter(day.date, -1)),
-          if (day.date.isBefore(today))
+              onDateChanged(TimeHelper.addDays(day.calendarDate, -1)),
+          if (day.calendarDate.isBefore(today))
             const CustomSemanticsAction(label: 'Next day'): () =>
-                onDateChanged(diaryDayAfter(day.date, 1)),
+                onDateChanged(TimeHelper.addDays(day.calendarDate, 1)),
         },
         child: GestureDetector(
           behavior: HitTestBehavior.deferToChild,
@@ -256,7 +262,7 @@ class DiaryScene extends StatelessWidget {
                             child: DiarySheet(
                               day: fadingFrom!,
                               shape: DiaryPaperShape.forDate(
-                                fadingFrom!.date,
+                                fadingFrom!.calendarDate,
                                 expansion: collapse,
                               ),
                               scrollOffset: fadingOffset,
@@ -267,7 +273,8 @@ class DiaryScene extends StatelessWidget {
                     ),
                   ),
                 face(previous, current: false),
-                if (day.date.isBefore(today)) face(next(), current: false),
+                if (day.calendarDate.isBefore(today))
+                  face(next(), current: false),
                 face(day, current: true),
               ],
             ),
