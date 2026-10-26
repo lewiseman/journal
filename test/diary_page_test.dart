@@ -12,6 +12,7 @@ import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
 import 'package:journal/modules/diary/models/sample.dart';
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
+import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
@@ -73,6 +74,7 @@ Future<void> _mount(
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPadding);
+  addTearDown(tester.view.resetViewInsets);
   final theme = dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme;
   await tester.pumpWidget(
     RepaintBoundary(
@@ -259,6 +261,96 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final config in [
+    (name: 'today', date: _today, size: const Size(390, 844), scale: 1.0),
+    (
+      name: 'history-large-type',
+      date: TimeHelper.addDays(_today, -1),
+      size: const Size(320, 640),
+      scale: 1.8,
+    ),
+    (
+      name: 'empty',
+      date: DateTime(2024, 2, 29),
+      size: const Size(390, 844),
+      scale: 1.0,
+    ),
+  ]) {
+    testWidgets(
+      'Add text opens a writing page without saving: ${config.name}',
+      (tester) async {
+        await _mount(
+          tester,
+          reduced: true,
+          size: config.size,
+          scale: config.scale,
+        );
+        _calendar(tester).onDateChanged(config.date);
+        await tester.pumpAndSettle();
+        _scroll(tester).outerController.jumpTo(80);
+        await tester.pumpAndSettle();
+        final inner = _scroll(tester).innerController;
+        inner.jumpTo(inner.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+        final addText = find.descendant(
+          of: find.byKey(const PageStorageKey('diary-content')),
+          matching: find.widgetWithText(TextButton, 'Add text'),
+        );
+        await tester.ensureVisible(addText);
+        await tester.pumpAndSettle();
+        final day = _scene(tester).day;
+        final before = day.toSyncJson('test');
+        final offset = inner.offset;
+        await tester.tap(addText);
+        await tester.pumpAndSettle();
+        final editor = find.byKey(const ValueKey('diary-text-editor'));
+        expect(find.byType(AddDiaryTextPage), findsOneWidget);
+        expect(
+          tester.widget<AddDiaryTextPage>(find.byType(AddDiaryTextPage)).date,
+          config.date,
+        );
+        expect(
+          find.text(
+            TimeHelper.format(
+              config.date,
+              pattern: TimeFormat.shortWeekdayDate,
+              toLocal: false,
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.testTextInput.isVisible, isTrue);
+        expect(find.bySemanticsLabel('Notes tab').hitTestable(), findsNothing);
+        await _capture(tester, 'text-editor-${config.name}');
+
+        tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+        await tester.pumpAndSettle();
+        final draft = List.filled(12, 'A paragraph for this day.').join('\n\n');
+        await tester.enterText(editor, draft);
+        await tester.pump();
+        expect(
+          tester
+              .widget<EditableText>(find.byType(EditableText))
+              .controller
+              .text,
+          draft,
+        );
+        expect(day.toSyncJson('test'), before);
+        expect(tester.takeException(), isNull);
+
+        tester.view.resetViewInsets();
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(find.byType(AddDiaryTextPage), findsNothing);
+        expect(_selected(tester), config.date);
+        expect(_scroll(tester).innerController.offset, closeTo(offset, .1));
+        expect(_scene(tester).day.toSyncJson('test'), before);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('short and long sheets share expansion and restoration', (
     tester,

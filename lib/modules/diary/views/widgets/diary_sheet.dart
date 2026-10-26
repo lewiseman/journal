@@ -1,5 +1,6 @@
 import 'package:journal/common.dart' hide DiaryDayEntity;
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
+import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 
@@ -169,9 +170,65 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                 ),
               ),
             ],
+            const SizedBox(height: 20),
+            _DiaryAddActions(date: day.calendarDate),
           ],
         ),
       ),
     );
   }
+}
+
+class _DiaryAddActions extends StatelessWidget {
+  const _DiaryAddActions({required this.date});
+
+  final DateTime date;
+
+  void _openText(BuildContext context) {
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    final reduced =
+        MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
+    context.nav.push<void>(
+      AddDiaryTextPage(date: date),
+      transition: reduced ? NavTransition.none : NavTransition.platform,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      for (final action in [
+        (
+          label: 'Add text',
+          icon: Icons.notes_rounded,
+          onPressed: () => _openText(context),
+        ),
+        (
+          label: 'Add image',
+          icon: Icons.add_photo_alternate_outlined,
+          onPressed: _noop,
+        ),
+        (label: 'Add voice', icon: Icons.mic_none_rounded, onPressed: _noop),
+      ])
+        TextButton.icon(
+          onPressed: action.onPressed,
+          icon: Icon(action.icon, size: 18),
+          label: Text(action.label),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(44, 44),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            backgroundColor: context.colors.primary.withValues(alpha: .05),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+    ],
+  );
+
+  // Image and voice capture will be connected in a later pass.
+  static void _noop() {}
 }

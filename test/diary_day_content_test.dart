@@ -49,7 +49,14 @@ void main() {
     expect(tester.getTopLeft(first).dy, lessThan(tester.getTopLeft(last).dy));
     expect(find.text('Deleted prose.'), findsNothing);
     expect(find.text('No diary entries for this day.'), findsNothing);
-    expect(find.byType(Icon), findsNothing);
+    for (final label in ['Add text', 'Add image', 'Add voice']) {
+      final button = find.widgetWithText(TextButton, label);
+      expect(button, findsOneWidget);
+      expect(
+        tester.getTopLeft(button).dy,
+        greaterThan(tester.getBottomLeft(last).dy),
+      );
+    }
     expect(find.byType(Checkbox), findsNothing);
     expect(find.textContaining('08:00'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -64,6 +71,9 @@ void main() {
     expect(find.text('No diary entries for this day.'), findsOneWidget);
     expect(find.text('A day, held here.'), findsNothing);
     expect(find.text(''), findsNothing);
+    for (final label in ['Add text', 'Add image', 'Add voice']) {
+      expect(find.widgetWithText(TextButton, label), findsOneWidget);
+    }
 
     day.dayTitle = '  ';
     day.items = [_item('first', 'Visible prose.')];
