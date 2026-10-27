@@ -1,0 +1,150 @@
+{
+  "milestone": "J02",
+  "date": "2026-10-28",
+  "prerequisiteNote": "S01 retrieval is not implemented; by decision J02 uses its own bounded recent-entries selector.",
+  "phone": "Samsung SM-S928B, Android 17 (API 37), wireless LAN",
+  "desktop": "macOS arm64, packaged Journal Companion, Electron 45.0.0, QVAC 0.22.0",
+  "model": "llama-3.1-8b-instruct-q4_k_m@bf5b95e96dac0462e2a09145ec66cae9a3f12067",
+  "trust": "test-only --recovery-phone-fixture identity in an isolated companion vault; production pinned TLS and signing on the phone",
+  "data": "synthetic entries in isolated j02-synthetic-objectbox and journal.companion.j02-demo.* keys; cleaned after the restart phase",
+  "phoneOnline": {
+    "platform": "android",
+    "physicalAndroid": true,
+    "restartPhase": false,
+    "syntheticSourceAndTrust": true,
+    "disclosure": "Sends 1 entry (1 earlier day from the past week) and your last few questions to your paired computer only.",
+    "groundedAsk": {
+      "question": "What do you hope to accomplish at your new flat on Saturday?",
+      "grounded": true,
+      "ago": 1,
+      "sourceLabel": "Following up on your entry from yesterday.",
+      "notShownBecause": null,
+      "sent": {
+        "today": [],
+        "prior": [
+          {
+            "id": "p0",
+            "ago": 1,
+            "text": "Packed the last boxes. The move to the new flat is on Saturday."
+          }
+        ],
+        "avoid": []
+      },
+      "raw": {
+        "question": "What do you hope to accomplish at your new flat on Saturday?",
+        "source": "p0",
+        "evidence": "The move to the new flat is on Saturday."
+      }
+    },
+    "onlyDisclosedSelectionSent": true,
+    "anotherQuestion": {
+      "question": "What's one thing you're looking forward to unpacking first?",
+      "grounded": true,
+      "ago": 1,
+      "sourceLabel": "Following up on your entry from yesterday.",
+      "notShownBecause": null,
+      "sent": {
+        "today": [],
+        "prior": [
+          {
+            "id": "p0",
+            "ago": 1,
+            "text": "Packed the last boxes. The move to the new flat is on Saturday."
+          }
+        ],
+        "avoid": [
+          "What do you hope to accomplish at your new flat on Saturday?"
+        ]
+      },
+      "raw": {
+        "question": "What's one thing you're looking forward to unpacking first?",
+        "source": "p0",
+        "evidence": "the new flat"
+      }
+    },
+    "sourceDeletionHidQuestion": true,
+    "noHistoryAsk": {
+      "question": null,
+      "grounded": null,
+      "ago": null,
+      "sourceLabel": null,
+      "notShownBecause": "The question repeated a recent one, so it was not shown.",
+      "sent": {
+        "today": [],
+        "prior": [],
+        "avoid": []
+      },
+      "raw": {
+        "question": "What's one thing you're looking forward to doing today?",
+        "source": "",
+        "evidence": ""
+      }
+    },
+    "dateChangeShowsNoStaleQuestion": true,
+    "optOutDeletedHistoryAndSentNothing": true,
+    "cachedForRestart": "What did you think of the pottery class with Ana so far?",
+    "realPinnedTlsAndQvacRequests": 4
+  },
+  "phoneRestartWithCompanionStopped": {
+    "platform": "android",
+    "physicalAndroid": true,
+    "restartPhase": true,
+    "syntheticSourceAndTrust": true,
+    "cachedQuestionShownAfterRestart": "What did you think of the pottery class with Ana so far?",
+    "cachedQuestionKeptWhenReplacementFailed": true,
+    "unavailableComputerMessage": "Connect your trusted computer in Settings \u2192 Local AI computer. You can keep writing with the usual prompt.",
+    "writingStillAvailable": true,
+    "isolatedDataAndTrustCleaned": true
+  },
+  "desktopHarnessLlama8b": {
+    "j02_grounded": {
+      "question": "How's your preparation for the move to the new flat going so far?",
+      "source": "p0",
+      "evidence": "the move to the new flat is on Saturday"
+    },
+    "j02_empty": {
+      "question": "What did you do first today?",
+      "source": "",
+      "evidence": ""
+    },
+    "j02_avoid": {
+      "question": "What did you think about as you enjoyed your coffee on the balcony before work?",
+      "source": "t0",
+      "evidence": "balcony"
+    },
+    "j02_pastEvent": {
+      "question": "What's the first thing you worked on in your pottery class with Ana?",
+      "source": "p0",
+      "evidence": "Started a pottery class with Ana."
+    },
+    "j02_emptyWithAvoid": {
+      "question": "What's the plan for your weekend now that it's almost here?",
+      "source": "",
+      "evidence": ""
+    }
+  },
+  "desktopHarnessQwen05bDefault": {
+    "j02_grounded": {
+      "question": "What did you do last weekend?",
+      "source": "p1",
+      "evidence": "Packed the last boxes."
+    },
+    "j02_empty": {
+      "question": "What's your favorite hobby?",
+      "source": "",
+      "evidence": ""
+    },
+    "j02_avoid": {
+      "question": "What made your morning coffee on the balcony special?",
+      "source": "t0",
+      "evidence": "Coffee on the balcony before work"
+    }
+  },
+  "notes": [
+    "Date change is simulated with an injected clock; the phone's timezone was not changed.",
+    "Questions are sampled at temperature 0.7 with a random seed, so outputs differ between runs.",
+    "desktopHarness emptyWithAvoid is a direct companion input the phone never sends (no entries means no earlier questions are sent).",
+    "Re-run 2026-10-28 after both selectors moved to the shared lib/modules/diary/history/diary_retrieval.dart.",
+    "Re-run 2026-10-28 after the task-slot busy fix (single-tap clear, no ignored starts)."
+  ]
+}

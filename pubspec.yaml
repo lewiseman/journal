@@ -25,6 +25,9 @@ dependencies:
     path: packages/sync_wise
   uuid: ^4.6.0
   flutter_markdown_plus: ^1.0.12
+  html: 0.15.7
+  csslib: 1.0.2
+  markdown: 7.3.1
   flutter_staggered_grid_view: ^0.7.0
   flutter_popup: ^3.3.9
   cached_network_image: ^4.0.5
@@ -35,8 +38,14 @@ dependencies:
   objectbox_flutter_libs: ^6.0.0-preview.4
   open_filex: ^5.0.0
   mime: ^2.0.0
+  cryptography: 2.9.0
+  flutter_secure_storage: 11.2.0
+  mobile_scanner: 7.4.2
+  bonsoir: 7.1.6
 
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

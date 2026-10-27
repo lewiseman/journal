@@ -1,0 +1,107 @@
+{
+  "date": "2026-10-27",
+  "desktop": {
+    "platform": "macOS arm64",
+    "electron": "45.0.0",
+    "qvac": "0.22.0",
+    "packaged_offline_runs": [
+      {
+        "phase": 1,
+        "packaged": true,
+        "electron": "45.0.0",
+        "qvac": "0.22.0",
+        "syntheticClient": true,
+        "operation": "summarize-note",
+        "checks": {
+          "externalLiteralIpBlockedByOS": true,
+          "unauthorized": true,
+          "rendererApproval": true,
+          "authenticatedReadiness": true,
+          "persistedAssignment": true,
+          "identityMismatch": true,
+          "versionMismatch": true,
+          "missingModel": true,
+          "lostAckDuplicate": true,
+          "activityAttribution": true,
+          "realInferenceAfterDetach": true,
+          "factualSyntheticSummary": true,
+          "realInferenceAt2000ByteInputLimit": true,
+          "realCancellationCompletionRace": "cancelled",
+          "modelReadyAfterCancellation": true,
+          "encryptedAtRest": true,
+          "expiredPairingWithAdvancedClock": true
+        },
+        "output": "Project meeting is on Friday. Mira will bring the draft. Budget approval remains pending.",
+        "boundaryOutput": "Project update. The meeting is Friday. Budget approval remains pending."
+      },
+      {
+        "phase": 2,
+        "packaged": true,
+        "electron": "45.0.0",
+        "qvac": "0.22.0",
+        "syntheticClient": true,
+        "operation": "summarize-note",
+        "checks": {
+          "externalLiteralIpBlockedByOS": true,
+          "authenticatedReadiness": true,
+          "persistedAssignment": true,
+          "identityMismatch": true,
+          "versionMismatch": true,
+          "resultAfterDesktopRestart": true,
+          "revocationAndCleanup": true,
+          "expiredPairingWithAdvancedClock": true
+        }
+      }
+    ],
+    "node_tests_passed": 22
+  },
+  "flutter": {
+    "version": "3.47.5",
+    "dart": "3.13.4",
+    "focused_tests_passed": 46,
+    "changed_file_analysis": "passed",
+    "android_debug_build": "passed; final normal entry point rebuild performed after integration tests"
+  },
+  "physical_android": {
+    "model": "Samsung SM-S928B",
+    "os": "Android 17",
+    "transport": "real private IPv4 LAN, pinned TLS and Ed25519",
+    "bootstrap": "full QR in test configuration + matching verification code approved in desktop UI",
+    "data": "synthetic saved notes in separate ObjectBox directory; no real journal read",
+    "runs": [
+      {
+        "editor_action_to_real_qvac_preview": true,
+        "original_saved_note_unchanged": true,
+        "lost_real_acceptance_response_injected": true,
+        "summary_posts": 1,
+        "same_task_retrieved_after_disconnect_reconnect": true,
+        "source_change_label": true,
+        "output": "Project meeting is on Friday. Mira will bring the draft. Budget approval remains pending."
+      },
+      {
+        "cold_phone_restart": true,
+        "protected_task_identity_recovered": true,
+        "source_change_label": true,
+        "new_submissions": 0
+      },
+      {
+        "actual_desktop_model_unloaded": true,
+        "phone_missing_model_guidance": true,
+        "new_submissions": 0,
+        "synthetic_notes_trust_and_work_cleaned": true
+      }
+    ],
+    "ui_role": "secondary; separate focused test also enforces repository secondary role"
+  },
+  "not_verified": [
+    "simultaneous phone and desktop operation with WAN unavailable (user could not access router)",
+    "physical iPhone F01 behavior",
+    "broad factual quality and language coverage"
+  ],
+  "evidence_notes": [
+    "Desktop offline sandbox denies public IP egress and permits loopback; external literal-IP probe required EPERM/EACCES. This is distinct from the real Wi-Fi phone runs.",
+    "Lost-ack phone fault injection discards a real accepted TLS response; subsequent production recovery uses GET and does not issue a second POST.",
+    "An initial phone demo assertion compared pre-persistence microsecond timestamps to ObjectBox milliseconds. Corrected to compare persisted source; subsequent runs passed.",
+    "Expiry with advanced desktop clock is synthetic and labelled in native reports."
+  ]
+}

@@ -121,3 +121,17 @@ was reused from the earlier project's `lib/`. Flutter mobile builds use
 bindings so existing database entity/property IDs are preserved.
 
 See `packages/sync_wise/README.md` for backend and collection adapter contracts.
+
+## Local AI computer
+
+See [connection setup and verification](docs/companion-connection.md) for the optional LAN companion in Settings.
+
+Saved-note AI summaries are implemented through the paired local companion. Read [usage, privacy, recovery and F01 verification](docs/note-summary.md).
+
+R01 adds [local AI task history and foreground recovery](docs/task-recovery.md) on the existing saved-note summary and desktop lifecycle.
+
+N01 adds [reviewable note writing and local prior-content recovery](docs/note-writing.md): explicit rewrite, expand, tone, grammar/clarity and Markdown actions for a saved body or passage.
+
+H01 adds [safe optional presentation](docs/safe-presentation.md) for saved notes and individual diary entries: source-preserving native styling, explicit review/accept/revert and local offline recovery.
+
+J01 adds [diary title, mood and theme suggestions](docs/diary-suggestions.md): manual day details plus optional grounded suggestions from the local computer, accepted field by field.

@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-27",
+  "flutter": {
+    "version": "3.47.5",
+    "dart": "3.13.4",
+    "focusedTestsPassed": 55,
+    "changedFileAnalysis": "passed"
+  },
+  "physicalAndroid": {
+    "model": "Samsung SM-S928B",
+    "bootstrap": "Synthetic CLI fixture; separate protected trust keys and isolated ObjectBox; production pinned TLS, Ed25519 and recovery code",
+    "forceStop": {
+      "command": "adb shell am force-stop com.lewiseman.journal",
+      "exitCode": 0,
+      "taskRunningStartedEpochMs": 1793109603333,
+      "commandStartedEpochMs": 1793109603361,
+      "commandFinishedEpochMs": 1793109603507,
+      "realQvacCompletedEpochMs": 1793109604642,
+      "commandFinishedBeforeGenerationCompletionMs": 1135,
+      "firstFlutterDriverExit": 79,
+      "firstDriverExitExpected": "External force-stop disconnects driver; not treated as a passing integration-test run"
+    },
+    "restart": {
+      "physicalAndroid": true,
+      "realPinnedLanAndQvac": true,
+      "sameIdAfterForceStop": true,
+      "newSubmissionsAfterRestart": 0,
+      "originalPersistedSourceUnchanged": true,
+      "historyOpenedRecoveredPreview": true,
+      "output": "The project meeting is Friday. Mira will bring the draft. Budget approval remains pending.",
+      "deletedSourceDidNotReappear": true,
+      "desktopResultAcknowledged": true,
+      "isolatedTrustAndDataCleaned": true
+    },
+    "historyScreenshot": "task-recovery-history.png; earlier successful recovery run of the same history UI"
+  },
+  "desktop": {
+    "packaged": "macOS arm64 Electron 45.0.0 / QVAC 0.22.0",
+    "nodeTestsPassed": 26,
+    "nativeEvidence": "../../desktop/docs/recovery-evidence.json"
+  },
+  "notVerified": [
+    "Physical iPhone and other desktop platforms",
+    "Simultaneous phone/desktop operation with WAN disconnected",
+    "Real 24-hour elapsed expiry (advanced-clock verification instead)",
+    "Broad factual quality and language coverage"
+  ],
+  "notes": [
+    "Unknown acceptance was injected by discarding a real accepted response. The protected original ID/input existed before submission.",
+    "The final force-stop returned 1135 ms before real native generation completed. Reopening used GET and zero new POSTs.",
+    "An initial logcat-based force-stop trigger missed integration-test VM stdout; corrected to watch stdout. A first later trigger overlapped completion and was superseded by the recorded final run.",
+    "A representative physical screenshot was captured during an earlier successful same-ID recovery run.",
+    "Test data/trust/reference cleanup passed; the normal Flutter entry point is restored by a data-preserving APK replacement."
+  ]
+}

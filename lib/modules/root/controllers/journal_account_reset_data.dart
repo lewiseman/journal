@@ -9,24 +9,36 @@ import 'package:sync_wise/sync_wise.dart';
 
 import 'journal_sync_store.dart';
 
+import 'package:journal/modules/notes/transform/note_recovery_entity.dart';
+
+import 'package:journal/modules/notes/summary/summary_task_entity.dart';
+import 'package:journal/modules/presentation/presentation_entity.dart';
+import 'package:journal/modules/diary/questions/daily_question_entity.dart';
+
 /// Only app-owned copies select files for deletion, never synced path fields.
 class JournalAccountResetData implements AccountResetLocalData {
   final ObjectBox db;
   final Future<Directory> Function() supportDirectory;
   final Future<void> Function() clearCachedImages;
+  final Future<void> Function() clearSummaries;
 
   JournalAccountResetData({
     required this.db,
     Future<Directory> Function()? supportDirectory,
     Future<void> Function()? clearCachedImages,
+    Future<void> Function()? clearSummaries,
   }) : supportDirectory = supportDirectory ?? getApplicationSupportDirectory,
-       clearCachedImages = clearCachedImages ?? _clearCachedImages;
+       clearCachedImages = clearCachedImages ?? _clearCachedImages,
+       clearSummaries = clearSummaries ?? _noSummaries;
+
+  static Future<void> _noSummaries() async {}
 
   static Future<void> _clearCachedImages() =>
       CachedNetworkImageProvider.defaultCacheManager.emptyCache();
 
   @override
   Future<void> clear() async {
+    await clearSummaries();
     final support = await supportDirectory();
     final mediaPath = p.join(support.path, 'note_backgrounds');
     final type = await FileSystemEntity.type(mediaPath, followLinks: false);
@@ -40,6 +52,10 @@ class JournalAccountResetData implements AccountResetLocalData {
       db.noteBox.removeAll();
       db.diaryBox.removeAll();
       db.thoughtBox.removeAll();
+      db.store.box<SummaryTaskEntity>().removeAll();
+      db.store.box<NoteRecoveryEntity>().removeAll();
+      db.store.box<PresentationEntity>().removeAll();
+      db.store.box<DailyQuestionEntity>().removeAll();
       db.store.box<SyncRecordEntity>().removeAll();
     });
   }

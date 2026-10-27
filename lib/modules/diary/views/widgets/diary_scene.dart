@@ -209,6 +209,7 @@ class DiaryScene extends StatelessWidget {
                   SliverToBoxAdapter(child: SizedBox(height: gap)),
                   SliverToBoxAdapter(
                     child: DiaryDayContent(
+                      interactive: true,
                       day: day,
                       minimumHeight: rect.height,
                     ),

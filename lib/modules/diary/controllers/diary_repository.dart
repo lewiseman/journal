@@ -10,6 +10,7 @@ import 'package:journal/objectbox/objectbox.g.dart';
 
 import '../models/diary_day_entity.dart';
 import '../models/diary_item.dart';
+import '../suggestions/diary_suggestion_contract.dart';
 
 class DiaryRepository {
   final ObjectBox _db;
@@ -225,31 +226,82 @@ class DiaryRepository {
     onDataChanged?.call();
   }
 
-  /// Updates overall day reflection metadata (dayMood, daySummary).
+  /// Updates overall day reflection metadata. Null leaves a field unchanged;
+  /// an empty string (or `[]` for themes) clears it.
   void updateDayMetadata({
     required String dateString,
     String? dayMood,
     String? daySummary,
     String? dayTitle,
+    String? dayThemes,
     bool preserveLocalDraft = false,
   }) {
     if (!sync.canEdit && !preserveLocalDraft) {
       throw StateError('Day reflection is read-only on this device.');
     }
-    final day = getOrCreateDay(dateString);
-    final now = sync.now();
+    _db.store.runInTransaction(TxMode.write, () {
+      _writeMetadata(
+        getOrCreateDay(dateString),
+        dayMood: dayMood,
+        daySummary: daySummary,
+        dayTitle: dayTitle,
+        dayThemes: dayThemes,
+      );
+    });
+    onDataChanged?.call();
+  }
 
+  void _writeMetadata(
+    DiaryDayEntity day, {
+    String? dayMood,
+    String? daySummary,
+    String? dayTitle,
+    String? dayThemes,
+  }) {
+    final now = sync.now();
     if (dayMood != null) day.dayMood = dayMood;
     if (dayTitle != null) day.dayTitle = dayTitle;
     if (daySummary != null) day.daySummary = daySummary;
-
+    if (dayThemes != null) day.dayThemes = dayThemes;
     day.updatedAt = now;
     day.lastEditedByDeviceId = _device.deviceId;
     day.status = sync.canEdit ? SyncStatus.pendingUpload : SyncStatus.localOnly;
+    _box.put(day);
+    sync.edited('diary', day.dateString, 'metadata');
+  }
 
+  /// Saves explicitly accepted suggestion fields (J01). The role and the exact
+  /// saved entries are rechecked in the same transaction as the write, so a
+  /// stale result can never be applied after an edit, deletion or role change.
+  /// Entry text is never modified. Null fields are left unchanged.
+  void applyDaySuggestions({
+    required String dateString,
+    required String expectedSource,
+    String? dayTitle,
+    String? dayMood,
+    String? dayThemes,
+  }) {
+    if (dayTitle == null && dayMood == null && dayThemes == null) {
+      throw StateError('Choose at least one suggestion to save.');
+    }
     _db.store.runInTransaction(TxMode.write, () {
-      _box.put(day);
-      sync.edited('diary', dateString, 'metadata');
+      if (!sync.canEdit) {
+        throw StateError(
+          'Diary details can be saved only on the primary device.',
+        );
+      }
+      final day = getDay(dateString);
+      if (DiarySuggestionSource.fromDay(day)?.encode() != expectedSource) {
+        throw StateError(
+          'The day’s entries changed. Request new suggestions before saving.',
+        );
+      }
+      _writeMetadata(
+        day!,
+        dayTitle: dayTitle,
+        dayMood: dayMood,
+        dayThemes: dayThemes,
+      );
     });
     onDataChanged?.call();
   }

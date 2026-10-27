@@ -1,0 +1,216 @@
+{
+  "date": "2026-10-27",
+  "milestone": "H01 only",
+  "model": {
+    "name": "Qwen2.5 0.5B Instruct Q4_K_M",
+    "unchanged": true,
+    "unconstrainedTrial": "Real QVAC omitted required CSS; response was rejected",
+    "structuredOutput": "QVAC SDK 0.22.0 per-request json_schema requires html/css and a fixed source-slot template; Flutter independently validates CSS",
+    "qualityLimit": "Only basic synthetic spacing verified; broader style quality and intent following unproven"
+  },
+  "flutter": {
+    "version": "3.47.5",
+    "dart": "3.13.4",
+    "focusedAnalysis": "passed, no issues",
+    "fullSuite": {
+      "passed": 341,
+      "failed": 2,
+      "failures": [
+        "onboarding_test.dart: large text at 320x568",
+        "onboarding_test.dart: large text at 844x390"
+      ],
+      "baseline": "Same two overflows previously reproduced before N01 and documented in note-writing-evidence.json"
+    },
+    "syncPackageTestsPassed": 24,
+    "presentationTestsPassed": 9,
+    "focusedNotesDiaryRegressionTestsPassedBeforeAdditionalLiveSourceTest": 73,
+    "androidDebugBuild": "passed",
+    "iosSimulatorDebugBuild": "passed",
+    "normalAndroidEntryPointRestored": "passed: adb install -r returned Success; no uninstall/data wipe",
+    "normalIOSSimulatorEntryPointRestored": "passed: normal main.dart simulator build installed with simctl",
+    "fullAnalysis": "flutter analyze --no-fatal-infos passed; five existing informational lints outside H01 remain",
+    "styledDiaryFaceAndLiveAlignment": "passed: matching prose heights before/after reactive style replacement",
+    "coloredPaperContrastInk": "passed: native presentation inherits resolved paper foreground"
+  },
+  "desktop": {
+    "platform": "macOS arm64",
+    "electron": "45.0.0",
+    "qvac": "0.22.0",
+    "testsPassed": 32,
+    "packaged": true,
+    "nativeRuns": [
+      {
+        "phase": 1,
+        "packaged": true,
+        "electron": "45.0.0",
+        "qvac": "0.22.0",
+        "syntheticClient": true,
+        "checks": {
+          "noteAndDiaryUsedRealQvac": true,
+          "signedTlsAndSameIdRetry": true,
+          "activityHasOperationAndDevice": true
+        },
+        "outputs": {
+          "h01_note": "{\"html\":\"<article><section data-source=\\\"b0\\\" class=\\\"s0\\\"></section><section data-source=\\\"b1\\\" class=\\\"s0\\\"></section></article>\",\"css\":\".s0 {font-size:1.125em;line-height:1.6;margin-bottom:1em;}\"}",
+          "h01_diary": "{\"html\":\"<article><section data-source=\\\"b0\\\" class=\\\"s0\\\"></section><section data-source=\\\"b1\\\" class=\\\"s0\\\"></section></article>\",\"css\":\".s0 {font-size:1.125em;line-height:1.6;margin-bottom:1em;}\"}"
+        }
+      },
+      {
+        "phase": 2,
+        "packaged": true,
+        "electron": "45.0.0",
+        "qvac": "0.22.0",
+        "syntheticClient": true,
+        "checks": {
+          "resultsRetrievedAfterDesktopRestart": true,
+          "acknowledgmentRemovedResults": true
+        },
+        "outputs": {
+          "h01_note": "{\"html\":\"<article><section data-source=\\\"b0\\\" class=\\\"s0\\\"></section><section data-source=\\\"b1\\\" class=\\\"s0\\\"></section></article>\",\"css\":\".s0 {font-size:1.125em;line-height:1.6;margin-bottom:1em;}\"}",
+          "h01_diary": "{\"html\":\"<article><section data-source=\\\"b0\\\" class=\\\"s0\\\"></section><section data-source=\\\"b1\\\" class=\\\"s0\\\"></section></article>\",\"css\":\".s0 {font-size:1.125em;line-height:1.6;margin-bottom:1em;}\"}"
+        }
+      }
+    ]
+  },
+  "physicalAndroid": {
+    "target": "Samsung SM-S928B, Android 17/API 37",
+    "online": {
+      "platform": "android",
+      "offlinePhase": false,
+      "syntheticSourceAndTrust": true,
+      "physicalAndroid": true,
+      "iOSSimulator": false,
+      "retrievedDiscardedRealAcceptanceWithoutResubmit": true,
+      "noteUiGeneratedPreviewedAccepted": true,
+      "noteDocument": {
+        "policy": 1,
+        "blocks": [
+          {
+            "font-size": "1.125em",
+            "line-height": "1.6",
+            "margin-bottom": "1em"
+          },
+          {
+            "font-size": "1.125em",
+            "line-height": "1.6",
+            "margin-bottom": "1em"
+          }
+        ]
+      },
+      "uiRevertPreservedSource": true,
+      "rejectionPreservedSource": true,
+      "diaryGeneratedAcceptedAndAppendPreservedVersion": true,
+      "diaryDocument": {
+        "policy": 1,
+        "blocks": [
+          {
+            "font-size": "1.125em",
+            "line-height": "1.6",
+            "margin-bottom": "1em"
+          },
+          {
+            "font-size": "1.125em",
+            "line-height": "1.6",
+            "margin-bottom": "1em"
+          }
+        ]
+      },
+      "changedSourceRefused": true,
+      "changedRoleRefused": true,
+      "realPinnedTlsAndQvac": true,
+      "readyForOfflineRestart": true
+    },
+    "offlineWithCompanionStopped": {
+      "platform": "android",
+      "offlinePhase": true,
+      "syntheticSourceAndTrust": true,
+      "physicalAndroid": true,
+      "iOSSimulator": false,
+      "persistedBothSourcesAfterAppRestart": true,
+      "renderedWhileCompanionStopped": true,
+      "offlineRevertPreservedSource": true,
+      "isolatedDataAndTrustCleaned": true
+    },
+    "injectedSecurityAndFailure": {
+      "platform": "android",
+      "injectedAdversarialCasesRejected": 8,
+      "rendererCreatedNetworkClients": 0,
+      "injectedRendererFailureRecoveredSource": true
+    },
+    "screenshot": "safe-presentation-android.png"
+  },
+  "iOSSimulator": {
+    "target": "iPhone 17 Pro, iOS 26.5 simulator",
+    "online": {
+      "platform": "ios",
+      "offlinePhase": false,
+      "syntheticSourceAndTrust": true,
+      "physicalAndroid": false,
+      "iOSSimulator": true,
+      "retrievedDiscardedRealAcceptanceWithoutResubmit": true,
+      "noteUiGeneratedPreviewedAccepted": true,
+      "noteDocument": {
+        "policy": 1,
+        "blocks": [
+          {
+            "font-size": "1.125em",
+            "line-height": "1.6",
+            "margin-bottom": "1em"
+          },
+          {
+            "font-size": "1.125em",
+            "line-height": "1.6",
+            "margin-bottom": "1em"
+          }
+        ]
+      },
+      "uiRevertPreservedSource": true,
+      "rejectionPreservedSource": true,
+      "diaryGeneratedAcceptedAndAppendPreservedVersion": true,
+      "diaryDocument": {
+        "policy": 1,
+        "blocks": [
+          {
+            "font-size": "1.125em",
+            "line-height": "1.6",
+            "margin-bottom": "1em"
+          },
+          {
+            "font-size": "1.125em",
+            "line-height": "1.6",
+            "margin-bottom": "1em"
+          }
+        ]
+      },
+      "changedSourceRefused": true,
+      "changedRoleRefused": true,
+      "realPinnedTlsAndQvac": true,
+      "readyForOfflineRestart": true
+    },
+    "offlineWithCompanionStopped": {
+      "platform": "ios",
+      "offlinePhase": true,
+      "syntheticSourceAndTrust": true,
+      "physicalAndroid": false,
+      "iOSSimulator": true,
+      "persistedBothSourcesAfterAppRestart": true,
+      "renderedWhileCompanionStopped": true,
+      "offlineRevertPreservedSource": true,
+      "isolatedDataAndTrustCleaned": true
+    },
+    "injectedSecurityAndFailure": {
+      "platform": "ios",
+      "injectedAdversarialCasesRejected": 8,
+      "rendererCreatedNetworkClients": 0,
+      "injectedRendererFailureRecoveredSource": true
+    }
+  },
+  "limits": [
+    "Physical iPhone unverified",
+    "Broader styling quality/languages, intent following and large document usefulness unverified",
+    "Offline mobile demonstration stopped the companion; simultaneous phone/desktop WAN-disconnected inference not tested",
+    "Adversarial markup, renderer errors, timeout, lost acceptance and role/source races are explicitly injected fixtures; no claim of an observed malicious model response",
+    "Screen reader semantics checked automatically; human VoiceOver/TalkBack review remains unverified",
+    "Existing two onboarding layout failures remain outside H01"
+  ]
+}

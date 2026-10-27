@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="journal_companion.xml" />
+    <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:journal_companion.xml" />
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage:journal_companion.xml" />
+</full-backup-content>

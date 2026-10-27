@@ -1,0 +1,207 @@
+{
+  "milestone": "S01",
+  "date": "2026-10-28",
+  "phone": "Samsung SM-S928B, Android 17 (API 37), wireless LAN",
+  "desktop": "macOS arm64, packaged Journal Companion, Electron 45.0.0, QVAC 0.22.0",
+  "model": "llama-3.1-8b-instruct-q4_k_m@bf5b95e96dac0462e2a09145ec66cae9a3f12067",
+  "trust": "test-only --recovery-phone-fixture identity in an isolated companion vault; production pinned TLS and signing on the phone",
+  "data": "synthetic entries in isolated s01-synthetic-objectbox and journal.companion.s01-demo.* keys; cleaned after the restart phase",
+  "phoneOnline": {
+    "platform": "android",
+    "physicalAndroid": true,
+    "restartPhase": false,
+    "syntheticSourceAndTrust": true,
+    "today": "2026-10-28",
+    "keywordSearchUnchanged30Days": true,
+    "topicViaUi": {
+      "question": "What did I write about the kiln?",
+      "coverage": "Searched all of your diary (5 days with entries). 2 of 2 matching entries are sent.",
+      "sentDates": [
+        "2026-04-11",
+        "2026-09-18"
+      ],
+      "requestBytes": 270,
+      "raw": {
+        "answer": "You wrote about your first bowl cracking in the kiln and a second firing going well with the glaze turning blue.",
+        "citations": [
+          "s0",
+          "s1"
+        ],
+        "status": "answered"
+      },
+      "shown": {
+        "answered": true,
+        "text": "You wrote about your first bowl cracking in the kiln and a second firing going well with the glaze turning blue.",
+        "citedDates": [
+          "2026-04-11",
+          "2026-09-18"
+        ]
+      },
+      "rejected": null
+    },
+    "onlySelectedExcerptsSent": true,
+    "sourceStatuses": {
+      "2026-04-11": "deleted",
+      "2026-09-18": "edited"
+    },
+    "editedLabelShown": true,
+    "deletedLabelShown": true,
+    "openedDate": "2026-09-18",
+    "aroundThisTimeLastYear": {
+      "question": "What was I doing around this time last year?",
+      "coverage": "Searched 14 October 2025 \u2013 11 November 2025 (2 days with entries). 2 of 2 entries are sent.",
+      "sentDates": [
+        "2025-10-23",
+        "2025-10-31"
+      ],
+      "requestBytes": 370,
+      "raw": {
+        "answer": "You were taking a pottery class and preparing for a trip to Lisbon.",
+        "citations": [
+          "s0",
+          "s1"
+        ],
+        "status": "answered"
+      },
+      "shown": {
+        "answered": true,
+        "text": "You were taking a pottery class and preparing for a trip to Lisbon.",
+        "citedDates": [
+          "2025-10-23",
+          "2025-10-31"
+        ]
+      },
+      "rejected": null
+    },
+    "noEvidenceNoMatch": {
+      "question": "When did I go skydiving?",
+      "coverage": "Searched all of your diary (5 days with entries). 0 of 0 matching entries are sent.",
+      "sentDates": [],
+      "requestBytes": 86,
+      "raw": null,
+      "shown": null,
+      "rejected": null,
+      "sentNothing": true
+    },
+    "noEvidenceSent": {
+      "question": "Did Sam come skydiving with me?",
+      "coverage": "Searched all of your diary (5 days with entries). 1 of 1 matching entries is sent.",
+      "sentDates": [
+        "2026-10-26"
+      ],
+      "requestBytes": 149,
+      "raw": {
+        "answer": "You wrote that you had lunch with Sam, but there is no mention of skydiving.",
+        "citations": [
+          "s0"
+        ],
+        "status": "insufficient"
+      },
+      "shown": {
+        "answered": false,
+        "text": "The excerpts searched were not enough to answer this.",
+        "citedDates": []
+      },
+      "rejected": null
+    },
+    "multilingualNoTranslation": {
+      "question": "\u00bfQu\u00e9 escrib\u00ed sobre la cer\u00e1mica?",
+      "coverage": "Searched all of your diary (5 days with entries). 0 of 0 matching entries are sent.",
+      "sentDates": [],
+      "requestBytes": 97,
+      "raw": null,
+      "shown": null,
+      "rejected": null,
+      "sentNothing": true
+    },
+    "readyForRestartPhase": "completed",
+    "realPinnedTlsAndQvacRequests": 4,
+    "startIgnoredWhileBusyMs": {
+      "What was I doing around this time last year?": 0,
+      "When did I go skydiving?": 0,
+      "Did Sam come skydiving with me?": 0,
+      "\u00bfQu\u00e9 escrib\u00ed sobre la cer\u00e1mica?": 0
+    }
+  },
+  "phoneRestartWithCompanionStopped": {
+    "platform": "android",
+    "physicalAndroid": true,
+    "restartPhase": true,
+    "syntheticSourceAndTrust": true,
+    "today": "2026-10-28",
+    "recoveredTaskIdentity": true,
+    "recoveredPhase": "error",
+    "recoveredMessage": "Computer unreachable. Open the companion on the same Wi-Fi, allow local network access, then retry. A hotspot or guest network may block devices.",
+    "noResubmission": true,
+    "isolatedDataAndTrustCleaned": true
+  },
+  "desktopHarnessLlama8b": {
+    "s01_lastYear": {
+      "answer": "You were taking a pottery class and preparing for a trip to Lisbon.",
+      "citations": [
+        "s0",
+        "s1"
+      ],
+      "status": "answered"
+    },
+    "s01_topic": {
+      "answer": "You wrote about your first bowl cracking in the kiln and a second firing going well with the glaze turning blue.",
+      "citations": [
+        "s0",
+        "s1"
+      ],
+      "status": "answered"
+    },
+    "s01_noEvidence": {
+      "answer": "You went skydiving on a date not mentioned in your diary.",
+      "citations": [],
+      "status": "insufficient"
+    },
+    "s01_firstMention": {
+      "answer": "You wrote that you had a third pottery class with Ana, which suggests that the class started before then. The earliest entry here that mentions it is from 2025-10-20. However, it does not specify when the class began. You may have mentioned it earlier in your diary.",
+      "citations": [
+        "s0"
+      ],
+      "status": "insufficient"
+    }
+  },
+  "desktopHarnessQwen05bDefault": {
+    "s01_lastYear": {
+      "answer": "I was taking a pottery class with Ana last year. The trip to Lisbon was cancelled.",
+      "citations": [
+        "s0",
+        "s1"
+      ],
+      "status": "answered"
+    },
+    "s01_topic": {
+      "answer": "You wrote that you first bowl cracked in the kiln.",
+      "citations": [
+        "s0",
+        "s1"
+      ],
+      "status": "answered"
+    },
+    "s01_noEvidence": {
+      "answer": "2026-10-28",
+      "citations": [
+        "s0"
+      ],
+      "status": "answered"
+    },
+    "s01_firstMention": {
+      "answer": "The pottery class started in 2025-10-20.",
+      "citations": [
+        "s0"
+      ],
+      "status": "answered"
+    }
+  },
+  "notes": [
+    "Phone 'raw' fields are the model output before phone checks; 'shown' is what the user sees.",
+    "Insufficient answers never show the model's own explanation.",
+    "The Qwen 0.5B default followed an injected instruction and invented a start date; phone checks cannot catch errors in meaning.",
+    "Re-run 2026-10-28 after both selectors moved to the shared lib/modules/diary/history/diary_retrieval.dart.",
+    "Re-run 2026-10-28 after the task-slot busy fix (single-tap clear, no ignored starts)."
+  ]
+}

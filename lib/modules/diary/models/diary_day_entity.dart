@@ -23,6 +23,10 @@ class DiaryDayEntity {
 
   String? dayTitle;
 
+  /// JSON list of up to three short, user-approved emotional themes.
+  /// Kept separate so themes never overload the mood or reflection fields.
+  String? dayThemes;
+
   String itemsJson;
 
   @Property(type: PropertyType.date)
@@ -46,6 +50,7 @@ class DiaryDayEntity {
     this.dayMood,
     this.dayTitle,
     this.daySummary,
+    this.dayThemes,
     this.itemsJson = '[]',
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -102,6 +107,18 @@ class DiaryDayEntity {
     itemsJson = jsonEncode(list.map((e) => e.toJson()).toList());
   }
 
+  /// Tolerant reader: malformed optional metadata never hides a day.
+  @Transient()
+  List<String> get themes {
+    try {
+      final decoded = jsonDecode(dayThemes ?? '[]');
+      if (decoded is List) return decoded.whereType<String>().toList();
+    } on FormatException {
+      // Ignore malformed optional metadata.
+    }
+    return const [];
+  }
+
   @Transient()
   SyncStatus get status => SyncStatus.fromValue(syncStatus);
 
@@ -117,6 +134,8 @@ class DiaryDayEntity {
       'day_mood': dayMood,
       'day_title': dayTitle,
       'day_summary': daySummary,
+      // Omitted when unset so existing shared documents stay byte-identical.
+      if (dayThemes != null) 'day_themes': dayThemes,
       'items': items.map((e) => e.toJson()).toList(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -140,6 +159,7 @@ class DiaryDayEntity {
       dayMood: json['day_mood'] as String?,
       daySummary: json['day_summary'] as String?,
       dayTitle: json['day_title'] as String?,
+      dayThemes: json['day_themes'] as String?,
       itemsJson: jsonEncode(itemsList.map((e) => e.toJson()).toList()),
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),

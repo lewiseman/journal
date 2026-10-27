@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
+import 'package:journal/modules/diary/history/diary_answer_page.dart';
 import 'package:journal/modules/diary/models/diary_search_result.dart';
 import 'package:journal/modules/diary/views/widgets/diary_search_opening.dart';
 import 'package:journal/modules/diary/views/widgets/diary_search_loading.dart';
@@ -112,6 +113,28 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
     _focus.unfocus();
     context.nav.pop<DateTime>(date);
   }
+
+  /// S01: a grounded answer over all history, through the paired computer.
+  Future<void> _ask() async {
+    if (_returning) return;
+    _focus.unfocus();
+    final date = await context.nav.push<DateTime>(
+      DiaryAnswerPage(question: _submitted, today: widget.lastDate),
+      transition: _reduced ? NavTransition.none : NavTransition.platform,
+    );
+    if (date == null || !mounted) return;
+    _open(DiarySearchMatch(date: date, title: '', excerpt: ''));
+  }
+
+  Widget _askButton() => Align(
+    alignment: Alignment.centerLeft,
+    child: TextButton.icon(
+      key: const ValueKey('diary-search-ask'),
+      onPressed: _ask,
+      icon: const Icon(Icons.computer_outlined, size: 18),
+      label: const Text('Ask your paired computer about all your entries'),
+    ),
+  );
 
   @override
   void dispose() {
@@ -305,9 +328,11 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
         if (_stage == _SearchStage.empty) ...[
           _message(
             title: 'No moments found yet.',
-            message: 'Try a person, a feeling, or a few different words.',
+            message: 'This search looks at the last 30 days. Try a person, a feeling, or a few different words.',
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 12),
+          _askButton(),
+          const SizedBox(height: 16),
           DiarySearchPrompts(onSearch: _search, reduced: _reduced),
         ],
         if (_stage == _SearchStage.results) ...[
@@ -352,7 +377,9 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
               ],
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 8),
+          _askButton(),
+          const SizedBox(height: 18),
           Text(
             '${_result!.matches.length} '
             '${_result!.matches.length == 1 ? 'moment' : 'moments'} to return to',

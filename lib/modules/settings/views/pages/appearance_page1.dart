@@ -362,7 +362,10 @@ class _AppearancePage1State extends State<AppearancePage1> {
                 ),
                 const SizedBox(height: 13),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _accent.withValues(alpha: colors.dark ? 0.24 : 0.10),
                     borderRadius: BorderRadius.circular(30),
@@ -454,7 +457,11 @@ class _AppearancePage1State extends State<AppearancePage1> {
                     shape: BoxShape.circle,
                     border: Border.all(color: colors.surface, width: 1),
                   ),
-                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 15),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: 15,
+                  ),
                 ),
               ),
           ],
@@ -490,7 +497,9 @@ class _AppearancePage1State extends State<AppearancePage1> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: isSelected ? option.color : Colors.transparent,
+                            color: isSelected
+                                ? option.color
+                                : Colors.transparent,
                             width: 1.4,
                           ),
                         ),
@@ -512,10 +521,7 @@ class _AppearancePage1State extends State<AppearancePage1> {
                       Text(
                         option.name,
                         maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.ink,
-                        ),
+                        style: TextStyle(fontSize: 12, color: colors.ink),
                       ),
                     ],
                   ),
@@ -649,7 +655,9 @@ class _FontPickerSheetState extends State<_FontPickerSheet> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
     final matches = widget.fonts
-        .where((font) => font.toLowerCase().contains(_query.trim().toLowerCase()))
+        .where(
+          (font) => font.toLowerCase().contains(_query.trim().toLowerCase()),
+        )
         .toList();
 
     return Container(
@@ -776,7 +784,9 @@ class _FontPickerSheetState extends State<_FontPickerSheet> {
                       final selected = font == _selectedFont;
 
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                        ),
                         title: Text(
                           font,
                           style: TextStyle(fontSize: 16, color: colors.ink),
@@ -810,7 +820,8 @@ class _AppearanceColors {
 
   final bool dark;
 
-  Color get background => dark ? const Color(0xFF101424) : const Color(0xFFFFFEFD);
+  Color get background =>
+      dark ? const Color(0xFF101424) : const Color(0xFFFFFEFD);
   Color get surface => dark ? const Color(0xFF191E30) : const Color(0xFFFFFEFD);
   Color get subtleSurface =>
       dark ? const Color(0xFF252A3E) : const Color(0xFFF1F2FA);
@@ -818,17 +829,33 @@ class _AppearanceColors {
   Color get body => dark ? const Color(0xFFD6D8E6) : const Color(0xFF333C5C);
   Color get muted => dark ? const Color(0xFFA2AAC3) : const Color(0xFF707A98);
   Color get border => dark ? const Color(0xFF33384C) : const Color(0xFFE5E5EB);
-  Color get sliderTrack => dark ? const Color(0xFF42475A) : const Color(0xFFD4D7E3);
+  Color get sliderTrack =>
+      dark ? const Color(0xFF42475A) : const Color(0xFFD4D7E3);
 }
 
 String _formatPreviewDate(DateTime date) {
   const weekdays = [
-    'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY',
-    'FRIDAY', 'SATURDAY', 'SUNDAY',
+    'MONDAY',
+    'TUESDAY',
+    'WEDNESDAY',
+    'THURSDAY',
+    'FRIDAY',
+    'SATURDAY',
+    'SUNDAY',
   ];
   const months = [
-    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
-    'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+    'JANUARY',
+    'FEBRUARY',
+    'MARCH',
+    'APRIL',
+    'MAY',
+    'JUNE',
+    'JULY',
+    'AUGUST',
+    'SEPTEMBER',
+    'OCTOBER',
+    'NOVEMBER',
+    'DECEMBER',
   ];
   return '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
 }

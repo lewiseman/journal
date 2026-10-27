@@ -439,7 +439,8 @@ class _DiaryCollection implements SyncCollection {
         storage.protected(type, document.id, 'metadata', now) &&
         (local.dayMood != remote.dayMood ||
             local.dayTitle != remote.dayTitle ||
-            local.daySummary != remote.daySummary);
+            local.daySummary != remote.daySummary ||
+            local.dayThemes != remote.dayThemes);
     if (protectedMetadata && !dirtyMetadata) deferred = true;
     final result = (dirtyMetadata || protectedMetadata) ? local : remote;
     result.id = local.id;

@@ -1,0 +1,78 @@
+{
+  "milestone": "J01",
+  "date": "2026-10-27",
+  "phone": "Samsung SM-S928B, Android 17 (API 37), wireless LAN",
+  "desktop": "macOS arm64, packaged Journal Companion, Electron 45.0.0, QVAC 0.22.0",
+  "model": "llama-3.1-8b-instruct-q4_k_m@bf5b95e96dac0462e2a09145ec66cae9a3f12067",
+  "trust": "test-only --recovery-phone-fixture identity in an isolated companion vault; production pinned TLS and signing on the phone; not a pairing-UI test",
+  "data": "synthetic entries in isolated j01-synthetic-objectbox and journal.companion.j01-demo.* protected keys; cleaned after the restart phase",
+  "online": {
+    "platform": "android",
+    "physicalAndroid": true,
+    "restartPhase": false,
+    "syntheticSourceAndTrust": true,
+    "onlySelectedDayEntryTextSent": true,
+    "ordinary": {
+      "title": "Breakfast and reading",
+      "mood": "calm",
+      "savedMood": "calm",
+      "themes": [],
+      "dropped": 0
+    },
+    "ordinaryAcceptedThroughUiAndEntriesUnchanged": true,
+    "mixed": {
+      "title": "River walk and deadline",
+      "mood": "mixed",
+      "savedMood": null,
+      "themes": [
+        "proud",
+        "deadline stress"
+      ],
+      "dropped": 0
+    },
+    "sparse": {
+      "title": null,
+      "mood": "unclear",
+      "savedMood": null,
+      "themes": [],
+      "dropped": 0
+    },
+    "mixedAndSparseRejectedWithoutWrites": true,
+    "editDuringGenerationPhases": [
+      "submitting",
+      "accepted",
+      "queued",
+      "retrieving",
+      "accepted",
+      "completed"
+    ],
+    "editDuringGenerationPosts": 1,
+    "editDuringGenerationRefused": true,
+    "manualOverride": true,
+    "secondaryReadOnlySentNothing": true,
+    "realPinnedTlsAndQvacRequests": 4,
+    "readyForRestart": true
+  },
+  "restartWithCompanionStopped": {
+    "platform": "android",
+    "physicalAndroid": true,
+    "restartPhase": true,
+    "syntheticSourceAndTrust": true,
+    "persistedAfterAppRestart": {
+      "title": "Breakfast and reading",
+      "mood": "tired",
+      "themes": [
+        "rest"
+      ]
+    },
+    "unavailableCompanionMessage": "Connect your trusted computer in Settings \u2192 Local AI computer. You can still edit details yourself.",
+    "unavailableCompanionAcceptedWork": false,
+    "manualEditWithoutComputer": true,
+    "isolatedDataAndTrustCleaned": true
+  },
+  "notes": [
+    "Secondary role is exercised with a secondary syncDeviceRoleProvider override, as in unit tests; a real second phone was not used.",
+    "An edit that lands before acceptance is refused before sending (phase failed, stale, no POST); observed in an earlier run of this test.",
+    "Model-not-loaded and old-companion cases are unit-tested only."
+  ]
+}

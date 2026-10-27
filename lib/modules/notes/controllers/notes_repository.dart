@@ -1,4 +1,10 @@
+import 'dart:convert';
+
 import 'package:journal/common.dart';
+
+import '../transform/note_recovery_entity.dart';
+import '../transform/transform_contract.dart';
+
 import 'package:journal/objectbox/objectbox.g.dart';
 import 'package:sync_wise/sync_wise.dart';
 import 'package:uuid/uuid.dart';
@@ -101,6 +107,11 @@ class NotesRepository {
   }
 
   /// Fetches note by UUID.
+  Stream<NoteEntity?> watchNoteByUuid(String uuid) => _box
+      .query(NoteEntity_.uuid.equals(uuid))
+      .watch(triggerImmediately: true)
+      .map((query) => query.findFirst());
+
   NoteEntity? getNoteByUuid(String uuid) {
     final query = _box.query(NoteEntity_.uuid.equals(uuid)).build();
     final result = query.findFirst();
@@ -185,6 +196,124 @@ class NotesRepository {
     if (!sync.canEdit && !isNew) existing.status = SyncStatus.localOnly;
     _persist(existing, creation: isNew);
     return existing;
+  }
+
+  /// Compare and commit synchronously. AI proposals never create conflict drafts.
+  /// Backup and normal repository/sync writes share one ObjectBox transaction.
+  NoteEntity acceptTransformation({
+    required String taskId,
+    required String uuid,
+    required String operation,
+    required TransformSource source,
+    required String replacement,
+  }) {
+    _editable();
+    if (!transformOperations.containsKey(operation) ||
+        replacement.trim().isEmpty ||
+        utf8.encode(replacement).length > transformOutputBytes ||
+        !validTransformOutput(replacement)) {
+      throw StateError('Invalid replacement. Your note is unchanged.');
+    }
+    TransformSource.decode(source.encode());
+    late NoteEntity saved;
+    _db.store.runInTransaction(TxMode.write, () {
+      final history = _db.store.box<NoteRecoveryEntity>();
+      if (history.getAll().any((row) => row.taskId == taskId)) {
+        throw StateError(
+          'This proposal was already accepted. Open recovery history.',
+        );
+      }
+      final note = getNoteByUuid(uuid);
+      if (note == null ||
+          note.isDeleted ||
+          note.isPermanentlyDeleted ||
+          note.content != source.content ||
+          !note.versionVector.isEqualTo(
+            VersionVector.fromJsonString(source.version),
+          )) {
+        throw StateError(
+          'The note changed. This proposal cannot replace a newer edit.',
+        );
+      }
+      final content = source.replace(replacement);
+      if (content == source.content) {
+        throw StateError('The proposal has no changes to accept.');
+      }
+      saved = saveNote(
+        uuid: uuid,
+        expectedVersionVectorJson: source.version,
+        title: note.title,
+        content: content,
+        tags: note.tags,
+        attachmentPaths: note.attachments,
+        background: note.background,
+      );
+      history.put(
+        NoteRecoveryEntity(
+          taskId: taskId,
+          noteId: uuid,
+          operation: operation,
+          beforeContent: source.content,
+          afterContent: content,
+          afterVersion: saved.versionVectorJson,
+          created: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+      final rows = history.getAll()..sort((a, b) => b.id.compareTo(a.id));
+      // Ten most recent acceptances on this phone, at most ~1.4 MiB.
+      for (final row in rows.skip(10)) {
+        history.remove(row.id);
+      }
+    });
+    return saved;
+  }
+
+  List<NoteRecoveryEntity> transformationHistory(String uuid) =>
+      (_db.store
+          .box<NoteRecoveryEntity>()
+          .getAll()
+          .where((row) => row.noteId == uuid)
+          .toList()
+        ..sort((a, b) => b.id.compareTo(a.id)));
+
+  void clearTransformationHistory(String uuid) {
+    final box = _db.store.box<NoteRecoveryEntity>();
+    box.removeMany(transformationHistory(uuid).map((row) => row.id).toList());
+  }
+
+  NoteEntity restoreTransformation(int recoveryId) {
+    _editable();
+    late NoteEntity saved;
+    _db.store.runInTransaction(TxMode.write, () {
+      final history = _db.store.box<NoteRecoveryEntity>();
+      final row = history.get(recoveryId);
+      final note = row == null ? null : getNoteByUuid(row.noteId);
+      if (row == null ||
+          row.restored ||
+          note == null ||
+          note.isDeleted ||
+          note.isPermanentlyDeleted ||
+          note.content != row.afterContent ||
+          !note.versionVector.isEqualTo(
+            VersionVector.fromJsonString(row.afterVersion),
+          )) {
+        throw StateError(
+          'The note changed since acceptance. Copy the prior content to recover it manually.',
+        );
+      }
+      saved = saveNote(
+        uuid: note.uuid,
+        expectedVersionVectorJson: row.afterVersion,
+        title: note.title,
+        content: row.beforeContent,
+        tags: note.tags,
+        attachmentPaths: note.attachments,
+        background: note.background,
+      );
+      row.restored = true;
+      history.put(row);
+    });
+    return saved;
   }
 
   /// Soft deletes a note (creates tombstone).

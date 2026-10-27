@@ -6,6 +6,21 @@ import 'package:journal/modules/diary/views/widgets/diary_paper_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
+import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
+import 'package:journal/modules/presentation/presentation_body.dart';
+import 'package:journal/modules/presentation/presentation_contract.dart';
+import 'package:journal/modules/presentation/presentation_page.dart';
+import 'package:journal/modules/diary/suggestions/diary_details_page.dart';
+import 'package:journal/modules/diary/suggestions/diary_suggestion_contract.dart';
+
+class DiaryPresentationScope extends InheritedWidget {
+  const DiaryPresentationScope({super.key, required super.child});
+  static bool enabled(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DiaryPresentationScope>() !=
+      null;
+  @override
+  bool updateShouldNotify(DiaryPresentationScope oldWidget) => false;
+}
 
 /// Applies the cached device role without coupling paper previews to Riverpod.
 class DiaryAccess extends InheritedWidget {
@@ -107,10 +122,15 @@ class _StampContentClipper extends CustomClipper<Rect> {
 }
 
 class DiaryDayContent extends StatefulWidget {
-  const DiaryDayContent({super.key, required this.day, this.minimumHeight = 0})
-    : assert(minimumHeight >= 0 && minimumHeight < double.infinity);
+  const DiaryDayContent({
+    super.key,
+    required this.day,
+    this.minimumHeight = 0,
+    this.interactive = false,
+  }) : assert(minimumHeight >= 0 && minimumHeight < double.infinity);
 
   final DiaryDayEntity day;
+  final bool interactive;
 
   /// Centers an empty invitation while leaving the cached prose independent
   /// of the changing paper viewport.
@@ -129,12 +149,19 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
     _content = null;
   }
 
-  (String, String?, String, bool)? _contentKey;
+  (String, String?, String?, String?, String, bool)? _contentKey;
 
   @override
   Widget build(BuildContext context) {
     final day = widget.day;
-    final key = (day.dateString, day.dayTitle, day.itemsJson, day.isDeleted);
+    final key = (
+      day.dateString,
+      day.dayTitle,
+      day.dayMood,
+      day.dayThemes,
+      day.itemsJson,
+      day.isDeleted,
+    );
     if (_content == null || _contentKey != key) {
       _content = _buildContent(context, day);
       _contentKey = key;
@@ -149,6 +176,12 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
   Widget _buildContent(BuildContext context, DiaryDayEntity day) {
     final items = day.visibleItems.toList();
     final title = day.isDeleted ? '' : day.dayTitle?.trim() ?? '';
+    final mood = day.isDeleted ? null : decodeDayMood(day.dayMood);
+    final themes = day.isDeleted ? const <String>[] : day.themes;
+    final details = [
+      if (mood != null) '${mood.emoji} ${mood.label}',
+      ...themes,
+    ].join(' · ');
     final paper = diaryPaperColors(context);
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -191,13 +224,39 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+                  SizedBox(height: details.isEmpty ? 26 : 10),
+                ],
+                if (details.isNotEmpty) ...[
+                  Text(
+                    details,
+                    key: const ValueKey('diary-day-details'),
+                    style: TextStyle(
+                      color: paper.secondary,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 26),
                 ],
               ],
             ),
             if (items.isNotEmpty) ...[
               for (final item in items) ...[
-                Text(item.content.trim(), key: ValueKey(item.itemUuid)),
+                if (DiaryPresentationScope.enabled(context))
+                  PresentationBody(
+                    source: PresentationSourceRef.diary(
+                      day.dateString,
+                      item.itemUuid,
+                    ),
+                    content: item.content,
+                    selectable: widget.interactive,
+                    fallback: Text(
+                      item.content.trim(),
+                      key: ValueKey(item.itemUuid),
+                    ),
+                  )
+                else
+                  Text(item.content.trim(), key: ValueKey(item.itemUuid)),
                 const SizedBox(height: 26),
               ],
               Text(
@@ -214,8 +273,70 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
             ],
             Padding(
               padding: EdgeInsets.only(top: 20, bottom: items.isEmpty ? 20 : 0),
-              child: _DiaryAddActions(date: day.calendarDate),
+              child: _DiaryAddActions(
+                date: day.calendarDate,
+                dateString: day.dateString,
+                live:
+                    widget.interactive &&
+                    DiaryPresentationScope.enabled(context),
+              ),
             ),
+            if (items.isNotEmpty &&
+                widget.interactive &&
+                DiaryPresentationScope.enabled(context))
+              TextButton.icon(
+                key: const ValueKey('diary-details-open'),
+                icon: const Icon(Icons.label_outline),
+                label: const Text('Day details'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        DiaryDetailsPage(dateString: day.dateString),
+                  ),
+                ),
+              ),
+            if (items.isNotEmpty &&
+                widget.interactive &&
+                DiaryPresentationScope.enabled(context))
+              TextButton.icon(
+                icon: const Icon(Icons.auto_fix_high_outlined),
+                label: const Text('Presentation'),
+                onPressed: () async {
+                  final selected = await showModalBottomSheet<String>(
+                    context: context,
+                    builder: (context) => SafeArea(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          const ListTile(title: Text('Choose a saved entry')),
+                          for (final item in items)
+                            ListTile(
+                              title: Text(
+                                item.content,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () =>
+                                  Navigator.pop(context, item.itemUuid),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                  if (selected != null && context.mounted) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PresentationPage(
+                          source: PresentationSourceRef.diary(
+                            day.dateString,
+                            selected,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
             // A zero-height footer balances the space around the invitation.
             if (items.isEmpty) const SizedBox.shrink(),
           ],
@@ -226,9 +347,17 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
 }
 
 class _DiaryAddActions extends StatelessWidget {
-  const _DiaryAddActions({required this.date});
+  const _DiaryAddActions({
+    required this.date,
+    required this.dateString,
+    this.live = false,
+  });
 
   final DateTime date;
+  final String dateString;
+
+  /// The live reading view; previews and page curls keep the plain prompt.
+  final bool live;
 
   void _openText(BuildContext context) {
     if (ModalRoute.of(context)?.isCurrent == false) return;
@@ -287,7 +416,12 @@ class _DiaryAddActions extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: DiaryWritingPrompt(onTap: () => _openText(context)),
+              child: live && access != null && date == access.today
+                  ? DailyQuestionPrompt(
+                      day: dateString,
+                      onWrite: () => _openText(context),
+                    )
+                  : DiaryWritingPrompt(onTap: () => _openText(context)),
             ),
             const SizedBox(height: 24),
             Wrap(

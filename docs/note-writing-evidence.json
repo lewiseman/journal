@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-27",
+  "scope": "N01 only; N02 remains a separate milestone per the implementation prompt guide",
+  "flutter": {
+    "version": "3.47.5",
+    "dart": "3.13.4",
+    "changedFileAnalysis": "passed",
+    "fullSuite": {
+      "passed": 332,
+      "failed": 2,
+      "failures": [
+        "onboarding_test.dart: layout at Size(320.0, 568.0) and large text; bottom overflow 15 px",
+        "onboarding_test.dart: layout at Size(844.0, 390.0) and large text; bottom overflow 135 px"
+      ],
+      "baselineReproduction": "Both identical failures reproduced in a temporary git checkout-index copy of the original staged code, before N01 modifications; onboarding-only baseline 23 passed, 2 failed"
+    },
+    "normalAndroidDebugBuild": "passed",
+    "normalAppRestoration": "adb install -r: Success; no uninstall or user-data wipe",
+    "focusedTestsPassed": 46
+  },
+  "desktop": {
+    "platform": "macOS arm64",
+    "electron": "45.0.0",
+    "qvac": "0.22.0",
+    "testsPassed": 29,
+    "model": "Qwen2.5 0.5B Instruct Q4_K_M, existing verified model revision/checksum unchanged",
+    "nativeRuns": [
+      {
+        "phase": 1,
+        "packaged": true,
+        "electron": "45.0.0",
+        "qvac": "0.22.0",
+        "syntheticClient": true,
+        "checks": {
+          "allFiveOperationsUsedRealQvac": true,
+          "signedTlsAndSameIdRetry": true,
+          "activityHasOperationAndDevice": true
+        },
+        "outputs": {
+          "rewrite-note": "i has a meeting with mira on friday. budget approval are pending.",
+          "expand-note": "i has a meeting with Mira on friday. Budget approval are pending.",
+          "tone-note": "i have a meeting with mira on friday. budget approval are pending.",
+          "clarify-note": "i has a meeting with Mira on friday. Budget approval are pending.",
+          "markdown-note": "* i has a meeting with Mira on friday.\n  * budget approval are pending."
+        }
+      },
+      {
+        "phase": 2,
+        "packaged": true,
+        "electron": "45.0.0",
+        "qvac": "0.22.0",
+        "syntheticClient": true,
+        "checks": {
+          "resultsRetrievedAfterDesktopRestart": true,
+          "acknowledgmentRemovedResults": true
+        },
+        "outputs": {
+          "rewrite-note": "i has a meeting with mira on friday. budget approval are pending.",
+          "expand-note": "i has a meeting with Mira on friday. Budget approval are pending.",
+          "tone-note": "i have a meeting with mira on friday. budget approval are pending.",
+          "clarify-note": "i has a meeting with Mira on friday. Budget approval are pending.",
+          "markdown-note": "* i has a meeting with Mira on friday.\n  * budget approval are pending."
+        }
+      }
+    ]
+  },
+  "physicalAndroid": {
+    "model": "Samsung SM-S928B",
+    "os": "Android 17",
+    "evidence": {
+      "physicalAndroid": true,
+      "realPinnedLanAndQvac": true,
+      "syntheticFixtureBootstrap": true,
+      "editorFormToReview": true,
+      "discardedRealAcceptanceRetrievedSameId": true,
+      "proposal": "* i has a meeting with Mira on friday.\n  * budget approval are pending.",
+      "explicitAcceptAndRestoreThroughUi": true,
+      "recoveryOriginalPreserved": true,
+      "rejectionPreservedSource": true,
+      "sourceChangeRefused": true,
+      "roleChangeRefused": true,
+      "isolatedDataAndTrustCleaned": true
+    },
+    "integrationTestsPassed": 1
+  },
+  "automatedCases": [
+    "Selected passage only; no title/tags/attachments/other notes exported",
+    "Explicit accept and rejection",
+    "Live source/version change and deleted-source refusal",
+    "Role change/read-only repository writes refused",
+    "Input and output UTF-8/JSON bounds; malformed/HTML output refused",
+    "Unavailable model and task failure/retrieval",
+    "Original protected task identity reused after lost acceptance/provider restart",
+    "Actual ObjectBox close/reopen retains recovery and duplicate-acceptance receipt",
+    "Atomic normal repository/outbox writes; recovery excluded from sync collections",
+    "Stale undo refuses later edits and retains manual-copy recovery",
+    "Ten-entry recovery bound; reset cleanup",
+    "Manual editing and expected-version conflict drafts preserved",
+    "Narrow review layout and inert Markdown"
+  ],
+  "limitations": [
+    "Small-model grammar, expansion, tone and casing quality is uneven; no broad semantic preservation guarantee",
+    "Physical iPhone and other desktop platforms unverified",
+    "Phone/desktop simultaneous WAN-disconnected operation unverified",
+    "Malformed/failure/reset/race edge cases use automated fault injection; not all reproduced as physical runtime faults",
+    "No N01 process-force-stop test: protected task/provider restart and actual ObjectBox reopen tested; R01 physical force-stop evidence remains separate"
+  ]
+}

@@ -33,10 +33,7 @@ class NoteCard extends StatelessWidget {
       ),
     );
     final markdownStyle = MarkdownStyleSheet.fromTheme(previewTheme).copyWith(
-      a: TextStyle(
-        color: colors.foreground,
-        decoration: TextDecoration.none,
-      ),
+      a: TextStyle(color: colors.foreground, decoration: TextDecoration.none),
       blockquoteDecoration: BoxDecoration(
         color: colors.foreground.withValues(alpha: .05),
         borderRadius: BorderRadius.circular(4),

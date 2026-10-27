@@ -4,9 +4,16 @@ import 'package:flutter/material.dart';
 
 /// A writing invitation whose ruled lines follow the user's actual typography.
 class DiaryWritingPrompt extends StatefulWidget {
-  const DiaryWritingPrompt({super.key, required this.onTap});
+  const DiaryWritingPrompt({
+    super.key,
+    required this.onTap,
+    this.text = question,
+  });
 
   final VoidCallback onTap;
+
+  /// The invitation shown; a J02 daily question replaces the default.
+  final String text;
 
   static const question = 'What would you like to remember about today?';
 
@@ -15,7 +22,7 @@ class DiaryWritingPrompt extends StatefulWidget {
 }
 
 class _DiaryWritingPromptState extends State<DiaryWritingPrompt> {
-  (double, TextStyle, TextScaler, TextDirection, Locale?)? _layoutKey;
+  (String, double, TextStyle, TextScaler, TextDirection, Locale?)? _layoutKey;
   List<Path> _lines = const [];
   double _blankHeight = 0;
 
@@ -26,10 +33,10 @@ class _DiaryWritingPromptState extends State<DiaryWritingPrompt> {
     TextDirection direction,
     Locale? locale,
   ) {
-    final key = (width, style, scaler, direction, locale);
+    final key = (widget.text, width, style, scaler, direction, locale);
     if (_layoutKey == key) return;
     final text = TextPainter(
-      text: TextSpan(text: DiaryWritingPrompt.question, style: style),
+      text: TextSpan(text: widget.text, style: style),
       textDirection: direction,
       textScaler: scaler,
       locale: locale,
@@ -125,7 +132,7 @@ class _DiaryWritingPromptState extends State<DiaryWritingPrompt> {
         _layout(constraints.maxWidth, style, scaler, direction, locale);
         return Semantics(
           button: true,
-          label: DiaryWritingPrompt.question,
+          label: widget.text,
           hint: 'Write a diary entry',
           onTap: widget.onTap,
           excludeSemantics: true,
@@ -151,7 +158,7 @@ class _DiaryWritingPromptState extends State<DiaryWritingPrompt> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      DiaryWritingPrompt.question,
+                      widget.text,
                       key: const ValueKey('diary-prompt-question'),
                       style: style,
                       textAlign: TextAlign.start,

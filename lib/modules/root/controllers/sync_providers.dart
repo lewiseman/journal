@@ -8,6 +8,8 @@ import 'journal_sync_collections.dart';
 import 'journal_sync_store.dart';
 import 'journal_account_reset_data.dart';
 
+import 'package:journal/modules/notes/summary/summary_store.dart';
+
 // Repositories publish local commits without depending back on the sync engine.
 final journalChangesProvider = Provider<StreamController<void>>((ref) {
   final changes = StreamController<void>.broadcast(sync: true);
@@ -81,7 +83,10 @@ final accountResetStorageProvider = Provider<AccountResetStorage>(
   (ref) => AccountResetStorage(),
 );
 final accountResetLocalDataProvider = Provider<AccountResetLocalData>(
-  (ref) => JournalAccountResetData(db: ref.watch(objectBoxProvider)),
+  (ref) => JournalAccountResetData(
+    db: ref.watch(objectBoxProvider),
+    clearSummaries: () => ref.read(summaryStoreProvider).clearAll(),
+  ),
 );
 final accountResetProvider =
     NotifierProvider<AccountResetController, AccountResetState>(

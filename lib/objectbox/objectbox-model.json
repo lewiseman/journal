@@ -106,7 +106,7 @@
     },
     {
       "id": "2:7208550162670336586",
-      "lastPropertyId": "13:1056146348533662325",
+      "lastPropertyId": "14:7988663521190690088",
       "name": "DiaryDayEntity",
       "properties": [
         {
@@ -176,6 +176,11 @@
           "id": "13:1056146348533662325",
           "name": "syncStatus",
           "type": 6
+        },
+        {
+          "id": "14:7988663521190690088",
+          "name": "dayThemes",
+          "type": 9
         }
       ],
       "relations": []
@@ -256,10 +261,209 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "5:6322996228141495349",
+      "lastPropertyId": "5:6801703998664039233",
+      "name": "SummaryTaskEntity",
+      "properties": [
+        {
+          "id": "1:2222787510232135417",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:148647328811157735",
+          "name": "taskId",
+          "indexId": "5:1235810767082045206",
+          "type": 9,
+          "flags": 2080
+        },
+        {
+          "id": "3:2260347803500938885",
+          "name": "created",
+          "type": 6
+        },
+        {
+          "id": "4:8850339582267964035",
+          "name": "active",
+          "type": 1
+        },
+        {
+          "id": "5:6801703998664039233",
+          "name": "metadata",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "6:3609962424508417693",
+      "lastPropertyId": "9:6608636891707987252",
+      "name": "NoteRecoveryEntity",
+      "properties": [
+        {
+          "id": "1:8916024477713817125",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:3901218107132580458",
+          "name": "taskId",
+          "indexId": "6:4470568547534350548",
+          "type": 9,
+          "flags": 2080
+        },
+        {
+          "id": "3:2133562404257410957",
+          "name": "noteId",
+          "type": 9
+        },
+        {
+          "id": "4:8971232978737771235",
+          "name": "operation",
+          "type": 9
+        },
+        {
+          "id": "5:7659025338751406582",
+          "name": "beforeContent",
+          "type": 9
+        },
+        {
+          "id": "6:8203606482529895487",
+          "name": "afterContent",
+          "type": 9
+        },
+        {
+          "id": "7:4471358917546628283",
+          "name": "afterVersion",
+          "type": 9
+        },
+        {
+          "id": "8:4968379626984938001",
+          "name": "created",
+          "type": 6
+        },
+        {
+          "id": "9:6608636891707987252",
+          "name": "restored",
+          "type": 1
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "7:8632987772535014618",
+      "lastPropertyId": "8:2082740345693382024",
+      "name": "PresentationEntity",
+      "properties": [
+        {
+          "id": "1:8311469091311983583",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:6907951170184909512",
+          "name": "sourceKey",
+          "indexId": "7:4059988838941878495",
+          "type": 9,
+          "flags": 2080
+        },
+        {
+          "id": "3:1887138309386242050",
+          "name": "snapshot",
+          "type": 9
+        },
+        {
+          "id": "4:548624359035382779",
+          "name": "document",
+          "type": 9
+        },
+        {
+          "id": "5:5116074273557097887",
+          "name": "taskId",
+          "type": 9
+        },
+        {
+          "id": "6:8338728506673919612",
+          "name": "policy",
+          "type": 6
+        },
+        {
+          "id": "7:3071076729503788028",
+          "name": "created",
+          "type": 6
+        },
+        {
+          "id": "8:2082740345693382024",
+          "name": "enabled",
+          "type": 1
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "8:8694165784092694088",
+      "lastPropertyId": "9:5248481639841431040",
+      "name": "DailyQuestionEntity",
+      "properties": [
+        {
+          "id": "1:1678039496414171939",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4961251716248178929",
+          "name": "day",
+          "indexId": "8:6622688242667964480",
+          "type": 9,
+          "flags": 2048
+        },
+        {
+          "id": "3:4821259643903947642",
+          "name": "question",
+          "type": 9
+        },
+        {
+          "id": "4:4415450998340195592",
+          "name": "sourceDate",
+          "type": 9
+        },
+        {
+          "id": "5:5694860718783037579",
+          "name": "sourceItem",
+          "type": 9
+        },
+        {
+          "id": "6:6685487861119646389",
+          "name": "evidence",
+          "type": 9
+        },
+        {
+          "id": "7:6259665631659420272",
+          "name": "ago",
+          "type": 6
+        },
+        {
+          "id": "8:5617869556945775443",
+          "name": "status",
+          "type": 9
+        },
+        {
+          "id": "9:5248481639841431040",
+          "name": "created",
+          "type": 6
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "4:8973498499901449446",
-  "lastIndexId": "4:8964008647399668782",
+  "lastEntityId": "8:8694165784092694088",
+  "lastIndexId": "8:6622688242667964480",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,

@@ -28,6 +28,12 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Choose photos for your diary or a photo for your note background.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Scan your Journal Companion’s pairing QR to connect to your computer.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Find and securely connect to your Journal Companion on the same Wi-Fi.</string>
+	<key>NSBonjourServices</key>
+	<array><string>_journal-ai._tcp</string></array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

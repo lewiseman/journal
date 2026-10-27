@@ -62,7 +62,8 @@ class DiaryItem {
     content: json['content'] as String? ?? '',
     mood: json['mood'] as String?,
     attachmentPaths:
-        (json['attachment_paths'] as List<dynamic>?)?.cast<String>() ?? const [],
+        (json['attachment_paths'] as List<dynamic>?)?.cast<String>() ??
+        const [],
     deviceId: json['device_id'] as String? ?? '',
     updatedAt: DateTime.parse(json['updated_at'] as String),
     isDeleted: json['is_deleted'] as bool? ?? false,

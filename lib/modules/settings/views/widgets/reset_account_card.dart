@@ -146,6 +146,10 @@ class _ResetAccountDialogState extends ConsumerState<ResetAccountDialog> {
           const Text(
             'Photos copied into Journal and cached images are deleted. Original photos, imported files and appearance settings are kept.',
           ),
+          const SizedBox(height: 12),
+          const Text(
+            'Summary recovery data is cleared on this phone. Accepted AI work on your computer may remain encrypted for up to 24 hours; revoke this phone there to remove it immediately.',
+          ),
           const SizedBox(height: 16),
           TextField(
             key: const ValueKey('reset-confirmation-input'),

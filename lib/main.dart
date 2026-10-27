@@ -1,6 +1,8 @@
 import 'package:journal/common.dart';
 import 'package:sync_wise/sync_wise.dart';
 import 'package:journal/modules/root/views/widgets/account_reset_gate.dart';
+import 'package:journal/modules/settings/companion/companion_controller.dart';
+import 'package:journal/modules/notes/summary/summary_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +17,8 @@ class Journal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(companionControllerProvider.select((_) => null));
+    ref.watch(noteSummaryProvider.select((_) => null));
     final themeMode = ref.watch(
       settingsController.select((settings) => settings.themeMode),
     );

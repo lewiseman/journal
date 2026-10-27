@@ -17,6 +17,11 @@ import 'package:journal/modules/notes/views/widgets/note_image_provider.dart';
 import 'package:journal/modules/notes/views/widgets/note_paint_timing.dart';
 import 'package:journal/modules/notes/views/widgets/note_tag_picker.dart';
 import 'package:journal/modules/notes/views/widgets/unsaved_note_sheet.dart';
+import 'package:journal/modules/notes/summary/summary_page.dart';
+import 'package:journal/modules/notes/transform/transform_page.dart';
+import 'package:journal/modules/presentation/presentation_page.dart';
+import 'package:journal/modules/presentation/presentation_body.dart';
+import 'package:journal/modules/presentation/presentation_contract.dart';
 
 class EditNotePage extends ConsumerStatefulWidget {
   const new({super.key, this.existingNote, this.starterTitle});
@@ -160,6 +165,31 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
     if (_isPreviewMode && !_save()) {
       setState(() => _background = previousBackground);
     }
+  }
+
+  Future<void> _openWritingHelp({bool recovery = false}) async {
+    final note = _savedNote;
+    if (note == null || _hasUnsavedChanges) return;
+    await context.nav.push<void>(
+      recovery
+          ? NoteRecoveryPage(noteId: note.uuid)
+          : NoteTransformPage(noteId: note.uuid),
+    );
+    if (!mounted || _hasUnsavedChanges) return;
+    final updated = ref.read(notesRepositoryProvider).getNoteByUuid(note.uuid);
+    if (updated == null || updated.isDeleted || updated.isPermanentlyDeleted) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _savedNote = updated;
+      _titleController.text = updated.title;
+      _contentController.text = updated.content;
+      _tags = List.of(updated.tags);
+      _attachmentPaths = List.of(updated.attachments);
+      _background = Map.of(updated.background);
+      _savedDraft = _draftSnapshot;
+    });
   }
 
   void _togglePin() {
@@ -401,6 +431,55 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                 scrolledUnderElevation: 0,
                 actionsPadding: const EdgeInsets.only(right: 12),
                 actions: [
+                  if (_isPreviewMode &&
+                      expansion == 0 &&
+                      _savedNote != null &&
+                      !_hasUnsavedChanges &&
+                      '${_savedNote!.title}${_savedNote!.content}'
+                          .trim()
+                          .isNotEmpty)
+                    IconButton(
+                      tooltip: 'Summarize saved note',
+                      icon: const Icon(Icons.summarize_outlined),
+                      onPressed: () => context.nav.push<void>(
+                        NoteSummaryPage(noteId: _savedNote!.uuid),
+                      ),
+                    ),
+                  if (_isPreviewMode &&
+                      expansion == 0 &&
+                      _savedNote != null &&
+                      !_hasUnsavedChanges)
+                    PopupMenuButton<String>(
+                      tooltip: 'Writing help and recovery',
+                      icon: const Icon(Icons.auto_fix_high_outlined),
+                      onSelected: (value) {
+                        if (value == 'presentation') {
+                          context.nav.push<void>(
+                            PresentationPage(
+                              source: PresentationSourceRef.note(
+                                _savedNote!.uuid,
+                              ),
+                            ),
+                          );
+                        } else {
+                          _openWritingHelp(recovery: value == 'recovery');
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'write',
+                          child: Text('Writing help'),
+                        ),
+                        PopupMenuItem(
+                          value: 'recovery',
+                          child: Text('Prior content / recovery'),
+                        ),
+                        PopupMenuItem(
+                          value: 'presentation',
+                          child: Text('Presentation'),
+                        ),
+                      ],
+                    ),
                   if (_isPreviewMode && expansion == 0 && canModifySaved)
                     NoteActionsMenu(
                       isPinned: _savedNote?.isPinned ?? false,
@@ -625,10 +704,22 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                 ),
               )
             // The paper's CustomScrollView already handles scrolling.
-            : MarkdownBody(
-                key: const ValueKey('note-content-preview'),
+            : _savedNote == null
+            ? MarkdownBody(
                 data: _contentController.text,
                 styleSheet: markdownStyle,
+              )
+            : DefaultTextStyle.merge(
+                style: bodyStyle,
+                child: PresentationBody(
+                  source: PresentationSourceRef.note(_savedNote!.uuid),
+                  content: _contentController.text,
+                  fallback: MarkdownBody(
+                    key: const ValueKey('note-content-preview'),
+                    data: _contentController.text,
+                    styleSheet: markdownStyle,
+                  ),
+                ),
               ),
       ),
     ];
