@@ -1,162 +1,70 @@
 import 'package:journal/utils/time_helper.dart';
+import 'package:journal/modules/diary/history/diary_retrieval.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_search_result.dart';
+import 'package:journal/modules/recall/hybrid_retriever.dart';
+import 'package:journal/modules/recall/recall_contract.dart';
 import 'package:journal/objectbox/objectbox.dart';
 
 abstract interface class DiarySearchService {
   Future<DiarySearchResult> search(String query);
 }
 
-/// Local keyword retrieval over saved diary entries from the last thirty days.
-class LocalDiarySearchService implements DiarySearchService {
-  LocalDiarySearchService({
+/// S03b: searches every saved diary entry up to [lastDate] with the shared
+/// hybrid retriever — by meaning when this phone has opted in and the
+/// computer is ready, by keyword otherwise (and then labelled as such).
+class HybridDiarySearchService implements DiarySearchService {
+  HybridDiarySearchService({
     required DateTime lastDate,
     List<DiaryDayEntity>? diaries,
+    HybridRetriever? retriever,
   }) : lastDate = TimeHelper.dateOnly(lastDate),
-       _diaries = diaries == null ? null : List.unmodifiable(diaries);
+       _diaries = diaries == null ? null : List.unmodifiable(diaries),
+       retriever = retriever ?? HybridRetriever.keywordOnly();
 
   final DateTime lastDate;
   final List<DiaryDayEntity>? _diaries;
+  final HybridRetriever retriever;
   List<DiaryDayEntity> get diaries => _diaries ?? objectbox.diaryBox.getAll();
 
-  static const _stopWords = {
-    'a',
-    'about',
-    'an',
-    'and',
-    'are',
-    'as',
-    'at',
-    'be',
-    'been',
-    'can',
-    'could',
-    'day',
-    'days',
-    'did',
-    'do',
-    'does',
-    'entry',
-    'entries',
-    'feel',
-    'feeling',
-    'felt',
-    'find',
-    'for',
-    'from',
-    'had',
-    'has',
-    'have',
-    'how',
-    'i',
-    'in',
-    'is',
-    'it',
-    'journal',
-    'keeping',
-    'last',
-    'little',
-    'me',
-    'moment',
-    'moments',
-    'my',
-    'of',
-    'on',
-    'or',
-    'remember',
-    'search',
-    'show',
-    'some',
-    'something',
-    'that',
-    'the',
-    'there',
-    'these',
-    'things',
-    'this',
-    'to',
-    'was',
-    'were',
-    'what',
-    'when',
-    'where',
-    'which',
-    'with',
-    'worth',
-    'would',
-    'write',
-    'writing',
-    'wrote',
-    'you',
-  };
-  static const _concepts = [
-    {'calm', 'quiet', 'peace', 'peaceful', 'present', 'wonder'},
-    {'walk', 'walked', 'walking', 'route', 'garden', 'scenery', 'outside'},
-    {
-      'conversation',
-      'conversations',
-      'talk',
-      'talked',
-      'talking',
-      'understood',
-    },
-  ];
-
-  static Set<String> _words(String value) =>
-      RegExp(r'[a-z0-9]+')
-          .allMatches(value.toLowerCase())
-          .map((match) => match.group(0)!)
-          .toSet();
+  static const resultLimit = 5;
 
   @override
   Future<DiarySearchResult> search(String query) async {
-    final terms = _words(query).difference(_stopWords);
-    if (terms.isEmpty) {
+    if (diaryTerms(query).isEmpty && query.trim().runes.length < 3) {
       return const DiarySearchResult(answer: '', matches: []);
     }
-    final expanded = {
-      ...terms,
-      for (final concept in _concepts)
-        if (concept.intersection(terms).isNotEmpty) ...concept,
-    };
-    final unique = <String, ({DiarySearchMatch match, int score})>{};
-    final days = diaries.where((day) {
-      final age = TimeHelper.daysBetween(day.calendarDate, lastDate);
-      return !day.isDeleted && age >= 0 && age < 30;
-    }).toList()..sort((a, b) => b.dateString.compareTo(a.dateString));
-    for (final day in days) {
-      final title = day.dayTitle?.trim() ?? '';
-      for (final item in day.visibleItems) {
-        final excerpt = item.content.trim();
-        final words = _words('$title $excerpt');
-        final score =
-            terms.intersection(words).length * 3 +
-            expanded.intersection(words).length;
-        if (score == 0) continue;
-        // Newest-first traversal keeps the latest source of repeated passages.
-        unique.putIfAbsent(
-          excerpt,
-          () => (
-            match: DiarySearchMatch(
-              date: day.calendarDate,
-              title: title,
-              excerpt: excerpt,
-            ),
-            score: score,
-          ),
-        );
+    final days = {for (final d in diaries) d.dateString: d};
+    final result = await retriever.search(
+      query,
+      sources: RecallSource.diary(days.values),
+      kinds: const {RecallKind.diary},
+      to: civilKey(lastDate),
+      limit: 200,
+    );
+    // A passage written on several days appears once, at its best rank,
+    // dated by its newest source.
+    final newest = <String, RecallSource>{};
+    for (final hit in result.hits) {
+      final seen = newest[hit.source.full];
+      if (seen == null || hit.source.date.compareTo(seen.date) > 0) {
+        newest[hit.source.full] = hit.source;
       }
     }
-    final ranked = unique.values.toList()
-      ..sort((a, b) {
-        final score = b.score.compareTo(a.score);
-        return score != 0 ? score : b.match.date.compareTo(a.match.date);
-      });
-    final matches = List<DiarySearchMatch>.unmodifiable(
-      ranked.take(5).map((item) => item.match),
-    );
+    final matches = <DiarySearchMatch>[
+      for (final source in newest.values.take(resultLimit))
+        DiarySearchMatch(
+          date: TimeHelper.dateOnly(civil(source.date)),
+          title: days[source.date]?.dayTitle?.trim() ?? '',
+          excerpt: source.full,
+        ),
+    ];
     if (matches.isEmpty) {
-      return const DiarySearchResult(answer: '', matches: []);
+      return DiarySearchResult(
+        answer: '',
+        matches: const [],
+        note: result.fallback,
+      );
     }
     final first = matches.first;
     final sentence = first.excerpt.split(RegExp(r'(?<=[.!?])\s+')).first;
@@ -165,6 +73,7 @@ class LocalDiarySearchService implements DiarySearchService {
           ? 'You wrote: “$sentence”'
           : 'In “${first.title}”, you wrote: “$sentence”',
       matches: matches,
+      note: result.fallback,
     );
   }
 }

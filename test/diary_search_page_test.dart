@@ -93,7 +93,7 @@ Future<void> _mount(
                         lastDate: _today,
                         service:
                             service ??
-                            LocalDiarySearchService(
+                            HybridDiarySearchService(
                               lastDate: _today,
                               diaries: _diaries,
                             ),
@@ -200,7 +200,7 @@ void main() {
       'suggested query $i returns a grounded answer and opens its day',
       (tester) async {
         final results = <DateTime?>[];
-        final response = await LocalDiarySearchService(
+        final response = await HybridDiarySearchService(
           lastDate: _today,
           diaries: _diaries,
         ).search(diarySearchPrompts[i]);
@@ -247,7 +247,7 @@ void main() {
       await tester.tap(conversation);
       await tester.pumpAndSettle();
       expect(find.text('What I found'), findsOneWidget);
-      final response = await LocalDiarySearchService(
+      final response = await HybridDiarySearchService(
         lastDate: _today,
         diaries: _diaries,
       ).search('An ordinary conversation');

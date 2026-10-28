@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:journal/modules/more/views/widgets/more_material.dart';
+import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 
 enum MoreEntryArtwork {
   appearance('assets/images/more_appearance.png'),
@@ -129,12 +130,9 @@ class MoreIndexEntry extends StatelessWidget {
                           height: artworkSize,
                           child: CustomPaint(
                             painter: _EntryWashPainter(palette),
-                            child: Image.asset(
-                              artwork.asset,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.medium,
-                              excludeFromSemantics: true,
-                            ),
+                            child: artwork == MoreEntryArtwork.qvac
+                                ? QvacAssistantDock(child: _image())
+                                : _image(),
                           ),
                         ),
                       ),
@@ -156,6 +154,13 @@ class MoreIndexEntry extends StatelessWidget {
       },
     );
   }
+
+  Widget _image() => Image.asset(
+    artwork.asset,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.medium,
+    excludeFromSemantics: true,
+  );
 }
 
 class _EntryWashPainter extends CustomPainter {

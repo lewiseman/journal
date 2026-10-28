@@ -22,6 +22,7 @@ import '../modules/notes/models/note_entity.dart';
 import '../modules/notes/summary/summary_task_entity.dart';
 import '../modules/notes/transform/note_recovery_entity.dart';
 import '../modules/presentation/presentation_entity.dart';
+import '../modules/recall/recall_vector_entity.dart';
 import '../modules/root/controllers/journal_sync_store.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
@@ -612,6 +613,76 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(10, 8376812898320850391),
+    name: 'RecallVectorEntity',
+    lastPropertyId: const obx_int.IdUid(9, 6698555990144020189),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 734576971131126819),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 4102957216261296845),
+        name: 'key',
+        type: 9,
+        flags: 34848,
+        indexId: const obx_int.IdUid(10, 4915891615479748511),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 8494359427007973062),
+        name: 'kind',
+        type: 9,
+        flags: 2048,
+        indexId: const obx_int.IdUid(11, 2304302578520560240),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 1654122303703388573),
+        name: 'sourceId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 3325094448619309918),
+        name: 'date',
+        type: 9,
+        flags: 2048,
+        indexId: const obx_int.IdUid(12, 1311020393233947875),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 8426255069431373139),
+        name: 'hash',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 5154280546839780644),
+        name: 'model',
+        type: 9,
+        flags: 2048,
+        indexId: const obx_int.IdUid(13, 1052972767431013300),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 7976162838233403482),
+        name: 'dimensions',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(9, 6698555990144020189),
+        name: 'vector',
+        type: 28,
+        flags: 8,
+        indexId: const obx_int.IdUid(14, 9072880904700263024),
+        hnswParams: obx_int.ModelHnswParams(dimensions: 1024, distanceType: 2),
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -653,8 +724,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(9, 4338801291709126047),
-    lastIndexId: const obx_int.IdUid(9, 1231400627939627977),
+    lastEntityId: const obx_int.IdUid(10, 8376812898320850391),
+    lastIndexId: const obx_int.IdUid(14, 9072880904700263024),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -1399,6 +1470,83 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    RecallVectorEntity: obx_int.EntityDefinition<RecallVectorEntity>(
+      model: _entities[9],
+      toOneRelations: (RecallVectorEntity object) => [],
+      toManyRelations: (RecallVectorEntity object) => {},
+      getId: (RecallVectorEntity object) => object.id,
+      setId: (RecallVectorEntity object, int id) {
+        object.id = id;
+      },
+      objectToFB: (RecallVectorEntity object, fb.Builder fbb) {
+        final keyOffset = fbb.writeString(object.key);
+        final kindOffset = fbb.writeString(object.kind);
+        final sourceIdOffset = fbb.writeString(object.sourceId);
+        final dateOffset = fbb.writeString(object.date);
+        final hashOffset = fbb.writeString(object.hash);
+        final modelOffset = fbb.writeString(object.model);
+        final vectorOffset = object.vector == null
+            ? null
+            : fbb.writeListFloat32(object.vector!);
+        fbb.startTable(10);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, keyOffset);
+        fbb.addOffset(2, kindOffset);
+        fbb.addOffset(3, sourceIdOffset);
+        fbb.addOffset(4, dateOffset);
+        fbb.addOffset(5, hashOffset);
+        fbb.addOffset(6, modelOffset);
+        fbb.addInt64(7, object.dimensions);
+        fbb.addOffset(8, vectorOffset);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final keyParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 6, '');
+        final kindParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 8, '');
+        final sourceIdParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 10, '');
+        final dateParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 12, '');
+        final hashParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 14, '');
+        final modelParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 16, '');
+        final dimensionsParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          18,
+          0,
+        );
+        final vectorParam = const fb.ListReader<double>(
+          fb.Float32Reader(),
+          lazy: false,
+        ).vTableGetNullable(buffer, rootOffset, 20);
+        final object = RecallVectorEntity(
+          id: idParam,
+          key: keyParam,
+          kind: kindParam,
+          sourceId: sourceIdParam,
+          date: dateParam,
+          hash: hashParam,
+          model: modelParam,
+          dimensions: dimensionsParam,
+          vector: vectorParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -1823,5 +1971,53 @@ class ThoughtReflectionEntity_ {
   /// See [ThoughtReflectionEntity.created].
   static final created = obx.QueryIntegerProperty<ThoughtReflectionEntity>(
     _entities[8].properties[6],
+  );
+}
+
+/// [RecallVectorEntity] entity fields to define ObjectBox queries.
+class RecallVectorEntity_ {
+  /// See [RecallVectorEntity.id].
+  static final id = obx.QueryIntegerProperty<RecallVectorEntity>(
+    _entities[9].properties[0],
+  );
+
+  /// See [RecallVectorEntity.key].
+  static final key = obx.QueryStringProperty<RecallVectorEntity>(
+    _entities[9].properties[1],
+  );
+
+  /// See [RecallVectorEntity.kind].
+  static final kind = obx.QueryStringProperty<RecallVectorEntity>(
+    _entities[9].properties[2],
+  );
+
+  /// See [RecallVectorEntity.sourceId].
+  static final sourceId = obx.QueryStringProperty<RecallVectorEntity>(
+    _entities[9].properties[3],
+  );
+
+  /// See [RecallVectorEntity.date].
+  static final date = obx.QueryStringProperty<RecallVectorEntity>(
+    _entities[9].properties[4],
+  );
+
+  /// See [RecallVectorEntity.hash].
+  static final hash = obx.QueryStringProperty<RecallVectorEntity>(
+    _entities[9].properties[5],
+  );
+
+  /// See [RecallVectorEntity.model].
+  static final model = obx.QueryStringProperty<RecallVectorEntity>(
+    _entities[9].properties[6],
+  );
+
+  /// See [RecallVectorEntity.dimensions].
+  static final dimensions = obx.QueryIntegerProperty<RecallVectorEntity>(
+    _entities[9].properties[7],
+  );
+
+  /// See [RecallVectorEntity.vector].
+  static final vector = obx.QueryHnswProperty<RecallVectorEntity>(
+    _entities[9].properties[8],
   );
 }

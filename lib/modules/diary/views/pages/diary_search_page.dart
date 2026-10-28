@@ -26,7 +26,7 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
   final _focus = FocusNode();
   final _scroll = ScrollController();
   late final _service =
-      widget.service ?? LocalDiarySearchService(lastDate: widget.lastDate);
+      widget.service ?? HybridDiarySearchService(lastDate: widget.lastDate);
   _SearchStage _stage = _SearchStage.opening;
   DiarySearchResult? _result;
   String _submitted = '';
@@ -382,7 +382,9 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
           const SizedBox(height: 18),
           Text(
             '${_result!.matches.length} '
-            '${_result!.matches.length == 1 ? 'moment' : 'moments'} to return to',
+            '${_result!.matches.length == 1 ? 'moment' : 'moments'} to return to'
+            '${_result!.note == null ? '' : ' · ${_result!.note}'}',
+            key: const ValueKey('diary-search-count'),
             style: TextStyle(
               fontSize: 12,
               color: context.colors.onSurfaceVariant,

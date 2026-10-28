@@ -1,5 +1,6 @@
 import 'package:journal/common.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
+import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 
 class RootLayout extends ConsumerStatefulWidget {
   const new({super.key});
@@ -40,23 +41,28 @@ class _RootLayoutState extends ConsumerState<RootLayout>
   @override
   Widget build(BuildContext context) {
     ref.watch(syncCoordinatorProvider);
-    return Scaffold(
-      body: FadeTransition(
-        opacity: Tween<double>(
-          begin: 0.78,
-          end: 1,
-        ).animate(CurvedAnimation(parent: _reveal, curve: Curves.easeOut)),
-        child: IndexedStack(
-          index: _page,
-          children: [
-            for (var index = 0; index < _pages.length; index++)
-              TickerMode(enabled: index == _page, child: _pages[index]),
-          ],
+    return QvacAssistantPage(
+      label: const ['Diary', 'Notes', 'Flow', 'More'][_page],
+      dock: _page == 3,
+      root: true,
+      child: Scaffold(
+        body: FadeTransition(
+          opacity: Tween<double>(
+            begin: 0.78,
+            end: 1,
+          ).animate(CurvedAnimation(parent: _reveal, curve: Curves.easeOut)),
+          child: IndexedStack(
+            index: _page,
+            children: [
+              for (var index = 0; index < _pages.length; index++)
+                TickerMode(enabled: index == _page, child: _pages[index]),
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: JournalBottomNavbar(
-        selectedIndex: _page,
-        onSelected: _select,
+        bottomNavigationBar: JournalBottomNavbar(
+          selectedIndex: _page,
+          onSelected: _select,
+        ),
       ),
     );
   }

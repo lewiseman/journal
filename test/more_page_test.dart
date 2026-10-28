@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
+import 'package:journal/modules/assistant/qvac_assistant.dart';
+import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/account/views/widgets/sync_card.dart';
 import 'package:journal/modules/account/views/pages/reset_account_page.dart';
 import 'package:journal/modules/more/views/pages/more_page.dart';
@@ -74,6 +76,7 @@ Future<ProviderContainer> _mount(
   double scale = 1,
   bool signedIn = false,
   double devicePixelRatio = 1,
+  bool floatingAssistant = false,
 }) async {
   tester.view.physicalSize = size * devicePixelRatio;
   tester.view.devicePixelRatio = devicePixelRatio;
@@ -104,12 +107,20 @@ Future<ProviderContainer> _mount(
     ],
   );
   final theme = dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme;
+  final assistant = floatingAssistant
+      ? scope.read(qvacAssistantProvider)
+      : null;
+  final navigatorKey = GlobalKey<NavigatorState>();
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: scope,
       child: RepaintBoundary(
         key: _captureKey,
         child: MaterialApp(
+          navigatorKey: navigatorKey,
+          navigatorObservers: [
+            if (assistant != null) QvacAssistantObserver(assistant),
+          ],
           debugShowCheckedModeBanner: false,
           theme: theme.copyWith(
             textTheme: theme.textTheme.apply(fontFamily: 'MoreTest'),
@@ -117,13 +128,24 @@ Future<ProviderContainer> _mount(
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
+            child: assistant == null
+                ? child!
+                : QvacAssistantHost(
+                    controller: assistant,
+                    navigatorKey: navigatorKey,
+                    child: child!,
+                  ),
           ),
-          home: Scaffold(
-            body: const MorePage(),
-            bottomNavigationBar: JournalBottomNavbar(
-              selectedIndex: 3,
-              onSelected: (_) {},
+          home: QvacAssistantPage(
+            label: 'More',
+            dock: true,
+            root: true,
+            child: Scaffold(
+              body: const MorePage(),
+              bottomNavigationBar: JournalBottomNavbar(
+                selectedIndex: 3,
+                onSelected: (_) {},
+              ),
             ),
           ),
         ),
@@ -180,6 +202,34 @@ void main() {
           ))
           .load();
     }
+  });
+
+  testWidgets('floating QVAC docks below the pinned account header', (
+    tester,
+  ) async {
+    await _mount(tester, floatingAssistant: true);
+    final button = find.byKey(const ValueKey('qvac-assistant-button'));
+    await _collapseAccount(tester);
+    expect(
+      tester.getRect(button),
+      tester.getRect(find.byType(QvacAssistantDock)),
+    );
+    await _capture(tester, 'assistant-docked');
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('A little help with More'), findsOneWidget);
+    expect(find.byType(CompanionPage), findsNothing);
+    Navigator.of(tester.element(find.byType(QvacAssistantSheet))).pop();
+    await tester.pumpAndSettle();
+    // On a short landscape screen the slot cannot fit below the pinned card.
+    tester.view.physicalSize = const Size(844, 320);
+    await tester.pumpAndSettle();
+    final scroll = _moreScroll(tester);
+    scroll.jumpTo(scroll.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(button).width, 68);
+    await _capture(tester, 'assistant-undocked');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

@@ -20,7 +20,7 @@ DiaryDayEntity _day(DateTime date, String content, {String? title}) =>
 void main() {
   final today = DateTime(2026, 10, 26);
   final diaries = buildSampleDiaries(today);
-  final service = LocalDiarySearchService(lastDate: today, diaries: diaries);
+  final service = HybridDiarySearchService(lastDate: today, diaries: diaries);
 
   test('suggested concepts find the corresponding sample passages', () async {
     for (final example in [
@@ -68,10 +68,10 @@ void main() {
     expect(again.answer, result.answer);
   });
 
-  test('excerpts come from their newest source in the 30 day window', () async {
+  test('excerpts come from their newest source across all history', () async {
     for (final last in [DateTime(2026, 1, 2, 23), DateTime(2024, 3, 1, 17)]) {
       final source = buildSampleDiaries(last);
-      final search = LocalDiarySearchService(lastDate: last, diaries: source);
+      final search = HybridDiarySearchService(lastDate: last, diaries: source);
       final result = await search.search(
         'calm walk conversation rain coffee space room',
       );
@@ -80,7 +80,7 @@ void main() {
         expect(match.date, TimeHelper.dateOnly(match.date));
         expect(
           TimeHelper.daysBetween(match.date, last),
-          inInclusiveRange(0, 29),
+          greaterThanOrEqualTo(0),
         );
         final day = source.singleWhere(
           (day) => day.dateString == TimeHelper.dateKey(match.date),
@@ -125,7 +125,7 @@ void main() {
         hiddenItems.items.single.copyWith(isDeleted: true),
         hiddenItems.items.single.copyWith(itemUuid: 'blank', content: ' \n '),
       ];
-      final result = await LocalDiarySearchService(
+      final result = await HybridDiarySearchService(
         lastDate: DateTime(2026, 10, 26, 23),
         diaries: [
           _day(TimeHelper.addDays(today, -30), 'copper too old'),
@@ -136,9 +136,11 @@ void main() {
           hiddenItems,
         ],
       ).search('copper');
+      // S03b removed the 30-day window: older entries are searched too.
       expect(result.matches.map((match) => match.excerpt), [
         'copper on the keyed day',
         'copper at the boundary',
+        'copper too old',
       ]);
       expect(result.matches.first.date, today);
       expect(result.matches.first.title, isEmpty);
@@ -149,7 +151,7 @@ void main() {
   test(
     'titles are searchable and matching content determines relevance',
     () async {
-      final result = await LocalDiarySearchService(
+      final result = await HybridDiarySearchService(
         lastDate: today,
         diaries: [
           _day(today, 'A brief pause.', title: 'Copper'),
@@ -166,7 +168,7 @@ void main() {
     'repeated content keeps its latest source even with different titles',
     () async {
       final latest = _day(today, 'A copper sunrise.', title: 'Today');
-      final result = await LocalDiarySearchService(
+      final result = await HybridDiarySearchService(
         lastDate: today,
         diaries: [
           _day(
@@ -185,7 +187,7 @@ void main() {
   test(
     'an explicitly empty collection does not fall back to samples',
     () async {
-      final result = await LocalDiarySearchService(
+      final result = await HybridDiarySearchService(
         lastDate: today,
         diaries: [],
       ).search('calm');

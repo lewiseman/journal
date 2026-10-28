@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:journal/config/theme.dart';
+import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 
 import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
+import 'package:journal/modules/recall/recall_settings.dart';
 import 'package:journal/modules/voice/views/pages/reply_voice_page.dart';
 
 import 'companion_controller.dart';
@@ -97,7 +99,10 @@ class CompanionPage extends ConsumerWidget {
     builder: (_) => const _PasteCodeDialog(),
   );
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, WidgetRef ref) =>
+      QvacAssistantPage(enabled: false, child: _buildPage(context, ref));
+
+  Widget _buildPage(BuildContext context, WidgetRef ref) {
     final state = ref.watch(companionControllerProvider);
     final controller = ref.read(companionControllerProvider.notifier);
     final selected = state.selected;
@@ -339,6 +344,8 @@ class CompanionPage extends ConsumerWidget {
             onChanged: (value) =>
                 ref.read(dailyQuestionProvider.notifier).setEnabled(value),
           ),
+          const SizedBox(height: 24),
+          const RecallSettings(),
           const SizedBox(height: 24),
           const Text(
             'If discovery fails',

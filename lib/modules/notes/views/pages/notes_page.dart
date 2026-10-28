@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/notes/models/note_tag.dart';
@@ -6,6 +8,8 @@ import 'package:journal/modules/notes/views/widgets/note_card.dart';
 import 'package:journal/modules/notes/views/widgets/note_idea_card.dart';
 import 'package:journal/modules/notes/views/widgets/note_tag_strip.dart';
 import 'package:journal/modules/notes/views/widgets/notes_top_artwork.dart';
+import 'package:journal/modules/recall/hybrid_retriever.dart';
+import 'package:journal/modules/recall/recall_contract.dart';
 
 class NotesPage extends ConsumerStatefulWidget {
   const new({super.key});
@@ -20,25 +24,70 @@ class _NotesPageState extends ConsumerState<NotesPage> {
   String _query = '';
   String _selectedTag = 'All';
 
+  /// S03b: note UUIDs in hybrid (keyword + meaning) order for [_rankedFor].
+  List<String> _ranked = const [];
+  String? _rankedFor, _rankNote;
+  Timer? _rankTimer;
+
   @override
   void dispose() {
+    _rankTimer?.cancel();
     _scroll.dispose();
     _search.dispose();
     super.dispose();
   }
 
+  void _setQuery(String value) {
+    setState(() => _query = value);
+    _rankTimer?.cancel();
+    final query = value.trim();
+    if (query.isEmpty) return;
+    _rankTimer = Timer(const Duration(milliseconds: 350), () async {
+      final notes = ref.read(notesStreamProvider).value ?? const [];
+      final result = await ref
+          .read(hybridRetrieverProvider)
+          .search(
+            query,
+            sources: RecallSource.notes(notes),
+            kinds: const {RecallKind.note},
+            limit: 60,
+          );
+      if (!mounted || _query.trim() != query) return;
+      setState(() {
+        _ranked = [for (final h in result.hits) h.source.id];
+        _rankedFor = query;
+        _rankNote = result.fallback;
+      });
+    });
+  }
+
   List<NoteEntity> _visibleNotes(List<NoteEntity> notes) {
     final result = notes.where((note) {
       if (note.deletedAt != null) return false;
-      if (_selectedTag != 'All' &&
-          !note.tags.any(
+      return _selectedTag == 'All' ||
+          note.tags.any(
             (tag) => NoteTag.tryParse(tag)?.key == _selectedTag.toLowerCase(),
-          )) {
-        return false;
-      }
-      return (_query.isEmpty ||
-          '${note.title}\n${note.content}'.toLowerCase().contains(_query));
+          );
     }).toList();
+    final query = _query.trim();
+    if (query.isNotEmpty) {
+      // Keyword ranking shows at once; the hybrid order replaces it shortly.
+      final order = _rankedFor == query
+          ? _ranked
+          : [
+              for (final h in HybridRetriever.keywordHits(
+                query,
+                sources: RecallSource.notes(result),
+                kinds: const {RecallKind.note},
+                limit: 60,
+              ))
+                h.source.id,
+            ];
+      final byUuid = {for (final note in result) note.uuid: note};
+      return [
+        for (final uuid in order) ?byUuid[uuid],
+      ];
+    }
     // Keep the repository's ordering within each group.
     return [
       ...result.where((note) => note.isPinned),
@@ -226,7 +275,7 @@ class _NotesPageState extends ConsumerState<NotesPage> {
     child: TextField(
       controller: _search,
       keyboardAppearance: Theme.of(context).brightness,
-      onChanged: (value) => setState(() => _query = value),
+      onChanged: _setQuery,
       style: TextStyle(color: context.colors.onSurface, fontSize: 14),
       cursorColor: context.colors.primary,
       textInputAction: TextInputAction.search,
@@ -250,7 +299,7 @@ class _NotesPageState extends ConsumerState<NotesPage> {
                 tooltip: 'Clear search',
                 onPressed: () {
                   _search.clear();
-                  setState(() => _query = '');
+                  _setQuery('');
                 },
                 icon: Icon(
                   Icons.close_rounded,
@@ -317,14 +366,26 @@ class _NotesPageState extends ConsumerState<NotesPage> {
             action: 'Show all notes',
             onAction: () {
               _search.clear();
-              setState(() {
-                _query = '';
-                _selectedTag = 'All';
-              });
+              _setQuery('');
+              setState(() => _selectedTag = 'All');
             },
           ),
         )
-      else
+      else ...[
+        if (_query.trim().isNotEmpty && _rankNote != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Text(
+                _rankNote!,
+                key: const ValueKey('notes-search-note'),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 12).copyWith(top: 10),
           sliver: SliverMasonryGrid.count(
@@ -367,6 +428,7 @@ class _NotesPageState extends ConsumerState<NotesPage> {
             },
           ),
         ),
+      ],
     ];
   }
 }

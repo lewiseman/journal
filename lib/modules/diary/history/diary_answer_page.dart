@@ -2,6 +2,9 @@ import 'package:journal/common.dart';
 import 'package:journal/modules/diary/history/diary_history_contract.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
+import 'package:journal/modules/recall/hybrid_retriever.dart';
+import 'package:journal/modules/recall/recall_contract.dart';
+import 'package:journal/modules/recall/recall_indexer.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 
 /// S01: answers one question about the past from selected diary excerpts.
@@ -23,20 +26,68 @@ class _DiaryAnswerPageState extends ConsumerState<DiaryAnswerPage> {
   DiaryHistorySelection? _preview;
   String? _previewError;
 
+  /// Why the preview is keyword-ranked, when search by meaning is unavailable.
+  String? _rankNote;
+  bool _refining = false;
+
   @override
   void initState() {
     super.initState();
     final question = widget.question;
     if (question == null) return;
+    final today = widget.today ?? DateTime.now();
+    final days = ref.read(diaryRepositoryProvider).getAllDays();
     try {
       _preview = DiaryHistorySelection.select(
         question: question,
-        today: widget.today ?? DateTime.now(),
-        days: ref.read(diaryRepositoryProvider).getAllDays(),
+        today: today,
+        days: days,
       );
     } on FormatException catch (error) {
       _previewError = error.message;
+      return;
     }
+    _refining = true;
+    _refine(question, today, days);
+  }
+
+  /// S03b: re-ranks the keyword preview by keywords and meaning together.
+  Future<void> _refine(
+    String question,
+    DateTime today,
+    List<DiaryDayEntity> days,
+  ) async {
+    final (:terms, :scope, today: t) = DiaryHistorySelection.parse(
+      question,
+      today,
+    );
+    RecallResult? result;
+    if (terms.isNotEmpty) {
+      result = await ref
+          .read(hybridRetrieverProvider)
+          .search(
+            question,
+            sources: RecallSource.diary(days),
+            kinds: const {RecallKind.diary},
+            terms: terms,
+            from: scope == null ? null : civilKey(scope.from),
+            to: civilKey(scope?.to ?? t),
+            limit: 24,
+          );
+    }
+    if (!mounted) return;
+    setState(() {
+      _refining = false;
+      _rankNote = result?.fallback;
+      if (result != null && result.semantic) {
+        _preview = DiaryHistorySelection.select(
+          question: question,
+          today: today,
+          days: days,
+          ranked: [for (final h in result.hits) h.source.id],
+        );
+      }
+    });
   }
 
   void _open(DiaryHistorySource source) =>
@@ -118,9 +169,24 @@ class _DiaryAnswerPageState extends ConsumerState<DiaryAnswerPage> {
         ref.watch(companionControllerProvider).selected?.name ??
         'your paired computer';
     final message = ref.watch(noteSummaryProvider).message;
+    final indexed = ref.watch(
+      recallIndexerProvider.select((s) => s.enabled.contains(RecallKind.diary)),
+    );
     return [
+      if (_refining)
+        Text('Ranking by keywords and meaning…', style: caption)
+      else if (_rankNote != null)
+        Text(
+          _rankNote!,
+          key: const ValueKey('diary-answer-rank-note'),
+          style: caption,
+        ),
+      const SizedBox(height: 4),
       Text(
-        'These excerpts would be sent to $name, and nothing else from your diary:',
+        indexed
+            ? 'These excerpts would be sent to $name with your question. Because search by meaning is on, your diary entries are also sent to $name in small batches to index them; it keeps none of them once each batch is collected.'
+            : 'These excerpts would be sent to $name, and nothing else from your diary:',
+        key: const ValueKey('diary-answer-disclosure'),
         style: caption,
       ),
       const SizedBox(height: 8),
@@ -129,7 +195,9 @@ class _DiaryAnswerPageState extends ConsumerState<DiaryAnswerPage> {
       const SizedBox(height: 12),
       FilledButton(
         key: const ValueKey('diary-answer-send'),
-        onPressed: () => controller.startDiaryAnswer(selection),
+        onPressed: _refining
+            ? null
+            : () => controller.startDiaryAnswer(selection),
         child: Text(
           'Ask using ${selection.sources.length == 1 ? '1 excerpt' : '${selection.sources.length} excerpts'}',
         ),

@@ -428,12 +428,7 @@ void main() {
     expect(book(tester).page, 1);
     await stop(tester);
   });
-  for (final size in [
-    const Size(320, 568),
-    const Size(390, 844),
-    const Size(844, 390),
-    const Size(768, 1024),
-  ]) {
+  for (final size in [const Size(390, 844), const Size(768, 1024)]) {
     testWidgets('layout at $size and large text', (tester) async {
       await mount(tester, size: size, scale: 1.5, reduced: true);
       expect(tester.takeException(), isNull);

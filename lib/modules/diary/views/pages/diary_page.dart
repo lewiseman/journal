@@ -8,6 +8,7 @@ import 'package:journal/modules/diary/models/diary_calendar_day.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/views/pages/diary_calendar_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_search_page.dart';
+import 'package:journal/modules/recall/hybrid_retriever.dart';
 import 'package:journal/modules/diary/views/widgets/diary_header.dart';
 import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart'
@@ -200,12 +201,28 @@ class _DiaryPageState extends State<_DiaryReader>
     if (date != null && mounted) _selectDate(date);
   }
 
+  /// The shared retriever, or keyword-only where no ProviderScope exists.
+  HybridRetriever? _retriever() {
+    try {
+      return ProviderScope.containerOf(
+        context,
+        listen: false,
+      ).read(hybridRetrieverProvider);
+    } on StateError {
+      return null;
+    }
+  }
+
   Future<void> _openSearch() async {
     if (_busy) return;
     final date = await context.nav.push<DateTime>(
       DiarySearchPage(
         lastDate: _today,
-        service: LocalDiarySearchService(lastDate: _today, diaries: _diaries),
+        service: HybridDiarySearchService(
+          lastDate: _today,
+          diaries: _diaries,
+          retriever: _retriever(),
+        ),
       ),
       transition: _reduced ? NavTransition.none : NavTransition.platform,
     );

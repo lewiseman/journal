@@ -8,6 +8,7 @@ import 'package:journal/modules/flow/reflection/thought_reflection_controller.da
 import 'package:journal/modules/flow/views/widgets/flow_opening.dart';
 import 'package:journal/modules/flow/views/widgets/flow_reflection.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
+import 'package:journal/modules/flow/views/pages/thought_recall_page.dart';
 
 class FlowPage extends ConsumerStatefulWidget {
   const new({super.key});
@@ -84,6 +85,15 @@ class _FlowPageState extends ConsumerState<FlowPage> {
         );
       }
     }
+  }
+
+  /// S03b: search earlier thoughts, then open the one chosen.
+  Future<void> _recall() async {
+    _focus.unfocus();
+    final thought = await Navigator.of(context).push<ThoughtEntity>(
+      MaterialPageRoute(builder: (_) => const ThoughtRecallPage()),
+    );
+    if (thought != null && mounted) _openThought(thought);
   }
 
   void _openThought(ThoughtEntity thought) {
@@ -230,6 +240,20 @@ class _FlowPageState extends ConsumerState<FlowPage> {
                         tabActive: tabActive,
                       ),
                     ),
+                    if (saved.isNotEmpty)
+                      Positioned(
+                        top: 4,
+                        right: 8,
+                        child: IconButton(
+                          key: const ValueKey('flow-recall'),
+                          tooltip: 'Recall a thought',
+                          onPressed: _recall,
+                          icon: Icon(
+                            Icons.search_rounded,
+                            color: context.colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
                   ],
                 );
               },

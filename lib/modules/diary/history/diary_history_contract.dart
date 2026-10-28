@@ -148,6 +148,7 @@ class DiaryHistorySelection {
     required this.daysSearched,
     required this.matching,
     required this.overview,
+    this.semantic = false,
   });
   final String question, today;
   final DiaryDateScope? scope;
@@ -159,12 +160,35 @@ class DiaryHistorySelection {
   /// The question named only a time, so entries in scope were sampled.
   final bool overview;
 
+  /// S03b: candidates were ranked by keywords and meaning together.
+  final bool semantic;
+
+  /// The words matched and the date scope of [question] relative to [today].
+  static ({Set<String> terms, DiaryDateScope? scope, DateTime today}) parse(
+    String question,
+    DateTime today,
+  ) {
+    final q = question.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final t = DateTime.utc(today.year, today.month, today.day);
+    final scope = DiaryDateScope.parse(q, t);
+    return (
+      terms: diaryTerms(
+        scope == null ? q : q.toLowerCase().replaceFirst(scope.phrase, ' '),
+      ),
+      scope: scope,
+      today: t,
+    );
+  }
+
   bool get sendable => sources.isNotEmpty;
 
+  /// [ranked], when given, is the hybrid retriever's order of item UUIDs
+  /// (already limited to the scope); it replaces keyword-only ranking.
   static DiaryHistorySelection select({
     required String question,
     required DateTime today,
     required Iterable<DiaryDayEntity> days,
+    List<String>? ranked,
   }) {
     final q = question.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (q.isEmpty ||
@@ -172,11 +196,7 @@ class DiaryHistorySelection {
         _control.hasMatch(q)) {
       throw const FormatException('Ask a question of up to 300 characters.');
     }
-    final t = DateTime.utc(today.year, today.month, today.day);
-    final scope = DiaryDateScope.parse(q, t);
-    final terms = diaryTerms(
-      scope == null ? q : q.toLowerCase().replaceFirst(scope.phrase, ' '),
-    );
+    final (:terms, :scope, today: t) = parse(q, today);
     final inScope = [
       for (final day in days)
         if (!day.isDeleted &&
@@ -197,10 +217,29 @@ class DiaryHistorySelection {
       }
     }
     final overview = terms.isEmpty;
+    final semantic = ranked != null && !overview;
+    if (semantic) {
+      // Hybrid mode: the retriever's fused order, including entries found
+      // by meaning that share no keyword.
+      final byUuid = {
+        for (final day in inScope)
+          for (final item in day.visibleItems)
+            if (sendableText(item.content)) item.itemUuid: (day, item),
+      };
+      candidates
+        ..clear()
+        ..addAll([
+          for (final (i, uuid) in ranked.indexed)
+            if (byUuid[uuid] case (final day, final item))
+              (day: day, item: item, score: ranked.length - i),
+        ]);
+    }
     // Keyword mode: best matches first, newer breaking ties. Overview mode:
     // spread evenly across the scope so one busy week does not dominate.
-    final ranked = overview
+    final order = overview
         ? _spread(candidates)
+        : semantic
+        ? candidates
         : (candidates.toList()..sort((a, b) {
             final s = b.score.compareTo(a.score);
             return s != 0 ? s : b.day.dateString.compareTo(a.day.dateString);
@@ -220,9 +259,10 @@ class DiaryHistorySelection {
           daysSearched: inScope.length,
           matching: candidates.length,
           overview: overview && scope != null,
+          semantic: semantic,
         );
     if (overview && scope == null) return build(const []);
-    for (final c in ranked) {
+    for (final c in order) {
       if (chosen.length == historyMaxSources) break;
       if (chosen.any((s) => s.uuid == c.item.itemUuid)) continue;
       final (text, truncated) = overview
@@ -273,6 +313,7 @@ class DiaryHistorySelection {
     'daysSearched': daysSearched,
     'matching': matching,
     'overview': overview,
+    'semantic': semantic,
   });
 
   factory DiaryHistorySelection.decode(String raw) {
@@ -317,6 +358,7 @@ class DiaryHistorySelection {
       daysSearched: v['daysSearched'] as int,
       matching: v['matching'] as int,
       overview: v['overview'] as bool,
+      semantic: v['semantic'] == true,
     );
   }
 
@@ -324,7 +366,11 @@ class DiaryHistorySelection {
     final where = scope == null ? 'all of your diary' : scope!.label;
     final days = daysSearched == 1 ? '1 day' : '$daysSearched days';
     return 'Searched $where ($days with entries). '
-        '${sources.length} of $matching ${overview ? 'entries' : 'matching entries'} '
+        '${sources.length} of $matching ${overview
+            ? 'entries'
+            : semantic
+            ? 'entries matched by keywords or meaning'
+            : 'matching entries'} '
         '${sources.length == 1 ? 'is' : 'are'} sent'
         '${sources.any((s) => s.truncated) ? ', some as shortened excerpts' : ''}.';
   }
