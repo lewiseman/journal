@@ -22,8 +22,12 @@ on startup/manual primary sync or after reclaiming the primary role.
 
 ## More
 
-More shows the expandable account sync card at the top, followed by Appearance and
-Local AI computer. The computer card shows its connection status and opens pairing
+More uses an inside-cover design: warm woven surfaces, a framed ownership
+bookplate and numbered, illustrated entries for Appearance and Local AI computer.
+The bookplate folds into a pinned account strip when scrolling. The shared
+surface, palette and entry widgets can carry this style into More's subpages;
+those subpages keep their current designs for now. See [the style notes](docs/more-design.md).
+The computer entry shows its connection status and opens pairing
 and connection management, with AI task history available on that page.
 When connected, tap the sync status panel to open Sync & devices for manual
 sync, primary device recovery, Log out and Reset account data. Logging out keeps

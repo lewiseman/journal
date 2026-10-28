@@ -231,7 +231,7 @@ void main() {
     },
   );
 
-  testWidgets('the original sync card still collapses and expands at the top', (
+  testWidgets('the account bookplate collapses and expands at the top', (
     tester,
   ) async {
     await _mount(tester);
@@ -246,7 +246,7 @@ void main() {
       tester
           .widget<SyncAccountCard>(find.byType(SyncAccountCard))
           .collapseProgress,
-      1,
+      closeTo(1, 1e-9),
     );
     await tester.tap(find.byType(SyncAccountCard));
     await tester.pumpAndSettle();
