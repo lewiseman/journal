@@ -25,14 +25,6 @@ class MorePalette {
   }
 
   late final Color ground, paper, ink, muted, accent, rule, cloth;
-
-  TextStyle get label => TextStyle(
-    color: muted,
-    fontSize: 10,
-    height: 1.4,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 1.7,
-  );
 }
 
 class MoreSurface extends StatelessWidget {
@@ -93,49 +85,4 @@ class _CoverTexture extends CustomPainter {
       palette.ground != oldDelegate.palette.ground ||
       palette.ink != oldDelegate.palette.ink ||
       palette.accent != oldDelegate.palette.accent;
-}
-
-/// A small printer's ornament, also suitable for detail-page mastheads.
-class MoreOrnament extends StatelessWidget {
-  const MoreOrnament({super.key, this.size = 28});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) => ExcludeSemantics(
-    child: SizedBox.square(
-      dimension: size,
-      child: CustomPaint(
-        painter: _OrnamentPainter(MorePalette.of(context).accent),
-      ),
-    ),
-  );
-}
-
-class _OrnamentPainter extends CustomPainter {
-  const _OrnamentPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.translate(size.width / 2, size.height / 2);
-    final radius = size.shortestSide * .38;
-    final stroke = Paint()
-      ..color = color.withValues(alpha: .75)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = .9;
-    for (var i = 0; i < 4; i++) {
-      canvas.drawOval(
-        Rect.fromLTWH(-radius, -radius * .35, radius, radius * .7),
-        stroke,
-      );
-      canvas.rotate(1.57079632679);
-    }
-    canvas.drawCircle(Offset.zero, 1.8, Paint()..color = color);
-  }
-
-  @override
-  bool shouldRepaint(_OrnamentPainter oldDelegate) =>
-      color != oldDelegate.color;
 }

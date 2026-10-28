@@ -39,7 +39,7 @@ class SyncAccountCard extends ConsumerWidget {
     final scaler = MediaQuery.textScalerOf(context);
     return math.max(
       compact ? 34 : 48,
-      (scaler.scale(compact ? 16 : 22) * 1.2).ceilToDouble() +
+      (scaler.scale(compact ? 16 : 24) * 1.2).ceilToDouble() +
           4 +
           (scaler.scale(compact ? 11 : 12) * 1.4).ceilToDouble() +
           2,
@@ -49,15 +49,14 @@ class SyncAccountCard extends ConsumerWidget {
   static double compactHeight(BuildContext context) =>
       28 + _identityHeight(context, compact: true);
 
-  static double _identityTop(BuildContext context) =>
-      18 + MediaQuery.textScalerOf(context).scale(9) * 1.4 + 12;
+  static const _identityTop = 20.0;
 
   static double expandedHeight(
     BuildContext context, {
     required bool isSignedIn,
   }) {
     final scaler = MediaQuery.textScalerOf(context);
-    return _identityTop(context) +
+    return _identityTop +
         _identityHeight(context) +
         16 +
         25 +
@@ -85,7 +84,7 @@ class SyncAccountCard extends ConsumerWidget {
     final statusColor = syncState.status == EngineSyncState.error
         ? context.colors.error
         : palette.accent;
-    final identityTop = _identityTop(context);
+    final identityHeight = _identityHeight(context);
     final initials = title
         .split(RegExp(r'\s+'))
         .take(2)
@@ -116,45 +115,8 @@ class SyncAccountCard extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: palette.rule.withValues(alpha: .08),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
             Positioned(
-              top: 18,
-              left: 20,
-              right: 20,
-              child: ExcludeSemantics(
-                excluding: t > .15,
-                child: Opacity(
-                  opacity: fade,
-                  child: Text(
-                    MediaQuery.textScalerOf(context).scale(9) > 13
-                        ? 'YOUR JOURNAL'
-                        : 'THIS JOURNAL BELONGS TO',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: palette.label.copyWith(
-                      fontSize: 9,
-                      height: 1.4,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: lerpDouble(identityTop, 14, t),
+              top: lerpDouble(_identityTop, 14, t),
               left: 20,
               right: 20,
               child: Semantics(
@@ -165,7 +127,7 @@ class SyncAccountCard extends ConsumerWidget {
                   onTap: compact ? onExpand : null,
                   child: SizedBox(
                     height: lerpDouble(
-                      _identityHeight(context),
+                      identityHeight,
                       _identityHeight(context, compact: true),
                       t,
                     ),
@@ -204,26 +166,29 @@ class SyncAccountCard extends ConsumerWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: palette.ink,
-                                  fontSize: lerpDouble(22, 16, t),
+                                  fontSize: lerpDouble(24, 16, t),
                                   height: 1.2,
                                   fontWeight: FontWeight.w500,
                                   letterSpacing: -.5,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                compact
-                                    ? syncState.status.statusLabel
-                                    : (syncAccount?.email ??
-                                          'A little peace of mind.'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: compact ? statusColor : palette.muted,
-                                  fontSize: lerpDouble(12, 11, t),
-                                  height: 1.4,
+                              if (isSignedIn || compact) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  compact
+                                      ? syncState.status.statusLabel
+                                      : syncAccount!.email,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: compact
+                                        ? statusColor
+                                        : palette.muted,
+                                    fontSize: lerpDouble(12, 11, t),
+                                    height: 1.4,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ),
@@ -240,7 +205,7 @@ class SyncAccountCard extends ConsumerWidget {
               ),
             ),
             Positioned(
-              top: identityTop + _identityHeight(context) + 16,
+              top: _identityTop + identityHeight + 16,
               left: 20,
               right: 20,
               child: IgnorePointer(

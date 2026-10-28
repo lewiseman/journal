@@ -22,8 +22,9 @@ on startup/manual primary sync or after reclaiming the primary role.
 
 ## More
 
-More uses an inside-cover design: warm woven surfaces, a framed ownership
-bookplate and numbered, illustrated entries for Appearance and Local AI computer.
+More uses warm woven surfaces, a compact account bookplate and illustrated
+entries for Appearance and Local AI computer. It opens directly on the account
+and controls, without a masthead or decorative copy.
 The bookplate folds into a pinned account strip when scrolling. The shared
 surface, palette and entry widgets can carry this style into More's subpages;
 those subpages keep their current designs for now. See [the style notes](docs/more-design.md).

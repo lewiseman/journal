@@ -180,7 +180,7 @@ void main() {
     (tester) async {
       await _mount(tester);
       expect(find.byType(SyncAccountCard), findsOneWidget);
-      expect(find.text('Make it yours'), findsOneWidget);
+      expect(find.text('Make it yours'), findsNothing);
       expect(find.text('Settings'), findsNothing);
       expect(find.text('Appearance'), findsOneWidget);
       expect(find.text('AI task history'), findsNothing);
@@ -340,8 +340,6 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.pageBack();
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('A quiet space for a busy mind.'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });

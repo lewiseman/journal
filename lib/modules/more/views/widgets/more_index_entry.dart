@@ -5,20 +5,20 @@ import 'package:journal/modules/more/views/widgets/more_material.dart';
 
 enum MoreEntryArtwork { swatches, computer }
 
-/// Open, ruled entries rather than separate settings cards.
+/// An illustrated entry, with its purpose and live status kept in one place.
 class MoreIndexEntry extends StatelessWidget {
   const MoreIndexEntry({
     super.key,
-    required this.number,
     required this.title,
-    required this.description,
+    this.description,
     required this.artwork,
     required this.onTap,
     this.status,
     this.connected = false,
   });
 
-  final String number, title, description;
+  final String title;
+  final String? description;
   final MoreEntryArtwork artwork;
   final VoidCallback onTap;
   final String? status;
@@ -43,20 +43,10 @@ class MoreIndexEntry extends StatelessWidget {
                 border: Border(bottom: BorderSide(color: palette.rule)),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
+                padding: const EdgeInsets.symmetric(vertical: 26),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 5, right: 14),
-                      child: Text(
-                        number,
-                        style: palette.label.copyWith(
-                          color: palette.accent,
-                          letterSpacing: .4,
-                        ),
-                      ),
-                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,15 +61,17 @@ class MoreIndexEntry extends StatelessWidget {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const SizedBox(height: 7),
-                          Text(
-                            description,
-                            style: TextStyle(
-                              color: palette.muted,
-                              fontSize: 12,
-                              height: 1.5,
+                          if (description != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              description!,
+                              style: TextStyle(
+                                color: palette.muted,
+                                fontSize: 12,
+                                height: 1.5,
+                              ),
                             ),
-                          ),
+                          ],
                           if (status != null) ...[
                             const SizedBox(height: 10),
                             Row(
@@ -87,7 +79,7 @@ class MoreIndexEntry extends StatelessWidget {
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.only(
-                                    top: 5,
+                                    top: 6,
                                     right: 6,
                                   ),
                                   child: Container(
@@ -108,7 +100,7 @@ class MoreIndexEntry extends StatelessWidget {
                                       color: connected
                                           ? palette.accent
                                           : palette.muted,
-                                      fontSize: 10,
+                                      fontSize: 12,
                                       height: 1.5,
                                     ),
                                   ),
@@ -120,11 +112,11 @@ class MoreIndexEntry extends StatelessWidget {
                       ),
                     ),
                     if (showArtwork) ...[
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       ExcludeSemantics(
                         child: SizedBox(
-                          width: 64,
-                          height: 64,
+                          width: 96,
+                          height: 96,
                           child: CustomPaint(
                             painter: _EntryPainter(palette, artwork),
                           ),
@@ -132,7 +124,7 @@ class MoreIndexEntry extends StatelessWidget {
                       ),
                     ],
                     Padding(
-                      padding: const EdgeInsets.only(left: 10, top: 5),
+                      padding: const EdgeInsets.only(left: 8),
                       child: Icon(
                         Icons.arrow_forward_rounded,
                         size: 17,
@@ -179,11 +171,25 @@ class _EntryPainter extends CustomPainter {
         );
         canvas.drawRRect(
           card.shift(const Offset(1, 2)),
-          Paint()..color = palette.ink.withValues(alpha: .07),
+          Paint()
+            ..color = palette.ink.withValues(alpha: .12)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
         );
-        canvas.drawRRect(card, Paint()..color = shades[i]);
+        canvas.drawRRect(card, Paint()..color = palette.paper);
+        canvas.save();
+        canvas.clipRRect(card);
+        canvas.drawRect(
+          const Rect.fromLTWH(-11, -46, 25, 32),
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color.lerp(shades[i], palette.paper, .2)!, shades[i]],
+            ).createShader(card.outerRect),
+        );
+        canvas.restore();
         canvas.drawRRect(card, pen..color = palette.ink.withValues(alpha: .2));
-        canvas.drawLine(const Offset(-5, -9), const Offset(8, -9), pen);
+        canvas.drawLine(const Offset(-5, -8), const Offset(6, -8), pen);
         canvas.restore();
       }
       canvas.drawCircle(
@@ -195,6 +201,12 @@ class _EntryPainter extends CustomPainter {
       final screen = RRect.fromRectAndRadius(
         const Rect.fromLTWH(7, 9, 49, 34),
         const Radius.circular(3),
+      );
+      canvas.drawRRect(
+        screen.shift(const Offset(1, 2)),
+        Paint()
+          ..color = palette.ink.withValues(alpha: .09)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
       );
       canvas.drawRRect(screen, Paint()..color = palette.paper);
       canvas.drawRRect(screen, pen);
@@ -215,9 +227,20 @@ class _EntryPainter extends CustomPainter {
         star,
         Paint()..color = palette.accent.withValues(alpha: .7),
       );
-      canvas.drawLine(const Offset(28, 43), const Offset(27, 51), pen);
-      canvas.drawLine(const Offset(36, 43), const Offset(37, 51), pen);
-      canvas.drawLine(const Offset(22, 51), const Offset(42, 51), pen);
+      final stand = Path()
+        ..moveTo(28, 43)
+        ..lineTo(36, 43)
+        ..lineTo(37, 50)
+        ..lineTo(27, 50)
+        ..close();
+      canvas.drawPath(stand, Paint()..color = palette.cloth);
+      canvas.drawPath(stand, pen);
+      final base = RRect.fromRectAndRadius(
+        const Rect.fromLTWH(21, 50, 22, 3),
+        const Radius.circular(1),
+      );
+      canvas.drawRRect(base, Paint()..color = palette.paper);
+      canvas.drawRRect(base, pen);
       canvas.drawLine(
         const Offset(12, 56),
         const Offset(52, 56),
