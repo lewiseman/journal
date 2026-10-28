@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:journal/config/theme.dart';
 
 import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 
@@ -21,16 +22,36 @@ String companionPhaseLabel(CompanionPhase phase) => switch (phase) {
   CompanionPhase.revoked => 'Trust revoked or not recognized',
 };
 
-class CompanionSettingsTile extends ConsumerWidget {
-  const CompanionSettingsTile({super.key});
+class CompanionNavigationTile extends ConsumerWidget {
+  const CompanionNavigationTile({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final connection = ref.watch(companionControllerProvider);
+    final colors = context.colors;
     return ListTile(
-      leading: const Icon(Icons.computer),
-      title: const Text('Local AI computer'),
-      subtitle: Text(companionPhaseLabel(connection.phase)),
-      trailing: const Icon(Icons.chevron_right),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: colors.primaryContainer,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(Icons.computer_rounded, color: colors.primary, size: 22),
+      ),
+      title: Text(
+        'Local AI computer',
+        style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        companionPhaseLabel(connection.phase),
+        style: TextStyle(
+          color: colors.onSurfaceVariant,
+          fontSize: 12,
+          height: 1.5,
+        ),
+      ),
+      trailing: Icon(Icons.chevron_right_rounded, color: colors.primary),
       onTap: () => Navigator.of(context)
           .push(MaterialPageRoute<void>(builder: (_) => const CompanionPage())),
     );

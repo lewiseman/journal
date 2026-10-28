@@ -20,12 +20,13 @@ Saving and viewing are supported; editing and deletion are not yet available.
 Thoughts join the existing Google Drive backup queue and restore with the journal
 on startup/manual primary sync or after reclaiming the primary role.
 
-## More and tasks
+## More
 
-More shows a Tasks preview that opens the full Tasks page. Tasks is UI only
-for now, with no task storage or add, edit, complete or delete actions. People
-is a preview for a future page. The original expandable account sync card stays
-at the top of More, with Settings below the Tasks and People cards.
+More shows the expandable account sync card at the top, followed by Settings and
+Local AI computer. The computer card shows its connection status and opens pairing
+and connection management.
+When connected, tap the sync status panel to open Sync & devices for manual
+sync, primary device recovery and Log out. Logging out keeps the local journal.
 
 ## Sync behavior
 
@@ -45,7 +46,7 @@ at the top of More, with Settings below the Tasks and People cards.
   once, retaining legacy cloud files. Device roles have no automatic promotion.
 - Sync coordinates above tab navigation. More contains **Connect Account** and,
   once connected, **Sync now**, progress and errors.
-- After reinstalling, use **Settings → Sync & devices → Reclaim primary role**.
+- After reinstalling, use **More → sync status → Reclaim primary role**.
   Confirming transfers the existing primary registration to this installation
   and restores the journal in a full sync. Backups and document links are kept.
   The former primary becomes add-only on its next sync. If restore is interrupted
@@ -124,7 +125,7 @@ See `packages/sync_wise/README.md` for backend and collection adapter contracts.
 
 ## Local AI computer
 
-See [connection setup and verification](docs/companion-connection.md) for the optional LAN companion in Settings.
+See [connection setup and verification](docs/companion-connection.md) for the optional LAN companion in More.
 
 Saved-note AI summaries are implemented through the paired local companion. Read [usage, privacy, recovery and F01 verification](docs/note-summary.md).
 

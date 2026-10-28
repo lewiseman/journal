@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,20 +7,35 @@ import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
-import 'package:journal/modules/settings/views/pages/settings_page.dart';
+import 'package:journal/modules/account/views/widgets/sync_card.dart';
+import 'package:journal/modules/account/views/widgets/sync_account_sheet.dart';
+import 'package:journal/utils/cache.dart';
 import 'package:sync_wise/sync_wise.dart';
 
 import 'support/sync_fixture.dart';
 
 class _Network extends Fake implements NetworkService {
+  Future<void>? wait;
+
   @override
-  Future<bool> isOnline() async => true;
+  Future<bool> isOnline() async {
+    await wait;
+    return true;
+  }
+}
+
+class _Preferences extends Fake implements KeyValueStore {
+  @override
+  Object? get(String key) => null;
 }
 
 void main() {
   late MemoryDrive drive;
   late SyncFixture fixture;
   late ProviderContainer scope;
+  late _Network network;
+
+  setUpAll(() => CacheStorage.init(store: _Preferences()));
 
   setUp(() async {
     drive = MemoryDrive()
@@ -29,18 +46,23 @@ void main() {
       );
     fixture = await SyncFixture.create(drive, 'reinstalled');
     await fixture.sync();
+    network = _Network();
     scope = ProviderContainer.test(
       overrides: [
         accountResetStorageProvider.overrideWithValue(TestResetStorage()),
         objectBoxProvider.overrideWithValue(fixture.db),
         deviceIdentityProvider.overrideWithValue(fixture.device),
-        networkServiceProvider.overrideWithValue(_Network()),
+        networkServiceProvider.overrideWithValue(network),
         syncBackendProvider.overrideWithValue(fixture.backend),
       ],
     );
   });
 
-  Future<void> mount(WidgetTester tester, {double scale = 1}) async {
+  Future<void> mount(
+    WidgetTester tester, {
+    double scale = 1,
+    bool openSheet = true,
+  }) async {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: scope,
@@ -50,11 +72,30 @@ void main() {
                 .copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: const SettingsPage(),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: Consumer(
+                builder: (context, ref, _) => SizedBox(
+                  height: SyncAccountCard.expandedHeight(
+                    context,
+                    isSignedIn: ref.watch(syncAccountProvider) != null,
+                  ),
+                  child: SyncAccountCard(collapseProgress: 0, onExpand: () {}),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
+    if (openSheet) {
+      final status = find.byKey(const ValueKey('sync-card-status'));
+      await tester.ensureVisible(status);
+      await tester.pumpAndSettle();
+      await tester.tap(status);
+      await tester.pumpAndSettle();
+    }
   }
 
   Future<void> openConfirmation(WidgetTester tester) async {
@@ -66,11 +107,13 @@ void main() {
   }
 
   testWidgets(
-    'Settings offers recovery and cancellation does not change the primary',
+    'the status panel opens account actions and cancelling recovery keeps the primary',
     (tester) async {
       await mount(tester);
-      expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Appearance'), findsOneWidget);
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.text('Sync & devices'), findsOneWidget);
+      expect(find.text('Sync now'), findsOneWidget);
+      expect(find.text('Log out'), findsOneWidget);
       expect(find.text('Primary device: Old phone'), findsOneWidget);
       await openConfirmation(tester);
       expect(find.text('Reclaim primary role?'), findsOneWidget);
@@ -100,7 +143,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('This device is primary'), findsOneWidget);
     expect(find.byKey(const ValueKey('reclaim-primary-role')), findsNothing);
-    expect(find.byKey(const ValueKey('settings-sync-now')), findsOneWidget);
+    expect(find.byKey(const ValueKey('account-sync-now')), findsOneWidget);
     expect(
       scope
           .read(diaryRepositoryProvider)
@@ -125,11 +168,17 @@ void main() {
     await openConfirmation(tester);
     await tester.tap(find.byKey(const ValueKey('confirm-reclaim-primary')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Primary recovery failed'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(SyncAccountSheet),
+        matching: find.textContaining('Primary recovery failed'),
+      ),
+      findsOneWidget,
+    );
     expect(drive.primary!.deviceId, 'old');
     expect(
       tester
-          .widget<FilledButton>(
+          .widget<OutlinedButton>(
             find.byKey(const ValueKey('reclaim-primary-role')),
           )
           .onPressed,
@@ -147,13 +196,90 @@ void main() {
     tester,
   ) async {
     fixture.backend.auth.user = null;
-    await mount(tester);
+    await mount(tester, openSheet: false);
     expect(find.byKey(const ValueKey('reclaim-primary-role')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('settings-connect-account')));
+    expect(
+      tester
+          .widget<InkWell>(find.byKey(const ValueKey('sync-card-status')))
+          .onTap,
+      isNull,
+    );
+    await tester.tap(find.byKey(const ValueKey('sync-card-action')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('sync-card-action')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('sync-card-status')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('reclaim-primary-role')), findsOneWidget);
     expect(drive.reclaims, 0);
     expect(drive.primary!.deviceId, 'old');
+  });
+
+  testWidgets('logging out closes the sheet and keeps local and cloud data', (
+    tester,
+  ) async {
+    fixture.notes.saveNote(
+      uuid: 'keep',
+      title: 'Local',
+      content: 'Keep my journal',
+    );
+    await fixture.sync();
+    final cloudCount = drive.documents.length;
+    await mount(tester);
+    final logout = find.byKey(const ValueKey('account-log-out'));
+    await tester.ensureVisible(logout);
+    await tester.pumpAndSettle();
+    await tester.tap(logout);
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.text('Connect Account'), findsOneWidget);
+    expect(find.text('On this device'), findsOneWidget);
+    expect(find.text('owner@example.test'), findsNothing);
+    expect(scope.read(syncAccountProvider), isNull);
+    expect(fixture.notes.getNoteByUuid('keep')!.content, 'Keep my journal');
+    expect(drive.documents.length, cloudCount);
+    expect(drive.primary!.deviceId, 'old');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sync disables account actions until it finishes', (
+    tester,
+  ) async {
+    final release = Completer<void>();
+    network.wait = release.future;
+    await mount(tester);
+    await tester.tap(find.byKey(const ValueKey('account-sync-now')));
+    await tester.pump();
+    expect(scope.read(syncEngineProvider).isSyncing, isTrue);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('account-sync-now')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const ValueKey('reclaim-primary-role')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<ListTile>(find.byKey(const ValueKey('account-log-out')))
+          .enabled,
+      isFalse,
+    );
+    release.complete();
+    await tester.pumpAndSettle();
+    expect(scope.read(syncEngineProvider).isSyncing, isFalse);
+    expect(
+      tester
+          .widget<ListTile>(find.byKey(const ValueKey('account-log-out')))
+          .enabled,
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

@@ -455,7 +455,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           connection.phase != CompanionPhase.connected) {
         throw const CompanionFailure(
           'UNAVAILABLE',
-          'Connect your trusted computer in Settings → Local AI computer.',
+          'Connect your trusted computer in More → Local AI computer.',
         );
       }
       final capabilities = connection.status?['capabilities'] as List? ?? [];
@@ -584,7 +584,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         connection.phase != CompanionPhase.connected) {
       throw CompanionFailure(
         'UNAVAILABLE',
-        'Connect your trusted computer in Settings → Local AI computer. $fallback',
+        'Connect your trusted computer in More → Local AI computer. $fallback',
       );
     }
     final capabilities = connection.status?['capabilities'] as List? ?? [];
@@ -1569,7 +1569,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           connection.phase != CompanionPhase.connected) {
         throw const CompanionFailure(
           'UNAVAILABLE',
-          'Connect your trusted computer in Settings → Local AI computer, then retry.',
+          'Connect your trusted computer in More → Local AI computer, then retry.',
         );
       }
       if (connection.status?['recovery'] != 1) {

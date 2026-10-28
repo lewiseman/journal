@@ -15,7 +15,7 @@ below).
 
 ## Use
 
-1. Pair a computer (Settings → Local AI computer). Until a computer is paired,
+1. Pair a computer (More → Local AI computer). Until a computer is paired,
    Flow looks exactly as before.
 2. Tap a thought to open it. Under the text, tap **Reflect on this**. A line
    says: "Sends only this thought's text to your paired computer. Nothing is

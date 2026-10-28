@@ -1,8 +1,6 @@
 import 'package:journal/common.dart';
 import 'package:journal/modules/settings/views/pages/appearance_page.dart';
-import 'package:journal/modules/settings/views/widgets/primary_device_settings.dart';
 import 'package:journal/modules/settings/views/widgets/reset_account_card.dart';
-import 'package:journal/modules/settings/companion/companion_page.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -20,8 +18,6 @@ class SettingsPage extends StatelessWidget {
               context.nav.push(AppearancePage());
             },
           ),
-          const PrimaryDeviceSettings(),
-          const CompanionSettingsTile(),
           ListTile(
             leading: const Icon(Icons.history),
             title: const Text('AI task history'),

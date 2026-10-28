@@ -11,7 +11,9 @@ import 'package:journal/modules/account/views/widgets/sync_card.dart';
 import 'package:journal/modules/more/views/pages/more_page.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
-import 'package:journal/modules/tasks/views/pages/tasks_page.dart';
+import 'package:journal/modules/settings/companion/companion_controller.dart';
+import 'package:journal/modules/settings/companion/companion_page.dart';
+import 'package:journal/modules/settings/views/pages/settings_page.dart';
 import 'package:journal/utils/cache.dart';
 
 import 'support/sync_fixture.dart';
@@ -36,6 +38,11 @@ class _Preferences implements KeyValueStore {
   Future<void> reload() async {}
 }
 
+class _CompanionConnection extends CompanionController {
+  @override
+  CompanionState build() => const CompanionState(phase: CompanionPhase.idle);
+}
+
 const _captureKey = ValueKey('more-capture');
 
 ScrollController _moreScroll(WidgetTester tester) => tester
@@ -56,6 +63,7 @@ Future<ProviderContainer> _mount(
   Size size = const Size(390, 844),
   bool dark = false,
   double scale = 1,
+  bool signedIn = false,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -66,13 +74,18 @@ Future<ProviderContainer> _mount(
   final fixture = (await tester.runAsync(
     () => SyncFixture.create(MemoryDrive(), 'phone'),
   ))!;
-  fixture.backend.auth.user = null;
+  if (signedIn) {
+    await tester.runAsync(() => fixture.sync());
+  } else {
+    fixture.backend.auth.user = null;
+  }
   final scope = ProviderContainer.test(
     overrides: [
       objectBoxProvider.overrideWithValue(fixture.db),
       deviceIdentityProvider.overrideWithValue(fixture.device),
       syncBackendProvider.overrideWithValue(fixture.backend),
       accountResetStorageProvider.overrideWithValue(TestResetStorage()),
+      companionControllerProvider.overrideWith(_CompanionConnection.new),
     ],
   );
   final theme = dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme;
@@ -152,32 +165,40 @@ void main() {
     }
   });
 
-  testWidgets('More opens the Tasks UI without task editing controls', (
-    tester,
-  ) async {
-    await _mount(tester);
-    expect(find.text('People'), findsOneWidget);
-    expect(find.text('COMING SOON'), findsOneWidget);
-    expect(find.text('Birthdays'), findsNothing);
-    expect(find.text('Watchlist'), findsNothing);
-    expect(find.text('Bucket list'), findsNothing);
-    await _capture(tester, 'account');
-    await _collapseAccount(tester);
-    await _capture(tester, 'empty');
-    await tester.tap(find.text('View all tasks'));
-    await tester.pumpAndSettle();
-    expect(find.byType(TasksPage), findsOneWidget);
-    expect(find.text('Your tasks will live here.'), findsOneWidget);
-    expect(find.byType(TextField), findsNothing);
-    expect(find.byType(Checkbox), findsNothing);
-    expect(find.byType(FloatingActionButton), findsNothing);
-    expect(find.text('Saved on this device'), findsNothing);
-    await _capture(tester, 'tasks');
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    expect(find.text('0 to do'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'More opens Local AI computer directly and removes it from Settings',
+    (tester) async {
+      await _mount(tester);
+      expect(find.byType(SyncAccountCard), findsOneWidget);
+      expect(find.text('Make it yours'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('Local AI computer'), findsOneWidget);
+      expect(find.text('No computer connected'), findsOneWidget);
+      expect(find.text('Tasks'), findsNothing);
+      expect(find.text('People'), findsNothing);
+      expect(find.text('View all tasks'), findsNothing);
+      expect(find.text('COMING SOON'), findsNothing);
+      await _capture(tester, 'account');
+      await _collapseAccount(tester);
+      await _capture(tester, 'settings');
+      expect(find.text('Settings').hitTestable(), findsOneWidget);
+      await tester.ensureVisible(find.text('Local AI computer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Local AI computer'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CompanionPage), findsOneWidget);
+      expect(find.text('Connect to your own computer'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Settings'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SettingsPage), findsOneWidget);
+      expect(find.text('Local AI computer'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('the original sync card still collapses and expands at the top', (
     tester,
@@ -209,6 +230,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'the signed-in More card opens account actions and updates on logout',
+    (tester) async {
+      final scope = await _mount(tester, signedIn: true);
+      expect(find.byKey(const ValueKey('sync-card-action')), findsNothing);
+      await _capture(tester, 'connected');
+      await _collapseAccount(tester);
+      await tester.tap(find.byType(SyncAccountCard));
+      await tester.pumpAndSettle();
+      expect(_moreScroll(tester).offset, 0);
+      await tester.tap(find.byKey(const ValueKey('sync-card-status')));
+      await tester.pumpAndSettle();
+      await _capture(tester, 'sync-sheet');
+      expect(find.text('This device is primary'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('account-log-out')));
+      await tester.pumpAndSettle();
+      expect(scope.read(syncAccountProvider), isNull);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Connect Account').hitTestable(), findsOneWidget);
+      expect(find.text('On this device'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final layout in [
     (name: 'narrow', size: const Size(320, 568), scale: 2.0, dark: false),
     (name: 'dark', size: const Size(390, 844), scale: 1.0, dark: true),
@@ -224,15 +269,34 @@ void main() {
       await _collapseAccount(tester);
       await _capture(tester, layout.name);
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('more-people-preview')),
-      );
+      await tester.ensureVisible(find.text('Settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Settings').hitTestable(), findsOneWidget);
+      await tester.ensureVisible(find.text('Local AI computer'));
+      await tester.pumpAndSettle();
+      expect(find.text('Local AI computer').hitTestable(), findsOneWidget);
+      await tester.ensureVisible(find.text('A quiet space for a busy mind.'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await _collapseAccount(tester);
-      await tester.tap(find.text('Tasks').first);
+    });
+
+    testWidgets('connected More and account sheet fit ${layout.name} layout', (
+      tester,
+    ) async {
+      await _mount(
+        tester,
+        size: layout.size,
+        scale: layout.scale,
+        dark: layout.dark,
+        signedIn: true,
+      );
+      await _capture(tester, 'connected-${layout.name}');
+      await tester.tap(find.byKey(const ValueKey('sync-card-status')));
       await tester.pumpAndSettle();
-      expect(find.byType(TasksPage), findsOneWidget);
+      await _capture(tester, 'sheet-${layout.name}');
+      await tester.ensureVisible(find.byKey(const ValueKey('account-log-out')));
+      await tester.pumpAndSettle();
+      expect(find.text('Log out').hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

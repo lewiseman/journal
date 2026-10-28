@@ -1,7 +1,5 @@
 import 'package:journal/common.dart';
-import 'package:journal/modules/more/views/widgets/people_preview_card.dart';
-import 'package:journal/modules/more/views/widgets/tasks_preview_card.dart';
-import 'package:journal/modules/tasks/views/pages/tasks_page.dart';
+import 'package:journal/modules/settings/companion/companion_page.dart';
 
 import 'dart:ui' show lerpDouble;
 import 'dart:math' as math;
@@ -69,12 +67,6 @@ class _MorePageState extends ConsumerState<MorePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            TasksPreviewCard(
-                              onOpen: () => context.nav.push(const TasksPage()),
-                            ),
-                            const SizedBox(height: 16),
-                            const PeoplePreviewCard(),
-                            const SizedBox(height: 32),
                             Text(
                               'Make it yours',
                               style: TextStyle(
@@ -143,6 +135,19 @@ class _MorePageState extends ConsumerState<MorePage> {
                                 ),
                                 onTap: () => context.nav.push(SettingsPage()),
                               ),
+                            ),
+                            const SizedBox(height: 16),
+                            Material(
+                              color: context.colors.surfaceContainerLow,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(
+                                  color: context.colors.outlineVariant
+                                      .withValues(alpha: .5),
+                                ),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: const CompanionNavigationTile(),
                             ),
                             const SizedBox(height: 44),
                             Center(

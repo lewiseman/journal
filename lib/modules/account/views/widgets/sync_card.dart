@@ -1,4 +1,5 @@
 import 'package:journal/common.dart';
+import 'package:journal/modules/account/views/widgets/sync_account_sheet.dart';
 
 import 'dart:ui' show lerpDouble;
 
@@ -14,24 +15,16 @@ class SyncAccountCard extends ConsumerWidget {
   final double collapseProgress;
   final VoidCallback onExpand;
 
-  Future<void> _connectOrSync(
-    BuildContext context,
-    WidgetRef ref,
-    bool isSignedIn,
-  ) async {
+  Future<void> _connect(BuildContext context, WidgetRef ref) async {
     try {
-      final account = isSignedIn
-          ? ref.read(syncAuthProvider).currentUser
-          : await ref.read(syncAuthProvider).signIn();
+      final account = await ref.read(syncAuthProvider).signIn();
       if (account == null || !context.mounted) return;
       await ref.read(syncEngineProvider.notifier).syncNow(manual: true);
       if (!context.mounted) return;
       final error = ref.read(syncEngineProvider).lastError;
-      if (error != null || !isSignedIn) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error ?? 'Connected as ${account.email}.')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error ?? 'Connected as ${account.email}.')),
+      );
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context)
@@ -45,7 +38,11 @@ class SyncAccountCard extends ConsumerWidget {
 
   static double _expandedIdentityHeight(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
-    return 88 + 16 + scaler.scale(22) * 1.2 + 4 + scaler.scale(12) * 1.3;
+    return 88 +
+        16 +
+        (scaler.scale(22) * 1.2).ceilToDouble() +
+        4 +
+        (scaler.scale(12) * 1.3).ceilToDouble();
   }
 
   static double expandedHeight(
@@ -78,16 +75,19 @@ class SyncAccountCard extends ConsumerWidget {
                 28)
             .clamp(368.0, double.infinity);
     // Remove the hidden button and its spacing after applying the minimum.
-    return height;
+    return isSignedIn ? height - 18 - buttonHeight : height;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final name = CacheStorage.instance.get(userNameKey);
     final syncAccount = ref.watch(syncAccountProvider);
-    final syncState = ref.watch(syncEngineProvider);
+    final engineState = ref.watch(syncEngineProvider);
     final syncBackend = ref.watch(syncBackendProvider);
     final isSignedIn = syncAccount != null;
+    final syncState = isSignedIn
+        ? engineState
+        : const SyncEngineState(status: EngineSyncState.unauthenticated);
     final colors = context.colors;
     final t = collapseProgress.clamp(0.0, 1.0);
     final fade = (1 - t * 2).clamp(0.0, 1.0);
@@ -185,97 +185,122 @@ class SyncAccountCard extends ConsumerWidget {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: colors.surface.withValues(alpha: .65),
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  key: const ValueKey('sync-card-status'),
                                   borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(
-                                    color: colors.primary.withValues(
-                                      alpha: .07,
+                                  onTap: isSignedIn
+                                      ? () => context.nav.sheet<void>(
+                                          (_) => const SyncAccountSheet(),
+                                        )
+                                      : null,
+                                  child: Ink(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: colors.surface.withValues(
+                                        alpha: .65,
+                                      ),
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: colors.primary.withValues(
+                                          alpha: .07,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 2,
+                                          ),
+                                          child: syncState.isSyncing
+                                              ? SizedBox.square(
+                                                  dimension: 20,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    value:
+                                                        MediaQuery.disableAnimationsOf(
+                                                          context,
+                                                        )
+                                                        ? .7
+                                                        : null,
+                                                    color: statusColor,
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  syncState.status.icon,
+                                                  color: statusColor,
+                                                  size: 22,
+                                                ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Semantics(
+                                                liveRegion: true,
+                                                child: Text(
+                                                  syncState.statusLabel,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: colors.primary,
+                                                    fontSize: 13,
+                                                    height: 1.35,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 5),
+                                              Tooltip(
+                                                message: syncState
+                                                    .descriptionFor(
+                                                      syncBackend,
+                                                    ),
+                                                child: Text(
+                                                  syncState.descriptionFor(
+                                                    syncBackend,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color:
+                                                        colors.onSurfaceVariant,
+                                                    fontSize: 12,
+                                                    height: 1.45,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (isSignedIn) ...[
+                                          const SizedBox(width: 12),
+                                          Icon(
+                                            Icons.expand_more_rounded,
+                                            color: colors.primary,
+                                            size: 20,
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ),
                                 ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2),
-                                      child: syncState.isSyncing
-                                          ? SizedBox.square(
-                                              dimension: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                value:
-                                                    MediaQuery.disableAnimationsOf(
-                                                      context,
-                                                    )
-                                                    ? .7
-                                                    : null,
-                                                color: statusColor,
-                                              ),
-                                            )
-                                          : Icon(
-                                              syncState.status.icon,
-                                              color: statusColor,
-                                              size: 22,
-                                            ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Semantics(
-                                            liveRegion: true,
-                                            child: Text(
-                                              syncState.statusLabel,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: colors.primary,
-                                                fontSize: 13,
-                                                height: 1.35,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 5),
-                                          Tooltip(
-                                            message: syncState.descriptionFor(
-                                              syncBackend,
-                                            ),
-                                            child: Text(
-                                              syncState.descriptionFor(
-                                                syncBackend,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: colors.onSurfaceVariant,
-                                                fontSize: 12,
-                                                height: 1.45,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
-                              ...[
+                              if (!isSignedIn) ...[
                                 const SizedBox(height: 18),
                                 FilledButton(
                                   key: const ValueKey('sync-card-action'),
-                                  onPressed: syncState.isSyncing
+                                  onPressed: engineState.isSyncing
                                       ? null
-                                      : () => _connectOrSync(
-                                          context,
-                                          ref,
-                                          isSignedIn,
-                                        ),
+                                      : () => _connect(context, ref),
                                   style: FilledButton.styleFrom(
                                     minimumSize: const Size.fromHeight(48),
                                     padding: const EdgeInsets.symmetric(
@@ -290,7 +315,7 @@ class SyncAccountCard extends ConsumerWidget {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                        isSignedIn ? '↻' : 'G',
+                                        'G',
                                         maxLines: 1,
                                         style: TextStyle(
                                           fontWeight: FontWeight.w800,
@@ -301,9 +326,7 @@ class SyncAccountCard extends ConsumerWidget {
                                       const SizedBox(width: 10),
                                       Flexible(
                                         child: Text(
-                                          isSignedIn
-                                              ? 'Sync now'
-                                              : 'Connect Account',
+                                          'Connect Account',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           textAlign: TextAlign.center,

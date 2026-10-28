@@ -53,11 +53,11 @@ void main() {
               navigatorKey: ref.watch(journalNavigatorKeyProvider),
               builder: (context, child) => AccountResetGate(child: child!),
               home: Scaffold(
-                body: Builder(
-                  builder: (context) => SizedBox(
+                body: Consumer(
+                  builder: (context, ref, _) => SizedBox(
                     height: SyncAccountCard.expandedHeight(
                       context,
-                      isSignedIn: true,
+                      isSignedIn: ref.watch(syncAccountProvider) != null,
                     ),
                     child: SyncAccountCard(
                       collapseProgress: 0,
@@ -75,7 +75,8 @@ void main() {
       await scope.read(syncEngineProvider.notifier).syncNow(manual: true);
       await tester.pumpAndSettle();
       expect(find.text('owner@example.test'), findsOneWidget);
-      expect(find.text('Sync now'), findsOneWidget);
+      expect(find.byKey(const ValueKey('sync-card-action')), findsNothing);
+      expect(find.text('Sync now'), findsNothing);
       await scope
           .read(accountResetProvider.notifier)
           .reset(expectedAccountId: 'owner');
@@ -97,7 +98,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('sync-card-action')));
       await tester.pumpAndSettle();
       expect(find.text('owner@example.test'), findsOneWidget);
-      expect(find.text('Sync now'), findsOneWidget);
+      expect(find.byKey(const ValueKey('sync-card-action')), findsNothing);
       expect(scope.read(syncEngineProvider).status, EngineSyncState.idle);
       expect(tester.takeException(), isNull);
       scope.dispose();
@@ -144,8 +145,11 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('Sync now'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('sync-card-action')));
+      expect(find.text('Sync now'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('sync-card-status')));
+      await tester.pumpAndSettle();
+      expect(find.text('Sync & devices'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('account-sync-now')));
       await tester.pumpAndSettle();
       expect(
         scope.read(notesRepositoryProvider).getNoteByUuid('remote')!.content,
@@ -153,7 +157,7 @@ void main() {
       );
       expect(scope.read(syncEngineProvider).status, EngineSyncState.idle);
       drive.failDownloads = true;
-      await tester.tap(find.byKey(const ValueKey('sync-card-action')));
+      await tester.tap(find.byKey(const ValueKey('account-sync-now')));
       await tester.pumpAndSettle();
       expect(scope.read(syncEngineProvider).status, EngineSyncState.error);
       expect(find.byType(SnackBar), findsOneWidget);

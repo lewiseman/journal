@@ -16,7 +16,7 @@ sends whole recent entries rather than query-matched excerpts.
 
 ## Use
 
-1. Settings → Local AI computer → **Daily diary questions** (off by default).
+1. More → Local AI computer → **Daily diary questions** (off by default).
 2. On today's page in the diary reader, under the writing invitation, tap
    **Ask me a question**. The invitation text becomes the question, with a line
    saying where it came from: "Following up on your entry from yesterday",
