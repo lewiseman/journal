@@ -115,6 +115,8 @@ class SummaryHistoryPage extends ConsumerWidget {
                                   ? 'Title & tag ideas'
                                   : task.isNoteIdeas
                                   ? 'Starting ideas'
+                                  : task.isNoteImage
+                                  ? 'Image question'
                                   : transformOperations[task.operation] ?? 'Note summary'} · ${summaryPhaseLabel(phase)}',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),

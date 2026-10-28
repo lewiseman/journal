@@ -314,6 +314,76 @@ class NotesRepository {
     return saved;
   }
 
+  /// Appends reviewed AI-derived [text] to the body if the note still has
+  /// [expectedVersion], keeping a local recovery copy like transformations.
+  NoteEntity appendToNote({
+    required String taskId,
+    required String uuid,
+    required String expectedVersion,
+    required String operation,
+    required String text,
+  }) {
+    _editable();
+    final addition = text.trim();
+    if (addition.isEmpty ||
+        utf8.encode(addition).length > transformOutputBytes ||
+        addition.contains(RegExp(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]'))) {
+      throw StateError('Invalid text to insert. Your note is unchanged.');
+    }
+    late NoteEntity saved;
+    _db.store.runInTransaction(TxMode.write, () {
+      final history = _db.store.box<NoteRecoveryEntity>();
+      if (history.getAll().any((row) => row.taskId == taskId)) {
+        throw StateError(
+          'This result was already inserted. Open recovery history.',
+        );
+      }
+      final note = getNoteByUuid(uuid);
+      if (note == null ||
+          note.isDeleted ||
+          note.isPermanentlyDeleted ||
+          !note.versionVector.isEqualTo(
+            VersionVector.fromJsonString(expectedVersion),
+          )) {
+        throw StateError(
+          'The note changed. This result cannot be inserted into a newer edit.',
+        );
+      }
+      final before = note.content;
+      final content = before.trimRight().isEmpty
+          ? addition
+          : '${before.trimRight()}\n\n$addition';
+      if (utf8.encode(content).length > transformSourceBytes) {
+        throw StateError('The note would exceed 64 KiB. Nothing was inserted.');
+      }
+      saved = saveNote(
+        uuid: uuid,
+        expectedVersionVectorJson: expectedVersion,
+        title: note.title,
+        content: content,
+        tags: note.tags,
+        attachmentPaths: note.attachments,
+        background: note.background,
+      );
+      history.put(
+        NoteRecoveryEntity(
+          taskId: taskId,
+          noteId: uuid,
+          operation: operation,
+          beforeContent: before,
+          afterContent: content,
+          afterVersion: saved.versionVectorJson,
+          created: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+      final rows = history.getAll()..sort((a, b) => b.id.compareTo(a.id));
+      for (final row in rows.skip(10)) {
+        history.remove(row.id);
+      }
+    });
+    return saved;
+  }
+
   List<NoteRecoveryEntity> transformationHistory(String uuid) =>
       (_db.store
           .box<NoteRecoveryEntity>()

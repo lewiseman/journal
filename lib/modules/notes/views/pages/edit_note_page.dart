@@ -22,6 +22,7 @@ import 'package:journal/modules/notes/views/widgets/unsaved_note_sheet.dart';
 import 'package:journal/modules/notes/summary/summary_page.dart';
 import 'package:journal/modules/notes/transform/transform_page.dart';
 import 'package:journal/modules/notes/metadata/note_help_pages.dart';
+import 'package:journal/modules/notes/images/note_image_page.dart';
 import 'package:journal/modules/presentation/presentation_page.dart';
 import 'package:journal/modules/presentation/presentation_body.dart';
 import 'package:journal/modules/presentation/presentation_contract.dart';
@@ -517,24 +518,37 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                           );
                         } else if (value == 'metadata') {
                           _openMetadataHelp();
+                        } else if (value == 'image') {
+                          context.nav
+                              .push<bool>(
+                                NoteImagePage(noteId: _savedNote!.uuid),
+                              )
+                              .then((_) => _reloadSaved(_savedNote!.uuid));
                         } else {
                           _openWritingHelp(recovery: value == 'recovery');
                         }
                       },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
                           value: 'write',
                           child: Text('Writing help'),
                         ),
-                        PopupMenuItem(
+                        const PopupMenuItem(
                           value: 'metadata',
                           child: Text('Title & tag ideas'),
                         ),
-                        PopupMenuItem(
+                        if (_attachmentPaths.any(
+                          (a) => NoteAttachment.tryFromMap(a)?.isImage == true,
+                        ))
+                          const PopupMenuItem(
+                            value: 'image',
+                            child: Text('Ask about an image'),
+                          ),
+                        const PopupMenuItem(
                           value: 'recovery',
                           child: Text('Prior content / recovery'),
                         ),
-                        PopupMenuItem(
+                        const PopupMenuItem(
                           value: 'presentation',
                           child: Text('Presentation'),
                         ),

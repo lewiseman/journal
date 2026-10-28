@@ -8,6 +8,7 @@ import 'package:journal/objectbox/objectbox.g.dart';
 import 'summary_task_entity.dart';
 import '../transform/transform_contract.dart';
 import '../metadata/note_help_contract.dart';
+import '../images/note_image_contract.dart';
 import '../../presentation/presentation_contract.dart';
 import '../../diary/history/diary_history_contract.dart';
 import '../../diary/questions/daily_question_contract.dart';
@@ -58,6 +59,9 @@ class SummaryHandle {
 
   /// N02 starting ideas. [noteId] is [noteIdeasKey].
   bool get isNoteIdeas => operation == noteIdeasOperation;
+
+  /// I03 question about one image attached to the saved note [noteId].
+  bool get isNoteImage => operation == noteImageOperation;
 
   /// Diary tasks keyed by a civil date rather than a note UUID.
   bool get isDiaryDay => isDiarySuggestion || isDailyQuestion || isDiaryAnswer;
@@ -137,6 +141,7 @@ class SummaryHandle {
             !handle.isDiaryDay &&
             !handle.isNoteMetadata &&
             !handle.isNoteIdeas &&
+            !handle.isNoteImage &&
             handle.operation != 'summarize-note') ||
         (handle.isNoteIdeas && handle.noteId != noteIdeasKey) ||
         (handle.isDiaryDay &&
@@ -169,6 +174,11 @@ class SummaryHandle {
         }
       } else if (handle.isNoteMetadata) {
         if (NoteMetadataSource.decode(handle.localSource!).noteId !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
+      } else if (handle.isNoteImage) {
+        if (NoteImageSource.decode(handle.localSource!).noteId !=
             handle.noteId) {
           throw const FormatException('Mismatched source');
         }

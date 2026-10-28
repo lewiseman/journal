@@ -12,6 +12,7 @@ import '../summary/summary_page.dart';
 import '../summary/summary_history_page.dart';
 import 'transform_contract.dart';
 import '../metadata/note_help_pages.dart';
+import '../images/note_image_page.dart';
 import '../../presentation/presentation_page.dart';
 import '../../diary/suggestions/diary_details_page.dart';
 
@@ -66,6 +67,9 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
       return NoteMetadataPage(noteId: state.handle!.noteId);
     }
     if (state.handle?.isNoteIdeas == true) return const NoteIdeasPage();
+    if (state.handle?.isNoteImage == true) {
+      return NoteImagePage(noteId: state.handle!.noteId);
+    }
     final controller = ref.read(noteSummaryProvider.notifier);
     final handle = state.handle;
     final readOnly =
@@ -351,7 +355,7 @@ class _NoteRecoveryPageState extends ConsumerState<NoteRecoveryPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${transformOperations[row.operation]} · ${DateTime.fromMillisecondsSinceEpoch(row.created).toLocal()}',
+                      '${transformOperations[row.operation] ?? recoveryOperationLabels[row.operation] ?? 'AI edit'} · ${DateTime.fromMillisecondsSinceEpoch(row.created).toLocal()}',
                     ),
                     if (row.restored) const Text('Restored'),
                     ExpansionTile(

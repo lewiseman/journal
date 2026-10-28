@@ -8,6 +8,7 @@ import 'package:journal/modules/settings/companion/companion_page.dart';
 import 'summary_controller.dart';
 import '../transform/transform_page.dart';
 import '../metadata/note_help_pages.dart';
+import '../images/note_image_page.dart';
 import '../../presentation/presentation_page.dart';
 import '../../diary/suggestions/diary_details_page.dart';
 
@@ -32,6 +33,9 @@ class NoteSummaryPage extends ConsumerWidget {
       return NoteMetadataPage(noteId: state.handle!.noteId);
     }
     if (state.handle?.isNoteIdeas == true) return const NoteIdeasPage();
+    if (state.handle?.isNoteImage == true) {
+      return NoteImagePage(noteId: state.handle!.noteId);
+    }
     final controller = ref.read(noteSummaryProvider.notifier);
     final otherNote =
         state.handle != null &&

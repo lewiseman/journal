@@ -8,6 +8,9 @@ const transformOperations = {
   'markdown-note': 'Format Markdown',
 };
 const transformOutputBytes = 4096;
+
+/// Labels for other reviewed edits that keep a recovery copy.
+const recoveryOperationLabels = {'ask-note-image': 'Image answer inserted'};
 const transformSourceBytes = 65536;
 
 bool validTransformOutput(String text) =>
