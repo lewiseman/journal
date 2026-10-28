@@ -267,7 +267,7 @@ void main() {
               .date,
           DateTime(2026, 10, 26),
         );
-        await tester.tap(find.byTooltip('Close photo preview'));
+        await tester.tap(find.byTooltip('Close without saving'));
       }
       await tester.pumpAndSettle();
       expect(_prompt, findsOneWidget);

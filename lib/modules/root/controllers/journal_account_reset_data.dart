@@ -14,6 +14,7 @@ import 'package:journal/modules/notes/transform/note_recovery_entity.dart';
 import 'package:journal/modules/notes/summary/summary_task_entity.dart';
 import 'package:journal/modules/presentation/presentation_entity.dart';
 import 'package:journal/modules/diary/questions/daily_question_entity.dart';
+import 'package:journal/modules/diary/controllers/diary_photo_store.dart';
 
 /// Only app-owned copies select files for deletion, never synced path fields.
 class JournalAccountResetData implements AccountResetLocalData {
@@ -44,12 +45,14 @@ class JournalAccountResetData implements AccountResetLocalData {
     await clearSummaries();
     await clearVoice();
     final support = await supportDirectory();
-    final mediaPath = p.join(support.path, 'note_backgrounds');
-    final type = await FileSystemEntity.type(mediaPath, followLinks: false);
-    if (type == FileSystemEntityType.link) {
-      await Link(mediaPath).delete();
-    } else if (type == FileSystemEntityType.directory) {
-      await Directory(mediaPath).delete(recursive: true);
+    for (final folder in ['note_backgrounds', DiaryPhotoStore.folder]) {
+      final mediaPath = p.join(support.path, folder);
+      final type = await FileSystemEntity.type(mediaPath, followLinks: false);
+      if (type == FileSystemEntityType.link) {
+        await Link(mediaPath).delete();
+      } else if (type == FileSystemEntityType.directory) {
+        await Directory(mediaPath).delete(recursive: true);
+      }
     }
     await clearCachedImages();
     db.store.runInTransaction(TxMode.write, () {

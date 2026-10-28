@@ -1,5 +1,7 @@
 import 'package:journal/common.dart';
 
+import 'diary_photo_stories.dart';
+import 'diary_photo_store.dart';
 import 'diary_repository.dart';
 
 final Provider<DiaryRepository> diaryRepositoryProvider =
@@ -17,4 +19,11 @@ final Provider<DiaryRepository> diaryRepositoryProvider =
 
 final diaryDaysProvider = StreamProvider<List<DiaryDayEntity>>(
   (ref) => ref.watch(diaryRepositoryProvider).watchAllDays(),
+);
+
+final diaryPhotoStoriesProvider = Provider<DiaryPhotoStories>(
+  (ref) => DiaryPhotoStories(
+    ref.watch(diaryRepositoryProvider),
+    DiaryPhotoStore.instance,
+  ),
 );

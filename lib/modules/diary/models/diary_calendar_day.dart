@@ -24,7 +24,7 @@ class DiaryCalendarDay {
   final DiaryCalendarMood? mood;
 
   factory DiaryCalendarDay.fromEntity(DiaryDayEntity? day) {
-    if (day == null || day.visibleItems.isEmpty) {
+    if (day == null || day.displayItems.isEmpty) {
       return const DiaryCalendarDay(hasEntry: false);
     }
     DiaryCalendarMood? mood;

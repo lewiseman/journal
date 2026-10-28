@@ -1,0 +1,29 @@
+{
+  "milestone": "I01",
+  "date": "2026-10-28",
+  "phone": "Samsung SM-S928B, Android 17 (API 37), build CP2A.260605.016.S928BXXU6EZIF, USB",
+  "build": "debug APK from ai/diary-i01, installed with --no-uninstall",
+  "data": "isolated <support>/i01-synthetic (own ObjectBox + diary_photos); bundled onboarding images instead of the system picker; folder deleted after the reopen phase",
+  "save": {
+    "savedPhotos": 3,
+    "paths": [
+      "diary_photos/25f152c3-34cf-43b8-9eb6-3b87585c03c5.webp",
+      "diary_photos/d5a287aa-1883-47c9-b94f-58173fb40a58.webp",
+      "diary_photos/e88e4209-bef8-426e-9ec1-2dedfdbdf54e.webp"
+    ],
+    "bytesOnDisk": [222646, 335014, 229842],
+    "bytesMatchSources": true,
+    "captions": ["Morning light.", "", ""],
+    "answers": 1,
+    "contentChars": 42,
+    "outbox": 1
+  },
+  "reopenInNewProcess": {
+    "decodedAfterRestart": ["1448x1086", "1122x1402", "1448x1086"],
+    "captionAndAnswerShown": true,
+    "cancelUnchanged": true,
+    "afterEdit": { "photos": 2, "removedCopyDeleted": true },
+    "missingShown": true,
+    "resetRemovedCopies": true
+  }
+}
