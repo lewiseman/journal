@@ -244,14 +244,21 @@ class _FloatingAssistantState extends State<_FloatingAssistant>
     if (context == null) return;
     _sheetOpen = true;
     HapticFeedback.selectionClick();
+    final pageLabel = widget.controller.pageLabel;
+    final contentBuilder = widget.controller.sheetBuilder;
     final companion = await showModalBottomSheet<bool>(
       context: context,
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      showDragHandle: false,
+      enableDrag: false,
       isScrollControlled: true,
       useSafeArea: true,
-      constraints: const BoxConstraints(maxWidth: 560),
-      builder: (_) =>
-          QvacAssistantSheet(pageLabel: widget.controller.pageLabel),
+      constraints: const BoxConstraints(maxWidth: 700),
+      builder: (_) => QvacAssistantSheet(
+        pageLabel: pageLabel,
+        contentBuilder: contentBuilder,
+      ),
     );
     _sheetOpen = false;
     if (mounted && companion == true) _openCompanion();
@@ -578,10 +585,168 @@ class _DismissTarget extends StatelessWidget {
   }
 }
 
-/// Replace the placeholder by destination when page-specific widgets land.
-class QvacAssistantSheet extends ConsumerWidget {
-  const QvacAssistantSheet({super.key, required this.pageLabel});
+/// Page tools share the sheet's controller so an upward scroll expands the
+/// surface before scrolling its content. Settings live in the exposed scrim.
+class QvacAssistantSheet extends StatefulWidget {
+  const QvacAssistantSheet({
+    super.key,
+    required this.pageLabel,
+    this.contentBuilder,
+  });
   final String pageLabel;
+  final QvacAssistantSheetBuilder? contentBuilder;
+
+  @override
+  State<QvacAssistantSheet> createState() => _QvacAssistantSheetState();
+}
+
+class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
+  static const _initialSize = .64;
+  final _sheet = DraggableScrollableController();
+
+  bool get _reduced =>
+      MediaQuery.disableAnimationsOf(context) ||
+      MediaQuery.accessibleNavigationOf(context);
+
+  void _resize(double size) {
+    if (!_sheet.isAttached) return;
+    if (_reduced) {
+      _sheet.jumpTo(size.clamp(.36, 1));
+    } else {
+      _sheet.animateTo(
+        size.clamp(.36, 1),
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _sheet.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => AnimatedBuilder(
+      animation: _sheet,
+      builder: (context, _) {
+        final size = _sheet.isAttached ? _sheet.size : _initialSize;
+        final exposed = constraints.maxHeight * (1 - size);
+        final colors = Theme.of(context).colorScheme;
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                excludeFromSemantics: true,
+                onTap: () => Navigator.maybePop(context),
+                behavior: HitTestBehavior.opaque,
+              ),
+            ),
+            if (exposed > 76)
+              Positioned(
+                right: 20,
+                bottom: constraints.maxHeight * size + 12,
+                child: Opacity(
+                  opacity: ((exposed - 76) / 48).clamp(0, 1),
+                  child: FilledButton.tonalIcon(
+                    key: const ValueKey('qvac-local-ai-settings'),
+                    onPressed: () => Navigator.pop(context, true),
+                    icon: const Icon(Icons.tune_rounded, size: 20),
+                    label: const Text('Local AI settings'),
+                  ),
+                ),
+              ),
+            DraggableScrollableSheet(
+              controller: _sheet,
+              initialChildSize: _initialSize,
+              minChildSize: .36,
+              maxChildSize: 1,
+              snap: true,
+              snapSizes: const [_initialSize],
+              builder: (context, scrollController) => Material(
+                key: const ValueKey('qvac-sheet-surface'),
+                color: colors.surface,
+                elevation: 0,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(28 * ((1 - size) / .08).clamp(0, 1)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    Semantics(
+                      button: true,
+                      label: size >= .99 ? 'Collapse sheet' : 'Expand sheet',
+                      child: GestureDetector(
+                        key: const ValueKey('qvac-sheet-handle'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _resize(size >= .99 ? _initialSize : 1),
+                        onVerticalDragUpdate: (details) {
+                          if (_sheet.isAttached) {
+                            _sheet.jumpTo(
+                              (_sheet.size -
+                                      details.delta.dy / constraints.maxHeight)
+                                  .clamp(.36, 1),
+                            );
+                          }
+                        },
+                        onVerticalDragEnd: (details) {
+                          if (!_sheet.isAttached) return;
+                          final velocity = details.primaryVelocity ?? 0;
+                          _resize(
+                            velocity < -300 || _sheet.size > .82
+                                ? 1
+                                : _initialSize,
+                          );
+                        },
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 32,
+                          child: Center(
+                            child: Container(
+                              width: 36,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: colors.onSurfaceVariant.withValues(
+                                  alpha: .35,
+                                ),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child:
+                          widget.contentBuilder?.call(
+                            context,
+                            scrollController,
+                          ) ??
+                          _QvacPlaceholder(
+                            pageLabel: widget.pageLabel,
+                            scrollController: scrollController,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+class _QvacPlaceholder extends ConsumerWidget {
+  const _QvacPlaceholder({
+    required this.pageLabel,
+    required this.scrollController,
+  });
+  final String pageLabel;
+  final ScrollController scrollController;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final phase = ref.watch(
@@ -592,6 +757,8 @@ class QvacAssistantSheet extends ConsumerWidget {
     return SafeArea(
       top: false,
       child: SingleChildScrollView(
+        controller: scrollController,
+        physics: const ClampingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -665,12 +832,6 @@ class QvacAssistantSheet extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 20),
-            FilledButton.tonalIcon(
-              onPressed: () => Navigator.pop(context, true),
-              icon: const Icon(Icons.tune_rounded),
-              label: const Text('Open AI companion'),
-            ),
-            const SizedBox(height: 12),
             Text(
               'Tip: hold QVAC to open your companion. Drag it to the bottom to tuck it away.',
               textAlign: TextAlign.center,

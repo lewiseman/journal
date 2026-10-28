@@ -76,7 +76,12 @@ class _DiaryConversationPageState extends ConsumerState<DiaryConversationPage> {
         )) {
       return;
     }
-    await _session.request('draft');
+    // A request the computer already accepted is picked up, not resent.
+    if (_session.pending != null) {
+      await _session.retrieve();
+    } else {
+      await _session.request('draft');
+    }
   }
 
   Future<bool> _confirm(String title, String body) async =>
@@ -143,7 +148,12 @@ class _DiaryConversationPageState extends ConsumerState<DiaryConversationPage> {
   Widget build(BuildContext context) {
     final colors = VoiceColors.of(context);
     final ink = colors.ink;
-    final busy = _session.busy || _session.pending != null;
+    final busy = _session.busy || _session.polling;
+    final step = switch (_session.jobState) {
+      'queued' => 'Waiting for your computer to start…',
+      'running' => 'Your computer is writing your draft…',
+      _ => 'Sending your words to your computer…',
+    };
     final drafted = _draft.text.trim().isNotEmpty;
     final reduced =
         MediaQuery.disableAnimationsOf(context) ||
@@ -185,9 +195,22 @@ class _DiaryConversationPageState extends ConsumerState<DiaryConversationPage> {
                         ),
                 ),
                 if (busy)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 28),
-                    child: LinearProgressIndicator(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(28, 0, 28, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            step,
+                            style: TextStyle(color: ink.withValues(alpha: .7)),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const LinearProgressIndicator(),
+                      ],
+                    ),
                   ),
                 if (!busy && _session.message.isNotEmpty && !drafted)
                   VoiceBottomCard(

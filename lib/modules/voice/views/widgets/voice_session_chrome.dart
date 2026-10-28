@@ -24,11 +24,13 @@ class VoiceSessionScaffold extends StatelessWidget {
     required this.transcript,
     required this.controls,
     this.card,
+    this.scrollController,
   });
 
   final VoiceAmbientBackground background;
   final Widget header, status, transcript, controls;
   final Widget? card;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -49,46 +51,81 @@ class VoiceSessionScaffold extends StatelessWidget {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 700),
-                  child: Column(
-                    children: [
-                      header,
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final compact =
-                                constraints.maxHeight < 300 ||
-                                MediaQuery.textScalerOf(context).scale(1) > 1.4;
-                            final statusHeight = compact
-                                ? (constraints.maxHeight * .18).clamp(
-                                    28.0,
-                                    56.0,
-                                  )
-                                : (constraints.maxHeight * .43).clamp(
-                                    28.0,
-                                    260.0,
-                                  );
-                            return Column(
-                              children: [
-                                SizedBox(
-                                  height: statusHeight,
-                                  child: Center(child: status),
+                  child: scrollController != null
+                      ? LayoutBuilder(
+                          builder: (context, constraints) =>
+                              SingleChildScrollView(
+                                controller: scrollController,
+                                physics: const ClampingScrollPhysics(),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: constraints.maxHeight,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      header,
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 20,
+                                        ),
+                                        child: status,
+                                      ),
+                                      transcript,
+                                      ?card,
+                                      controls,
+                                    ],
+                                  ),
                                 ),
-                                Expanded(child: transcript),
-                              ],
-                            );
-                          },
+                              ),
+                        )
+                      : Column(
+                          children: [
+                            header,
+                            Expanded(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final compact =
+                                      constraints.maxHeight < 300 ||
+                                      MediaQuery.textScalerOf(context)
+                                              .scale(1) >
+                                          1.4;
+                                  final statusHeight = compact
+                                      ? (constraints.maxHeight * .18).clamp(
+                                          28.0,
+                                          56.0,
+                                        )
+                                      : (constraints.maxHeight * .43).clamp(
+                                          28.0,
+                                          260.0,
+                                        );
+                                  return Column(
+                                    children: [
+                                      SizedBox(
+                                        height: statusHeight,
+                                        child: Center(child: status),
+                                      ),
+                                      Expanded(child: transcript),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                            AnimatedSize(
+                              duration: MediaQuery.disableAnimationsOf(context)
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              child:
+                                  card ??
+                                  const SizedBox(width: double.infinity),
+                            ),
+                            controls,
+                          ],
                         ),
-                      ),
-                      AnimatedSize(
-                        duration: MediaQuery.disableAnimationsOf(context)
-                            ? Duration.zero
-                            : const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        child: card ?? const SizedBox(width: double.infinity),
-                      ),
-                      controls,
-                    ],
-                  ),
                 ),
               ),
             ),

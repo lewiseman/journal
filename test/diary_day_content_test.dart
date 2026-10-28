@@ -5,13 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/controllers/diary_repository.dart';
 import 'package:journal/config/theme.dart';
+import 'package:journal/modules/diary/models/diary_ai_conversation.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_photos_page.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
 import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
-import 'package:journal/modules/voice/voice.dart';
 
 final _prompt = find.byKey(const ValueKey('diary-writing-prompt'));
 final _actions = find.byKey(const ValueKey('diary-add-actions'));
@@ -41,32 +41,32 @@ Future<void> _mount(
   ProviderScope(
     overrides: [diaryRepositoryProvider.overrideWithValue(_Diary())],
     child: MaterialApp(
-    theme: dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme,
-    builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(context)
-          .copyWith(textScaler: TextScaler.linear(scale)),
-      child: Directionality(textDirection: direction, child: child!),
-    ),
-    home: Scaffold(
-      body: Align(
-        alignment: Alignment.topLeft,
-        child: SizedBox(
-          width: width,
-          child: SingleChildScrollView(
-            child: DiaryAccess(
-              canEdit: canEdit,
-              today: DateTime(2026, 10, 26),
-              child: DiaryDayContent(
-                key: const ValueKey('content'),
-                day: day,
-                minimumHeight: minimumHeight,
+      theme: dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(scale)),
+        child: Directionality(textDirection: direction, child: child!),
+      ),
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: width,
+            child: SingleChildScrollView(
+              child: DiaryAccess(
+                canEdit: canEdit,
+                today: DateTime(2026, 10, 26),
+                child: DiaryDayContent(
+                  key: const ValueKey('content'),
+                  day: day,
+                  minimumHeight: minimumHeight,
+                ),
               ),
             ),
           ),
         ),
       ),
     ),
-  ),
   ),
 );
 
@@ -95,13 +95,10 @@ void main() {
     expect(last, findsOneWidget);
     expect(tester.getTopLeft(first).dy, lessThan(tester.getTopLeft(last).dy));
     expect(find.text('Deleted prose.'), findsNothing);
+    expect(find.text('Presentation'), findsNothing);
     expect(find.text('No diary entries for this day.'), findsNothing);
     expect(find.text(DiaryWritingPrompt.question), findsOneWidget);
-    for (final tooltip in [
-      'Add voice entry',
-      'Add image entry',
-      'More diary actions',
-    ]) {
+    for (final tooltip in ['Add image entry', 'More diary actions']) {
       final button = find.byTooltip(tooltip);
       expect(button, findsOneWidget);
       expect(
@@ -125,11 +122,7 @@ void main() {
     expect(_prompt, findsOneWidget);
     expect(find.text('A day, held here.'), findsNothing);
     expect(find.text(''), findsNothing);
-    for (final tooltip in [
-      'Add voice entry',
-      'Add image entry',
-      'More diary actions',
-    ]) {
+    for (final tooltip in ['Add image entry', 'More diary actions']) {
       expect(find.byTooltip(tooltip), findsOneWidget);
     }
 
@@ -232,12 +225,14 @@ void main() {
     },
   );
 
-  testWidgets('voice opens a conversation preview without changing the diary', (
+  testWidgets('the card keeps photos and writing while voice moves to QVAC', (
     tester,
   ) async {
     final day = DiaryDayEntity(dateString: '2026-10-26');
     final before = day.toSyncJson('test');
     await _mount(tester, day);
+    expect(find.byTooltip('Add voice entry'), findsNothing);
+    expect(find.byKey(const ValueKey('diary-details-open')), findsNothing);
     for (final label in ['Voice', 'Image', 'More']) {
       expect(find.text(label), findsNothing);
     }
@@ -250,25 +245,13 @@ void main() {
         hasTapAction: true,
       ),
     );
-    for (final tooltip in [
-      'Add voice entry',
-      'Add image entry',
-      'More diary actions',
-    ]) {
+    for (final tooltip in ['Add image entry', 'More diary actions']) {
       final button = find.byTooltip(tooltip);
       expect(tester.getSize(button), const Size(48, 48));
       final description = tester.getSemantics(button).getSemanticsData();
       expect('${description.label} ${description.tooltip}', contains(tooltip));
       await tester.tap(button);
-      if (tooltip == 'Add voice entry') {
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 400));
-        expect(
-          tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
-          VoiceSessionMode.conversation,
-        );
-        await tester.tap(find.byTooltip('Close'));
-      } else if (tooltip == 'Add image entry') {
+      if (tooltip == 'Add image entry') {
         await tester.pumpAndSettle();
         expect(
           tester
@@ -382,4 +365,35 @@ void main() {
       },
     );
   }
+
+  testWidgets('a conversation entry shows its chip and stays curl-safe', (
+    tester,
+  ) async {
+    final day = DiaryDayEntity(dateString: '2026-10-26')
+      ..items = [
+        DiaryItem(
+          itemUuid: 'talk',
+          createdAt: DateTime.utc(2026, 10, 26, 8),
+          updatedAt: DateTime.utc(2026, 10, 26, 9),
+          content: '',
+          aiConversation: DiaryAiConversation(
+            createdAt: DateTime.utc(2026, 10, 26, 8),
+            turns: const [
+              {'speaker': 'assistant', 'text': 'How was your day?'},
+              {'speaker': 'user', 'text': 'Calm.'},
+            ],
+          ),
+        ),
+        _item('words', 'A written entry.'),
+      ];
+    await _mount(tester, day);
+    expect(find.text('Conversation · no entry yet'), findsOneWidget);
+    // The page curl snapshots this content and refuses composited layers.
+    expect(
+      tester
+          .renderObject(find.byKey(const ValueKey('content')))
+          .needsCompositing,
+      isFalse,
+    );
+  });
 }

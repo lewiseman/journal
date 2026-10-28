@@ -7,7 +7,8 @@ whatever writing model is assigned and loaded (Electron 45.0.0, QVAC SDK 0.22.0)
 
 ## Use
 
-In the live diary reader, choose **Day details** under a day's entries. The page
+In the live diary reader, tap the floating QVAC logo and choose **Day details**
+for the selected day. The expandable sheet
 shows the current title, mood and themes and offers:
 
 - **Edit details yourself** — always available on the primary device, with or

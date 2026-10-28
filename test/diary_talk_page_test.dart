@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -31,13 +32,23 @@ class DraftingConversation extends DiaryConversation {
         keep: false,
       );
   String result = 'A calm day.';
+
+  /// Holds the draft as accepted and running until completed.
+  Completer<void>? hold;
   @override
   Future<void> request(String action) async {
-    if (action == 'draft') {
-      draft = result;
-      message = 'The computer is not reachable.';
+    if (action != 'draft') return;
+    if (hold != null) {
+      jobState = 'running';
+      busy = true;
       update();
+      await hold!.future;
+      busy = false;
+      jobState = null;
     }
+    draft = result;
+    message = 'The computer is not reachable.';
+    update();
   }
 }
 
@@ -261,6 +272,39 @@ void main() {
     expect(saved(), [('', 2)]);
     await tester.tap(find.text('Close'));
     await settle(tester);
+    expect(find.byType(DiaryTalkPage), findsNothing);
+  });
+
+  testWidgets('Finish shows each step as it happens', (tester) async {
+    conversation.hold = Completer<void>();
+    await mount(tester, FakePermission(MicStatus.granted));
+    await conversation.append('assistant', 'How was your day?');
+    await conversation.append('user', 'Calm.');
+    await tester.tap(find.text('Finish'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Your computer is writing your entry…'), findsOneWidget);
+    expect(find.text('Writing…'), findsOneWidget);
+    conversation.hold!.complete();
+    await settle(tester);
+    expect(saved(), [('A calm day.', 2)]);
+    expect(find.byType(DiaryTalkPage), findsNothing);
+  });
+
+  testWidgets('a failed draft can be tried again from the card', (
+    tester,
+  ) async {
+    conversation.result = '';
+    await mount(tester, FakePermission(MicStatus.granted));
+    await conversation.append('assistant', 'How was your day?');
+    await conversation.append('user', 'Calm.');
+    await tester.tap(find.text('Finish'));
+    await settle(tester);
+    expect(find.text("Couldn't write your entry"), findsOneWidget);
+    conversation.result = 'A calm day.';
+    await tester.tap(find.text('Try again'));
+    await settle(tester);
+    expect(saved(), [('A calm day.', 2)]);
     expect(find.byType(DiaryTalkPage), findsNothing);
   });
 }

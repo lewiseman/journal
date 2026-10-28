@@ -11,8 +11,6 @@ import 'package:journal/modules/voice/views/pages/diary_conversation_page.dart';
 import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
 import 'package:journal/modules/presentation/presentation_body.dart';
 import 'package:journal/modules/presentation/presentation_contract.dart';
-import 'package:journal/modules/presentation/presentation_page.dart';
-import 'package:journal/modules/diary/suggestions/diary_details_page.dart';
 import 'package:journal/modules/diary/suggestions/diary_suggestion_contract.dart';
 
 class DiaryPresentationScope extends InheritedWidget {
@@ -177,9 +175,8 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
   // Moving wrappers reuse their paragraphs until the entity or theme changes.
   Widget _buildContent(BuildContext context, DiaryDayEntity day) {
     // Photo-only stories have no text, so the page shows display items while
-    // text features (details, presentation) keep to entries with words.
+    // text tools in QVAC keep to entries with words.
     final items = day.displayItems.toList();
-    final textItems = day.visibleItems.toList();
     final live = widget.interactive && DiaryPresentationScope.enabled(context);
     final title = day.isDeleted ? '' : day.dayTitle?.trim() ?? '';
     final mood = day.isDeleted ? null : decodeDayMood(day.dayMood);
@@ -303,58 +300,6 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                     DiaryPresentationScope.enabled(context),
               ),
             ),
-            if (textItems.isNotEmpty && live)
-              TextButton.icon(
-                key: const ValueKey('diary-details-open'),
-                icon: const Icon(Icons.label_outline),
-                label: const Text('Day details'),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        DiaryDetailsPage(dateString: day.dateString),
-                  ),
-                ),
-              ),
-            if (textItems.isNotEmpty && live)
-              TextButton.icon(
-                icon: const Icon(Icons.auto_fix_high_outlined),
-                label: const Text('Presentation'),
-                onPressed: () async {
-                  final selected = await showModalBottomSheet<String>(
-                    context: context,
-                    builder: (context) => SafeArea(
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          const ListTile(title: Text('Choose a saved entry')),
-                          for (final item in textItems)
-                            ListTile(
-                              title: Text(
-                                item.content,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onTap: () =>
-                                  Navigator.pop(context, item.itemUuid),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                  if (selected != null && context.mounted) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => PresentationPage(
-                          source: PresentationSourceRef.diary(
-                            day.dateString,
-                            selected,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                },
-              ),
             // A zero-height footer balances the space around the invitation.
             if (items.isEmpty) const SizedBox.shrink(),
           ],
@@ -392,15 +337,53 @@ class _DiaryConversationChip extends StatelessWidget {
     final label = item.content.trim().isEmpty
         ? 'Conversation · no entry yet'
         : 'Conversation · $turns ${turns == 1 ? 'turn' : 'turns'}';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: ActionChip(
-          key: ValueKey('diary-conversation-${item.itemUuid}'),
-          avatar: const Icon(Icons.forum_outlined, size: 18),
-          label: Text(label),
-          onPressed: onOpen,
+    final paper = diaryPaperColors(context);
+    // Plain paint, no Material: the page curl snapshots this card, which
+    // must not contain composited layers such as a chip's ink.
+    return Semantics(
+      button: onOpen != null,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: ValueKey('diary-conversation-${item.itemUuid}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: paper.secondary.withValues(alpha: .35),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.forum_outlined,
+                      size: 16,
+                      color: paper.secondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: TextStyle(color: paper.secondary, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -448,22 +431,6 @@ class _DiaryAddActions extends StatelessWidget {
     );
   }
 
-  void _openVoice(BuildContext context) {
-    if (ModalRoute.of(context)?.isCurrent == false) return;
-    FocusScope.of(context).unfocus();
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
-    context.nav.push<void>(
-      VoiceSessionPage(
-        date: date,
-        mode: VoiceSessionMode.conversation,
-        title: 'Your day, out loud',
-      ),
-      transition: reduced ? NavTransition.none : NavTransition.fade,
-    );
-  }
-
   void _openPhotos(BuildContext context) {
     if (ModalRoute.of(context)?.isCurrent == false) return;
     FocusScope.of(context).unfocus();
@@ -508,13 +475,15 @@ class _DiaryAddActions extends StatelessWidget {
               spacing: 16,
               runSpacing: 16,
               children: [
-                for (final action in DiaryPaperAction.values)
+                for (final action in [
+                  DiaryPaperAction.image,
+                  DiaryPaperAction.more,
+                ])
                   DiaryPaperActionButton(
                     action: action,
                     onPressed: switch (action) {
-                      DiaryPaperAction.voice => () => _openVoice(context),
                       DiaryPaperAction.image => () => _openPhotos(context),
-                      DiaryPaperAction.more => _noop,
+                      _ => _noop,
                     },
                   ),
               ],

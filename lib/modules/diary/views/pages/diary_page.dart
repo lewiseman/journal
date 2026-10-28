@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:journal/common.dart' hide DiaryDayEntity;
+import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
+import 'package:journal/modules/diary/views/widgets/diary_assistant.dart';
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
 import 'package:journal/modules/diary/models/diary_calendar_day.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
@@ -508,13 +510,23 @@ class _DiaryPageState extends State<_DiaryReader>
         ),
       ],
     );
-    return Listener(
-      // An accepted Flutter drag can report a pointer cancellation as an end.
-      // Catch it before the gesture recognizer so neither surface commits it.
-      onPointerCancel: (_) {
-        if (_dragging) _settle(commit: false);
-      },
-      child: page,
+    final access = context.dependOnInheritedWidgetOfExactType<DiaryAccess>();
+    final selectedDate = _selectedDate;
+    return QvacAssistantContent(
+      label: 'Diary',
+      builder: (context, scrollController) => DiaryAssistant(
+        date: selectedDate,
+        canAddVoice: (access?.canEdit ?? true) || selectedDate == access?.today,
+        scrollController: scrollController,
+      ),
+      child: Listener(
+        // An accepted Flutter drag can report a pointer cancellation as an end.
+        // Catch it before the gesture recognizer so neither surface commits it.
+        onPointerCancel: (_) {
+          if (_dragging) _settle(commit: false);
+        },
+        child: page,
+      ),
     );
   }
 }

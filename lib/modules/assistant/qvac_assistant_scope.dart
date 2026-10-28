@@ -8,12 +8,18 @@ final qvacAssistantProvider = Provider<QvacAssistantController>((ref) {
   return controller;
 });
 
+typedef QvacAssistantSheetBuilder = Widget Function(
+  BuildContext context,
+  ScrollController scrollController,
+);
+
 /// Session-only presentation state. Connection and retry work stays in the
 /// existing companion controller; moving the assistant never starts a probe.
 class QvacAssistantController extends ChangeNotifier {
   final dockLink = LayerLink();
   final _routes = <Route<dynamic>>[];
   final _pages = <Route<dynamic>, _Destination>{};
+  final _contents = <Route<dynamic>, Map<String, QvacAssistantSheetBuilder>>{};
   Rect? dockRect;
   bool dismissed = false;
   bool _scheduled = false;
@@ -33,6 +39,7 @@ class QvacAssistantController extends ChangeNotifier {
   bool get docking => visible && (_destination?.dock ?? false);
   bool get atRoot => _destination?.root ?? false;
   String get pageLabel => _destination?.label ?? 'this page';
+  QvacAssistantSheetBuilder? get sheetBuilder => _contents[_page]?[pageLabel];
 
   void dismiss() {
     dismissed = true;
@@ -58,6 +65,20 @@ class QvacAssistantController extends ChangeNotifier {
 
   void _unregister(Route<dynamic>? route) {
     if (_pages.remove(route) != null) _changed();
+  }
+
+  void _registerContent(
+    Route<dynamic> route,
+    String label,
+    QvacAssistantSheetBuilder builder,
+  ) {
+    (_contents[route] ??= {})[label] = builder;
+  }
+
+  void _unregisterContent(Route<dynamic>? route, String label) {
+    final contents = _contents[route];
+    contents?.remove(label);
+    if (contents?.isEmpty ?? false) _contents.remove(route);
   }
 
   void _measureDock(Rect? rect) {
@@ -140,6 +161,62 @@ class QvacAssistantScope extends InheritedWidget {
   @override
   bool updateShouldNotify(QvacAssistantScope oldWidget) =>
       controller != oldWidget.controller;
+}
+
+/// Supplies tools for one page without changing the root tab's visibility or
+/// docking rules. Retained tabs only supply content when their label is active.
+class QvacAssistantContent extends StatefulWidget {
+  const QvacAssistantContent({
+    super.key,
+    required this.label,
+    required this.builder,
+    required this.child,
+  });
+  final String label;
+  final QvacAssistantSheetBuilder builder;
+  final Widget child;
+
+  @override
+  State<QvacAssistantContent> createState() => _QvacAssistantContentState();
+}
+
+class _QvacAssistantContentState extends State<QvacAssistantContent> {
+  QvacAssistantController? _controller;
+  ModalRoute<dynamic>? _route;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _unregister();
+    _controller = QvacAssistantScope.maybeOf(context);
+    _route = ModalRoute.of(context);
+    _register();
+  }
+
+  void _register() {
+    final route = _route;
+    if (route != null) {
+      _controller?._registerContent(route, widget.label, widget.builder);
+    }
+  }
+
+  void _unregister() => _controller?._unregisterContent(_route, widget.label);
+
+  @override
+  void didUpdateWidget(QvacAssistantContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _controller?._unregisterContent(_route, oldWidget.label);
+    _register();
+  }
+
+  @override
+  void dispose() {
+    _unregister();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Marks a destination independently of how it was pushed (including direct

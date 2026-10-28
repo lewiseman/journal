@@ -31,8 +31,10 @@ class DiaryTalkPage extends ConsumerStatefulWidget {
     this.voice,
     this.talk,
     this.permission,
+    this.scrollController,
   });
   final DateTime date;
+  final ScrollController? scrollController;
 
   /// Injected in tests; the caller then owns and disposes them.
   final DiaryConversation? conversation;
@@ -52,7 +54,7 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
   late final MicPermission _mic;
   late final Future<void> _ready;
   late final DateTime _created;
-  bool _started = false, _granted = false, _writing = false;
+  bool _started = false, _granted = false;
   int _savedTurns = 0;
 
   /// Why Finish could not write the entry; the conversation is still kept.
@@ -114,6 +116,8 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
 
   void _conversationChanged() {
     if (_savesEachTurn && _conversation.turns.length != _savedTurns) _save();
+    // Finish shows the computer's progress as the request moves along.
+    if (mounted && _writing) setState(() {});
   }
 
   void _changed() {
@@ -156,7 +160,22 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
     }
   }
 
-  /// Hangs up, has the computer write the entry from the turns, and closes.
+  /// The step Finish is on, shown as it happens; null when not finishing.
+  _FinishStep? _step;
+  bool get _writing => _step != null;
+
+  /// What the computer is doing with the draft right now.
+  _FinishStep? get _shownStep => _step == _FinishStep.sending
+      ? switch (_conversation.jobState) {
+          'queued' => _FinishStep.waiting,
+          'running' => _FinishStep.writing,
+          _ => _FinishStep.sending,
+        }
+      : _step;
+
+  /// Hangs up, has the computer write the entry from your words, saves it
+  /// and closes. Accepted work is waited for however long it takes; closing
+  /// keeps the conversation without the entry.
   Future<void> _finish() async {
     if (_writing) return;
     if (!_record.hasUserTurn) {
@@ -164,34 +183,46 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
       return;
     }
     setState(() {
-      _writing = true;
+      _step = _FinishStep.ending;
       _writeFailure = null;
     });
     await _talk.end();
     _save();
-    if (!mounted) return;
-    await _conversation.request('draft');
-    // Accepted work may still be running; the conversation polls for it.
-    final done = Completer<void>();
+    if (!mounted || !_writing) return;
+    setState(() => _step = _FinishStep.sending);
+    // A retry picks up a request the computer may already have accepted.
+    if (_conversation.pending != null) {
+      await _conversation.retrieve();
+    } else {
+      await _conversation.request('draft');
+    }
+    final settled = Completer<void>();
     void check() {
-      if (_conversation.pending == null && !_conversation.busy) {
-        if (!done.isCompleted) done.complete();
+      if (!_conversation.busy &&
+          !_conversation.polling &&
+          !settled.isCompleted) {
+        settled.complete();
       }
     }
 
     _conversation.addListener(check);
     check();
-    await done.future.timeout(const Duration(minutes: 3), onTimeout: () {});
+    await settled.future;
     _conversation.removeListener(check);
-    if (!mounted) return;
+    if (!mounted || !_writing) return;
     final draft = _conversation.draft.trim();
-    if (draft.isNotEmpty && _save(content: draft)) {
-      Navigator.of(context).pop();
-      return;
+    if (draft.isNotEmpty) {
+      setState(() => _step = _FinishStep.saving);
+      if (_save(content: draft)) {
+        Navigator.of(context).pop();
+        return;
+      }
     }
     setState(() {
-      _writing = false;
-      _writeFailure = _conversation.message;
+      _step = null;
+      _writeFailure = draft.isNotEmpty
+          ? 'The entry was written but could not be saved to your diary.'
+          : _conversation.message;
     });
   }
 
@@ -213,7 +244,27 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
   bool get _waiting => !_started;
 
   (String, IconData) get _status {
-    if (_writing) return ('Writing your entry…', Icons.edit_note_rounded);
+    if (_writing) {
+      return switch (_shownStep!) {
+        _FinishStep.ending => (
+          'Ending the conversation…',
+          Icons.call_end_rounded,
+        ),
+        _FinishStep.sending => (
+          'Sending your words to your computer…',
+          Icons.upload_rounded,
+        ),
+        _FinishStep.waiting => (
+          'Waiting for your computer to start…',
+          Icons.hourglass_top_rounded,
+        ),
+        _FinishStep.writing => (
+          'Your computer is writing your entry…',
+          Icons.edit_note_rounded,
+        ),
+        _FinishStep.saving => ('Saving to your diary…', Icons.save_rounded),
+      };
+    }
     if (_writeFailure != null) {
       return ('Conversation saved', Icons.check_rounded);
     }
@@ -288,8 +339,9 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
         ink: ink,
         icon: Icons.info_outline_rounded,
         title: "Couldn't write your entry",
-        body:
-            '$_writeFailure Your conversation is saved; open it from your diary to try again.',
+        body: '$_writeFailure Your conversation is saved in your diary.',
+        action: 'Try again',
+        onAction: () => unawaited(_finish()),
       );
     }
     final mic = VoiceBottomCard.microphone(permission: _mic, ink: ink);
@@ -341,6 +393,7 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
     return PopScope(
       canPop: !_writing,
       child: VoiceSessionScaffold(
+        scrollController: widget.scrollController,
         background: VoiceAmbientBackground(
           mode: VoiceSessionMode.conversation,
           phase: _backgroundPhase,
@@ -356,7 +409,7 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
           closeTooltip: _writing ? 'Close without the entry' : 'Close',
           // Every turn is already in the diary; closing only skips the draft.
           onClose: () {
-            _writing = false;
+            _step = null;
             Navigator.of(context).pop();
           },
           trailing: IconButton(
@@ -376,6 +429,8 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
         ),
         status: VoiceSessionStatus(label: label, icon: icon),
         transcript: VoiceTranscript(
+          embedded: widget.scrollController != null,
+          scrollController: widget.scrollController,
           turns: _turns,
           mode: VoiceSessionMode.conversation,
           ink: ink,
@@ -387,7 +442,7 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
           actionIcon: actionIcon,
           onAction: onAction,
           primaryLabel: _writing
-              ? 'Writing…'
+              ? (_shownStep == _FinishStep.saving ? 'Saving…' : 'Writing…')
               : finished
               ? 'Close'
               : 'Finish',
@@ -401,3 +456,5 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
     );
   }
 }
+
+enum _FinishStep { ending, sending, waiting, writing, saving }

@@ -303,11 +303,44 @@ void main() {
     await _mount(tester);
     await tester.tap(_button);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Open AI companion'));
+    await tester.tap(find.text('Local AI settings'));
     await tester.pumpAndSettle();
     expect(find.byType(CompanionPage), findsOneWidget);
     expect(find.byType(QvacAssistantSheet), findsNothing);
     expect(_button, findsNothing);
+  });
+
+  testWidgets('settings sit above every page sheet and hide at full height', (
+    tester,
+  ) async {
+    final app = await _mount(tester);
+    final settings = find.byKey(const ValueKey('qvac-local-ai-settings'));
+    final handle = find.byKey(const ValueKey('qvac-sheet-handle'));
+    final surface = find.byKey(const ValueKey('qvac-sheet-surface'));
+    for (var page = 0; page < 4; page++) {
+      app.tabs.currentState!.select(page);
+      await tester.pumpAndSettle();
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      expect(settings, findsOneWidget);
+      expect(
+        tester.getBottomLeft(settings).dy,
+        lessThan(tester.getTopLeft(surface).dy),
+      );
+      await tester.tap(handle);
+      await tester.pumpAndSettle();
+      expect(settings, findsNothing);
+      final sheet = tester.widget<DraggableScrollableSheet>(
+        find.byType(DraggableScrollableSheet),
+      );
+      expect(sheet.controller!.size, closeTo(1, .001));
+      await tester.tap(handle);
+      await tester.pumpAndSettle();
+      expect(settings, findsOneWidget);
+      app.nav.currentState!.pop();
+      await tester.pumpAndSettle();
+    }
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('onboarding remains excluded, including its pushed dialogs', (

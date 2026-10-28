@@ -11,8 +11,15 @@ import 'presentation_contract.dart';
 import 'presentation_repository.dart';
 
 class PresentationPage extends ConsumerStatefulWidget {
-  const PresentationPage({super.key, this.source});
+  const PresentationPage({
+    super.key,
+    this.source,
+    this.scrollController,
+    this.onBack,
+  });
   final PresentationSourceRef? source;
+  final ScrollController? scrollController;
+  final VoidCallback? onBack;
   @override
   ConsumerState<PresentationPage> createState() => _PresentationPageState();
 }
@@ -90,8 +97,15 @@ class _PresentationPageState extends ConsumerState<PresentationPage> {
           : compilePresentationBounded(result, blocks.nodes.length);
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Presentation')),
+      appBar: AppBar(
+        title: const Text('Presentation'),
+        leading: widget.onBack == null
+            ? null
+            : BackButton(onPressed: widget.onBack),
+      ),
       body: ListView(
+        controller: widget.scrollController,
+        physics: const ClampingScrollPhysics(),
         padding: const EdgeInsets.all(24),
         children: [
           const Text(

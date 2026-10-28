@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/voice/views/widgets/voice_ambient_background.dart';
+import 'package:journal/modules/voice/views/widgets/voice_transcript.dart';
 import 'package:journal/modules/voice/voice.dart';
 
 const _captureKey = ValueKey('voice-capture');
@@ -304,6 +305,58 @@ void main() {
     expect(controller.state.phase, VoiceSessionPhase.paused);
     expect(find.text('Open preview'), findsOneWidget);
   });
+
+  testWidgets(
+    'shared sheet scrolling preserves reading and follows new turns',
+    (tester) async {
+      final scroll = ScrollController();
+      final turns = ValueNotifier<List<VoiceTranscriptTurn>>([
+        for (var index = 0; index < 20; index++)
+          VoiceTranscriptTurn(
+            speaker: VoiceSpeaker.user,
+            text: 'A memory from my day, number $index.',
+          ),
+      ]);
+      addTearDown(scroll.dispose);
+      addTearDown(turns.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              controller: scroll,
+              child: ValueListenableBuilder(
+                valueListenable: turns,
+                builder: (context, value, _) => VoiceTranscript(
+                  embedded: true,
+                  scrollController: scroll,
+                  turns: value,
+                  mode: VoiceSessionMode.conversation,
+                  ink: Colors.black,
+                  reducedMotion: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(scroll.offset, scroll.position.maxScrollExtent);
+      final history = find.byType(SingleChildScrollView);
+      await tester.drag(history, const Offset(0, 200));
+      await tester.pumpAndSettle();
+      final readingOffset = scroll.offset;
+      expect(readingOffset, lessThan(scroll.position.maxScrollExtent));
+      turns.value = [...turns.value, _sample.last];
+      await tester.pumpAndSettle();
+      expect(scroll.offset, readingOffset);
+      await tester.drag(history, const Offset(0, -1500));
+      await tester.pumpAndSettle();
+      turns.value = [...turns.value, _sample.first];
+      await tester.pumpAndSettle();
+      expect(scroll.offset, scroll.position.maxScrollExtent);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'history stays still while reading and follows again at the end',

@@ -22,8 +22,15 @@ class _Field<T> {
 /// Day title, mood and themes: manual editing plus optional local-AI
 /// suggestions that are reviewed field by field and never saved automatically.
 class DiaryDetailsPage extends ConsumerStatefulWidget {
-  const DiaryDetailsPage({super.key, required this.dateString});
+  const DiaryDetailsPage({
+    super.key,
+    required this.dateString,
+    this.scrollController,
+    this.onBack,
+  });
   final String dateString;
+  final ScrollController? scrollController;
+  final VoidCallback? onBack;
   @override
   ConsumerState<DiaryDetailsPage> createState() => _DiaryDetailsPageState();
 }
@@ -160,8 +167,15 @@ class _DiaryDetailsPageState extends ConsumerState<DiaryDetailsPage> {
     ].contains(_Decision.accepted);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Day details')),
+      appBar: AppBar(
+        title: const Text('Day details'),
+        leading: widget.onBack == null
+            ? null
+            : BackButton(onPressed: widget.onBack),
+      ),
       body: ListView(
+        controller: widget.scrollController,
+        physics: const ClampingScrollPhysics(),
         padding: const EdgeInsets.all(24),
         children: [
           Text(

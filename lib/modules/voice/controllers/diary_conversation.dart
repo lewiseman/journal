@@ -39,9 +39,18 @@ class DiaryConversation extends ChangeNotifier {
   int created = DateTime.now().millisecondsSinceEpoch;
   List<Map<String, String>> turns = [];
   Map<String, dynamic>? pending;
+
+  /// The computer's state for [pending] once it is accepted: queued or running.
+  String? jobState;
   String? computerId, deviceId;
   bool busy = false, disposed = false, saved = false;
   Timer? _poll;
+
+  /// Accepted work is still running and will be checked again shortly.
+  bool get polling => _poll?.isActive ?? false;
+
+  /// The computer's limit for one conversation request; nothing is truncated.
+  static const inputLimit = 10000;
   Future<void> _writes = Future.value();
   void update() {
     if (!disposed) notifyListeners();
@@ -179,17 +188,22 @@ class DiaryConversation extends ChangeNotifier {
       final c = trusted();
       final prompt = jsonEncode({
         'action': action,
-        'turns': turns,
+        // A draft is written from the person's own words only, so the
+        // companion's questions are not sent and do not use up the limit.
+        'turns': action == 'draft'
+            ? turns.where((t) => t['speaker'] == 'user').toList()
+            : turns,
         if (action == 'open') 'diary': diary?.call() ?? const [],
       });
-      if (utf8.encode(prompt).length > 6000) {
+      if (utf8.encode(prompt).length > inputLimit) {
         throw const CompanionFailure(
           'INPUT_LIMIT',
-          'This conversation exceeds 6,000 UTF-8 bytes. Nothing was truncated or sent. Shorten the source through correction before requesting a draft.',
+          'This conversation is too long for your computer to write up in one go (over 10,000 bytes). Nothing was truncated or sent.',
         );
       }
       computerId = c.id;
       deviceId = c.deviceId;
+      jobState = null;
       pending = {
         'id': const Uuid().v4(),
         'action': action,
@@ -208,6 +222,8 @@ class DiaryConversation extends ChangeNotifier {
 
   Future<void> retrieve() async {
     if (pending == null || busy || disposed) return;
+    // This check replaces any already scheduled one.
+    _poll?.cancel();
     busy = true;
     message = pending!['action'] == 'open'
         ? 'Your companion is starting the conversation…'
@@ -244,6 +260,7 @@ class DiaryConversation extends ChangeNotifier {
         throw const FormatException();
       }
       pending!['accepted'] = true;
+      jobState = job['state'] as String?;
       await persist();
       if (disposed) return;
       if (job['state'] == 'completed') {
@@ -255,8 +272,7 @@ class DiaryConversation extends ChangeNotifier {
         }
         if (pending!['action'] == 'draft') {
           draft = output;
-          message =
-              'Review and edit this first-person draft. Check every fact against your own turns below.';
+          message = 'Review and edit this first-person draft. Check every fact against your own turns below.';
         } else {
           turns.add({'speaker': 'assistant', 'text': output});
           message = pending!['action'] == 'open'
@@ -266,6 +282,7 @@ class DiaryConversation extends ChangeNotifier {
         }
         final jobId = pending!['id'];
         pending = null;
+        jobState = null;
         await persist();
         try {
           await client.authenticated(c, 'POST', '/v1/jobs/$jobId/ack');
@@ -275,6 +292,7 @@ class DiaryConversation extends ChangeNotifier {
         _poll = Timer(const Duration(seconds: 2), () => unawaited(retrieve()));
       } else {
         pending = null;
+        jobState = null;
         await persist();
         message =
             'The request ${job['state']}. Your original turns are retained. Generate again explicitly.';
