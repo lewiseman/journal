@@ -111,6 +111,10 @@ class SummaryHistoryPage extends ConsumerWidget {
                                   ? 'Diary question'
                                   : task.isPresentation
                                   ? 'Presentation'
+                                  : task.isNoteMetadata
+                                  ? 'Title & tag ideas'
+                                  : task.isNoteIdeas
+                                  ? 'Starting ideas'
                                   : transformOperations[task.operation] ?? 'Note summary'} · ${summaryPhaseLabel(phase)}',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),

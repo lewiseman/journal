@@ -5,9 +5,12 @@ import 'package:journal/config/theme.dart';
 
 /// A small idea ticket that can become the first line of a new note.
 class NoteIdeaCard extends StatefulWidget {
-  const NoteIdeaCard({super.key, required this.onUsePrompt});
+  const NoteIdeaCard({super.key, required this.onUsePrompt, this.onAskAi});
 
   final ValueChanged<String> onUsePrompt;
+
+  /// Opens explicit AI starting ideas; hidden when null.
+  final VoidCallback? onAskAi;
 
   @override
   State<NoteIdeaCard> createState() => _NoteIdeaCardState();
@@ -98,6 +101,21 @@ class _NoteIdeaCardState extends State<NoteIdeaCard> {
                               ),
                         ),
                       ),
+                      if (widget.onAskAi != null)
+                        IconButton(
+                          tooltip: 'Ideas from your computer',
+                          onPressed: widget.onAskAi,
+                          icon: Icon(
+                            Icons.auto_awesome_outlined,
+                            size: 18,
+                            color: context.colors.primary,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 44,
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
                       IconButton(
                         tooltip: 'Another idea',
                         onPressed: _shuffle,

@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:journal/modules/voice/controllers/voice_store.dart';
 
 import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
@@ -20,6 +21,7 @@ import 'package:journal/modules/notes/views/widgets/note_tag_picker.dart';
 import 'package:journal/modules/notes/views/widgets/unsaved_note_sheet.dart';
 import 'package:journal/modules/notes/summary/summary_page.dart';
 import 'package:journal/modules/notes/transform/transform_page.dart';
+import 'package:journal/modules/notes/metadata/note_help_pages.dart';
 import 'package:journal/modules/presentation/presentation_page.dart';
 import 'package:journal/modules/presentation/presentation_body.dart';
 import 'package:journal/modules/presentation/presentation_contract.dart';
@@ -188,8 +190,47 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
           ? NoteRecoveryPage(noteId: note.uuid)
           : NoteTransformPage(noteId: note.uuid),
     );
+    _reloadSaved(note.uuid);
+  }
+
+  Future<void> _openMetadataHelp() async {
+    final note = _savedNote;
+    if (note == null || _hasUnsavedChanges) return;
+    final undo = await context.nav.push<NoteMetadataUndo>(
+      NoteMetadataPage(noteId: note.uuid),
+    );
+    _reloadSaved(note.uuid);
+    if (!mounted || undo == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Title and tags updated.'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            try {
+              ref
+                  .read(notesRepositoryProvider)
+                  .updateNoteMetadata(
+                    uuid: undo.noteId,
+                    expectedVersion: undo.version,
+                    title: undo.title,
+                    tags: undo.tags,
+                  );
+              _reloadSaved(undo.noteId);
+            } catch (_) {
+              _showActionError(
+                'The note changed since then, so it was not undone.',
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _reloadSaved(String uuid) {
     if (!mounted || _hasUnsavedChanges) return;
-    final updated = ref.read(notesRepositoryProvider).getNoteByUuid(note.uuid);
+    final updated = ref.read(notesRepositoryProvider).getNoteByUuid(uuid);
     if (updated == null || updated.isDeleted || updated.isPermanentlyDeleted) {
       Navigator.of(context).pop();
       return;
@@ -474,6 +515,8 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                               ),
                             ),
                           );
+                        } else if (value == 'metadata') {
+                          _openMetadataHelp();
                         } else {
                           _openWritingHelp(recovery: value == 'recovery');
                         }
@@ -482,6 +525,10 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                         PopupMenuItem(
                           value: 'write',
                           child: Text('Writing help'),
+                        ),
+                        PopupMenuItem(
+                          value: 'metadata',
+                          child: Text('Title & tag ideas'),
                         ),
                         PopupMenuItem(
                           value: 'recovery',

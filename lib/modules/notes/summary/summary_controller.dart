@@ -12,6 +12,10 @@ import 'package:journal/modules/settings/companion/companion_protocol.dart';
 
 import 'summary_store.dart';
 import '../transform/transform_contract.dart';
+import '../metadata/note_help_contract.dart';
+
+import 'package:journal/modules/notes/models/note_tag.dart';
+
 import '../../presentation/presentation_contract.dart';
 import '../../presentation/presentation_repository.dart';
 
@@ -346,6 +350,13 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       return source != null &&
           await hexHash(utf8.encode(source.encode())) == handle.revision;
     }
+    if (handle.isNoteIdeas) return true;
+    if (handle.isNoteMetadata) {
+      return handle.localSource != null &&
+          NoteMetadataSource.decode(handle.localSource!).matches(
+            ref.read(notesRepositoryProvider).getNoteByUuid(handle.noteId),
+          );
+    }
     if (handle.isPresentation) {
       final source = ref
           .read(presentationRepositoryProvider)
@@ -635,6 +646,203 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
               : error,
         );
       }
+    }
+  }
+
+  /// N02: title and tag suggestions grounded in one saved note. Only its
+  /// title, body and tag names are sent; nothing is applied automatically.
+  Future<void> startNoteMetadata(String noteId) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final repository = ref.read(notesRepositoryProvider);
+      if (!repository.sync.canEdit) {
+        throw const CompanionFailure(
+          'READ_ONLY',
+          'Existing notes are read-only on this device, so suggestions could not be applied. Nothing was sent.',
+        );
+      }
+      final note = repository.getNoteByUuid(noteId);
+      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
+        throw const CompanionFailure(
+          'SOURCE_MISSING',
+          'This note is no longer available.',
+        );
+      }
+      final source = NoteMetadataSource.fromNote(note);
+      final input = source.request();
+      final computer = _capableComputer(
+        contractKey: 'noteHelpContract',
+        contract: noteHelpContract,
+        operation: noteMetadataOperation,
+        fallback: 'You can still edit the title and tags yourself.',
+        update: 'Update the companion to suggest titles and tags.',
+      );
+      final local = source.encode();
+      await _submitNew(
+        generation,
+        noteId: noteId,
+        local: local,
+        input: input,
+        operation: noteMetadataOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  /// N02: starting ideas from an optional topic and notes the user chose.
+  /// Creates nothing, so secondary devices may ask too.
+  Future<void> startNoteIdeas(NoteIdeaSource source) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final input = source.request();
+      final computer = _capableComputer(
+        contractKey: 'noteHelpContract',
+        contract: noteHelpContract,
+        operation: noteIdeasOperation,
+        fallback: 'The idea shuffle still works without it.',
+        update: 'Update the companion to suggest starting ideas.',
+      );
+      await _submitNew(
+        generation,
+        noteId: noteIdeasKey,
+        local: source.encode(),
+        input: input,
+        operation: noteIdeasOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  /// Persists the retry identity and bounded input before any submission.
+  Future<void> _submitNew(
+    int generation, {
+    required String noteId,
+    required String local,
+    required String input,
+    required String operation,
+    required TrustedComputer computer,
+  }) async {
+    final handle = SummaryHandle(
+      id: const Uuid().v4(),
+      noteId: noteId,
+      revision: await hexHash(utf8.encode(local)),
+      computerId: computer.id,
+      deviceId: computer.deviceId,
+      created: DateTime.now().millisecondsSinceEpoch,
+      pendingText: input,
+      operation: operation,
+      localSource: local,
+    );
+    if (!_alive(generation)) return;
+    await _save(handle);
+    if (!_alive(generation)) return;
+    _show('submitting', handle: handle, busy: true);
+    await retry();
+  }
+
+  /// The current metadata result after the phone's convention checks.
+  NoteMetadataSuggestions? noteMetadataSuggestions({
+    Iterable<NoteTag> library = const [],
+  }) {
+    final handle = state.handle, text = state.text;
+    if (handle == null ||
+        !handle.isNoteMetadata ||
+        handle.localSource == null ||
+        text == null) {
+      return null;
+    }
+    try {
+      return NoteMetadataSuggestions.parse(
+        text,
+        NoteMetadataSource.decode(handle.localSource!),
+        library: library,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<String>? noteIdeas() {
+    final handle = state.handle, text = state.text;
+    if (handle == null || !handle.isNoteIdeas || text == null) return null;
+    try {
+      return parseNoteIdeas(text);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Applies only the explicitly chosen title and added tags. Existing tags
+  /// are kept; the repository rechecks role and the exact version.
+  Future<bool> acceptNoteMetadata({
+    String? title,
+    List<NoteTag> tags = const [],
+  }) async {
+    final handle = state.handle, generation = _generation;
+    if (handle == null ||
+        !handle.isNoteMetadata ||
+        handle.localSource == null ||
+        state.phase != 'completed' ||
+        state.busy ||
+        _working ||
+        _blocked ||
+        state.text == null ||
+        (title == null && tags.isEmpty)) {
+      return false;
+    }
+    try {
+      if (!await _matches(handle)) {
+        if (_alive(generation)) await refreshSource();
+        return false;
+      }
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      final source = NoteMetadataSource.decode(handle.localSource!);
+      final current = {for (final tag in source.parsedTags) tag.key};
+      ref
+          .read(notesRepositoryProvider)
+          .updateNoteMetadata(
+            uuid: handle.noteId,
+            expectedVersion: source.version,
+            title: title ?? source.title,
+            tags: [
+              ...source.tags,
+              for (final tag in tags)
+                if (current.add(tag.key)) tag.encoded,
+            ],
+          );
+      await clear();
+      return true;
+    } catch (error) {
+      if (_alive(generation)) {
+        _show(
+          'completed',
+          text: state.text,
+          message: error is StateError
+              ? error.message.toString()
+              : 'Could not apply these suggestions. Your note is unchanged.',
+        );
+      }
+      return false;
     }
   }
 
@@ -1059,6 +1267,23 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (phase == 'completed' &&
         job['acknowledged'] != true &&
         !invalidOutput &&
+        (handle.isNoteMetadata || handle.isNoteIdeas)) {
+      try {
+        if (handle.isNoteIdeas) {
+          parseNoteIdeas(job['text'] as String);
+        } else {
+          NoteMetadataSuggestions.parse(
+            job['text'] as String,
+            NoteMetadataSource.decode(handle.localSource!),
+          );
+        }
+      } catch (_) {
+        invalidOutput = true;
+      }
+    }
+    if (phase == 'completed' &&
+        job['acknowledged'] != true &&
+        !invalidOutput &&
         handle.isDiaryAnswer) {
       try {
         DiaryHistoryAnswer.parse(
@@ -1175,6 +1400,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             ? dailyQuestionOutputBytes
             : handle.isDiaryAnswer
             ? historyOutputBytes
+            : handle.isNoteMetadata || handle.isNoteIdeas
+            ? noteHelpOutputBytes
             : summaryOutputBytes,
       ) &&
       (!handle.isTransformation || validTransformOutput(text));
@@ -1314,6 +1541,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (handle == null ||
         (handle.isTransformation ||
             handle.isPresentation ||
+            handle.isNoteMetadata ||
+            handle.isNoteIdeas ||
             handle.isDiaryDay) ||
         !state.terminal ||
         state.phase == 'completed' ||

@@ -11,6 +11,7 @@ import '../summary/summary_controller.dart';
 import '../summary/summary_page.dart';
 import '../summary/summary_history_page.dart';
 import 'transform_contract.dart';
+import '../metadata/note_help_pages.dart';
 import '../../presentation/presentation_page.dart';
 import '../../diary/suggestions/diary_details_page.dart';
 
@@ -61,6 +62,10 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
     if (state.handle?.isDiarySuggestion == true) {
       return DiaryDetailsPage(dateString: state.handle!.noteId);
     }
+    if (state.handle?.isNoteMetadata == true) {
+      return NoteMetadataPage(noteId: state.handle!.noteId);
+    }
+    if (state.handle?.isNoteIdeas == true) return const NoteIdeasPage();
     final controller = ref.read(noteSummaryProvider.notifier);
     final handle = state.handle;
     final readOnly =

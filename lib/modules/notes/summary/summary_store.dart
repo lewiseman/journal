@@ -7,6 +7,7 @@ import 'package:journal/objectbox/objectbox.g.dart';
 
 import 'summary_task_entity.dart';
 import '../transform/transform_contract.dart';
+import '../metadata/note_help_contract.dart';
 import '../../presentation/presentation_contract.dart';
 import '../../diary/history/diary_history_contract.dart';
 import '../../diary/questions/daily_question_contract.dart';
@@ -51,6 +52,12 @@ class SummaryHandle {
 
   /// S01 historical answers. [noteId] holds the civil date asked on.
   bool get isDiaryAnswer => operation == historyOperation;
+
+  /// N02 title/tag suggestions for the saved note [noteId].
+  bool get isNoteMetadata => operation == noteMetadataOperation;
+
+  /// N02 starting ideas. [noteId] is [noteIdeasKey].
+  bool get isNoteIdeas => operation == noteIdeasOperation;
 
   /// Diary tasks keyed by a civil date rather than a note UUID.
   bool get isDiaryDay => isDiarySuggestion || isDailyQuestion || isDiaryAnswer;
@@ -128,7 +135,10 @@ class SummaryHandle {
     if ((!handle.isTransformation &&
             !handle.isPresentation &&
             !handle.isDiaryDay &&
+            !handle.isNoteMetadata &&
+            !handle.isNoteIdeas &&
             handle.operation != 'summarize-note') ||
+        (handle.isNoteIdeas && handle.noteId != noteIdeasKey) ||
         (handle.isDiaryDay &&
             !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(handle.noteId)) ||
         !RegExp(r'^[a-zA-Z0-9_-]{8,80}$').hasMatch(handle.id) ||
@@ -157,6 +167,13 @@ class SummaryHandle {
             handle.noteId) {
           throw const FormatException('Mismatched source');
         }
+      } else if (handle.isNoteMetadata) {
+        if (NoteMetadataSource.decode(handle.localSource!).noteId !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
+      } else if (handle.isNoteIdeas) {
+        NoteIdeaSource.decode(handle.localSource!);
       } else if (handle.isDiaryAnswer) {
         if (DiaryHistorySelection.decode(handle.localSource!).today !=
             handle.noteId) {

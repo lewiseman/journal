@@ -4,6 +4,7 @@ import 'package:journal/common.dart';
 
 import '../transform/note_recovery_entity.dart';
 import '../transform/transform_contract.dart';
+import '../models/note_tag.dart';
 
 import 'package:journal/objectbox/objectbox.g.dart';
 import 'package:sync_wise/sync_wise.dart';
@@ -264,6 +265,51 @@ class NotesRepository {
       for (final row in rows.skip(10)) {
         history.remove(row.id);
       }
+    });
+    return saved;
+  }
+
+  /// Sets exactly [title] and [tags] if the note still has [expectedVersion].
+  /// Used for reviewed suggestions and their undo; never creates a conflict draft.
+  NoteEntity updateNoteMetadata({
+    required String uuid,
+    required String expectedVersion,
+    required String title,
+    required List<String> tags,
+  }) {
+    _editable();
+    final cleanTitle = title.trim();
+    final keys = <String>{};
+    if (cleanTitle.isEmpty ||
+        cleanTitle.contains(RegExp(r'[\x00-\x1f\x7f]')) ||
+        tags.any((t) {
+          final tag = NoteTag.tryParse(t);
+          return tag == null || !keys.add(tag.key);
+        })) {
+      throw StateError('Invalid title or tags. Your note is unchanged.');
+    }
+    late NoteEntity saved;
+    _db.store.runInTransaction(TxMode.write, () {
+      final note = getNoteByUuid(uuid);
+      if (note == null ||
+          note.isDeleted ||
+          note.isPermanentlyDeleted ||
+          !note.versionVector.isEqualTo(
+            VersionVector.fromJsonString(expectedVersion),
+          )) {
+        throw StateError(
+          'The note changed. These suggestions cannot replace a newer edit.',
+        );
+      }
+      saved = saveNote(
+        uuid: uuid,
+        expectedVersionVectorJson: expectedVersion,
+        title: cleanTitle,
+        content: note.content,
+        tags: tags,
+        attachmentPaths: note.attachments,
+        background: note.background,
+      );
     });
     return saved;
   }

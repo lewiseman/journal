@@ -1,6 +1,7 @@
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/notes/models/note_tag.dart';
+import 'package:journal/modules/notes/metadata/note_help_pages.dart';
 import 'package:journal/modules/notes/views/widgets/note_card.dart';
 import 'package:journal/modules/notes/views/widgets/note_idea_card.dart';
 import 'package:journal/modules/notes/views/widgets/note_tag_strip.dart';
@@ -338,6 +339,12 @@ class _NotesPageState extends ConsumerState<NotesPage> {
                   onUsePrompt: (prompt) {
                     context.nav.push(EditNotePage(starterTitle: prompt));
                   },
+                  onAskAi: () => context.nav.push<void>(
+                    NoteIdeasPage(
+                      onUseIdea: (idea) =>
+                          context.nav.push(EditNotePage(starterTitle: idea)),
+                    ),
+                  ),
                 );
               }
               if (emptyNotebook) {
