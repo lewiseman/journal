@@ -1,6 +1,11 @@
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:journal/common.dart';
+import 'package:journal/modules/diary/controllers/diary_photo_stories.dart';
+import 'package:journal/modules/diary/controllers/diary_photo_store.dart';
+import 'package:journal/modules/diary/models/diary_photo.dart';
+import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 import 'package:journal/modules/diary/views/widgets/diary_photo_widgets.dart';
 import 'package:journal/modules/diary/views/widgets/diary_ink_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_memory_material.dart';
@@ -10,7 +15,8 @@ import 'package:journal/modules/diary/views/widgets/diary_reflection_desk.dart';
 
 enum _PhotoStage { photos, reflect, review }
 
-// These are deliberately sample prompts. No image analysis or AI call is made.
+// These are deliberately sample prompts. No image analysis or AI call is made;
+// real photo questions arrive in I02.
 const _questionGroups = [
   (
     label: 'The moment',
@@ -39,11 +45,13 @@ const _questionGroups = [
 ];
 
 class _PhotoMoment {
-  _PhotoMoment({required this.path, required this.bytes, required int seed})
+  _PhotoMoment({required this.path, required this.draft, required int seed})
     : variants = [seed % 3, seed % 3, seed % 3];
 
+  /// Picker path for a new photo, saved path for a reopened one.
   final String path;
-  final Uint8List bytes;
+  final DiaryPhotoDraft draft;
+  Uint8List get bytes => draft.bytes;
   final caption = TextEditingController();
   final answers = <String, TextEditingController>{};
   final List<int> variants;
@@ -63,11 +71,24 @@ class _PhotoMoment {
   }
 }
 
-/// A UI-only photo-story draft. Closing this route never writes to the diary.
+/// Builds or reopens a photo story. Only Save writes to the diary; closing
+/// or going back leaves the diary and its saved photos untouched.
 class AddDiaryPhotosPage extends StatefulWidget {
-  const AddDiaryPhotosPage({super.key, required this.date, this.imagePicker});
+  const AddDiaryPhotosPage({
+    super.key,
+    required this.date,
+    this.story,
+    this.readOnly = false,
+    this.imagePicker,
+  });
 
   final DateTime date;
+
+  /// A saved photo story to reopen at its entry.
+  final DiaryItem? story;
+
+  /// Secondary devices can view saved stories but not change them.
+  final bool readOnly;
   final Future<List<XFile>> Function()? imagePicker;
 
   @override
@@ -84,9 +105,18 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
   _PhotoStage _reviewFrom = _PhotoStage.photos;
   int _selected = 0;
   bool _picking = false;
+  bool _saving = false;
+  bool _opening = false;
   bool _includeReflections = true;
   bool _editingPhotos = false;
-  bool get _canReturnToEntry => _editingPhotos && _moments.isNotEmpty;
+  bool get _reopened => widget.story != null;
+  bool get _canReturnToEntry =>
+      (_editingPhotos || _reopened) && _moments.isNotEmpty;
+
+  /// The stage the close button belongs to; elsewhere it goes back.
+  bool get _atHome => _reopened
+      ? _stage == _PhotoStage.review || _moments.isEmpty
+      : _stage == _PhotoStage.photos && !_canReturnToEntry;
   String? _pickerError;
 
   _PhotoMoment get _moment => _moments[_selected];
@@ -97,10 +127,90 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _pickPhotos();
+    if (_reopened) {
+      _stage = _PhotoStage.review;
+      _opening = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _open());
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _pickPhotos();
+      });
+    }
+  }
+
+  DiaryPhotoStories get _stories => ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(diaryPhotoStoriesProvider);
+
+  Future<void> _open() async {
+    if (!mounted) return;
+    final story = widget.story!;
+    final drafts = await _stories.open(story);
+    if (!mounted) return;
+    setState(() {
+      for (final (index, photo) in story.photos.indexed) {
+        final moment = _PhotoMoment(
+          path: photo.path,
+          draft: drafts[index],
+          seed: index,
+        );
+        moment.caption.text = photo.caption;
+        for (final reflection in photo.reflections) {
+          moment.answers[reflection.question] = TextEditingController(
+            text: reflection.answer,
+          );
+        }
+        _moments.add(moment);
+      }
+      _opening = false;
     });
   }
+
+  Future<void> _save() async {
+    if (_saving || _moments.isEmpty || widget.readOnly) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _saving = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _stories.save(
+        dateString: TimeHelper.dateKey(widget.date),
+        existingItemUuid: widget.story?.itemUuid,
+        newItemUuid: _newItemUuid,
+        photos: [
+          for (final moment in _moments)
+            (
+              draft: moment.draft,
+              caption: moment.caption.text,
+              reflections: [
+                if (_includeReflections)
+                  for (final answer in moment.writtenAnswers)
+                    DiaryPhotoReflection(
+                      question: answer.key,
+                      answer: answer.value.text,
+                    ),
+              ],
+            ),
+        ],
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            error is StateError
+                ? error.message
+                : 'Your photo story couldn’t be saved. It’s still here.',
+          ),
+        ),
+      );
+    }
+  }
+
+  // One identity per new story, so a retried save can't add it twice.
+  late final _newItemUuid = const Uuid().v4();
 
   @override
   void dispose() {
@@ -131,6 +241,10 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
               ));
       if (!mounted) return;
       final paths = _moments.map((moment) => moment.path).toSet();
+      final hashes = {
+        for (final moment in _moments)
+          if (moment.draft.sha256.isNotEmpty) moment.draft.sha256,
+      };
       final added = <_PhotoMoment>[];
       var unreadable = 0;
       for (final file in files) {
@@ -138,10 +252,16 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
         try {
           final bytes = await file.readAsBytes();
           if (bytes.isEmpty) throw const FormatException('Empty photo');
+          final sha256 = await DiaryPhotoStore.digest(bytes);
+          if (!hashes.add(sha256)) continue;
           added.add(
             _PhotoMoment(
               path: file.path,
-              bytes: bytes,
+              draft: DiaryPhotoDraft(
+                bytes: bytes,
+                sha256: sha256,
+                sourceExtension: p.extension(file.path),
+              ),
               seed: _moments.length + added.length,
             ),
           );
@@ -280,7 +400,9 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
   }
 
   void _back() {
-    if (_stage == _PhotoStage.photos && _canReturnToEntry) {
+    if (_atHome) {
+      Navigator.pop(context);
+    } else if (_stage == _PhotoStage.photos && _canReturnToEntry) {
       _finishEditingPhotos();
     } else {
       _changeStage(
@@ -367,7 +489,7 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
     final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
     final background = DiaryMemoryPalette.of(context).desk;
     return PopScope(
-      canPop: _stage == _PhotoStage.photos && !_canReturnToEntry,
+      canPop: _atHome && !_saving,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _back();
       },
@@ -378,25 +500,21 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
           leading: DiaryInkAction(
-            label: _stage == _PhotoStage.photos && !_canReturnToEntry
-                ? 'Close photo preview'
-                : 'Back',
-            tooltip: _stage == _PhotoStage.photos
-                ? (_canReturnToEntry ? 'Back to entry' : 'Close photo preview')
+            label: _atHome ? _closeLabel : 'Back',
+            tooltip: _atHome
+                ? _closeLabel
+                : _stage == _PhotoStage.photos
+                ? 'Back to entry'
                 : (_stage == _PhotoStage.review &&
                       _reviewFrom == _PhotoStage.reflect)
                 ? 'Back to reflections'
                 : 'Back to photos',
-            onPressed: _stage == _PhotoStage.photos && !_canReturnToEntry
-                ? () => Navigator.pop(context)
-                : _back,
+            onPressed: _saving ? null : _back,
             child: Center(
               child: Transform.flip(
                 flipX: Directionality.of(context) == TextDirection.ltr,
                 child: DiaryInkGlyph(
-                  symbol: _stage == _PhotoStage.photos && !_canReturnToEntry
-                      ? DiaryInkSymbol.close
-                      : DiaryInkSymbol.arrow,
+                  symbol: _atHome ? DiaryInkSymbol.close : DiaryInkSymbol.arrow,
                   color: DiaryMemoryPalette.of(context).ink,
                 ),
               ),
@@ -443,8 +561,18 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
     );
   }
 
+  String get _closeLabel =>
+      widget.readOnly ? 'Close photo story' : 'Close without saving';
+
+  bool _sectionEnabled(_PhotoStage stage) =>
+      !_picking &&
+      !_saving &&
+      !_opening &&
+      (stage == _PhotoStage.photos || _moments.isNotEmpty) &&
+      (!widget.readOnly || stage == _PhotoStage.review);
+
   void _selectSection(_PhotoStage stage) {
-    if (_picking || stage == _stage) return;
+    if (!_sectionEnabled(stage) || stage == _stage) return;
     if (stage != _PhotoStage.photos && _moments.isEmpty) return;
     switch (stage) {
       case _PhotoStage.photos:
@@ -479,10 +607,9 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
               key: ValueKey('diary-section-${stage.name}'),
               label: label,
               selected: _stage == stage,
-              onPressed:
-                  _picking || (_moments.isEmpty && stage != _PhotoStage.photos)
-                  ? null
-                  : () => _selectSection(stage),
+              onPressed: _sectionEnabled(stage)
+                  ? () => _selectSection(stage)
+                  : null,
               child: CustomPaint(
                 foregroundPainter: _stage == stage
                     ? DiaryInkUnderline(ink: palette.ink)
@@ -681,7 +808,25 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
     ),
   );
 
-  Widget _reflection() => DiaryReflectionDesk(
+  Widget _reflection() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        'Sample questions for now · not drawn from your photos, and nothing is sent.',
+        key: const ValueKey('diary-photo-sample-note'),
+        style: TextStyle(
+          fontSize: 10,
+          height: 1.5,
+          fontStyle: FontStyle.italic,
+          color: DiaryMemoryPalette.of(context).muted,
+        ),
+      ),
+      const SizedBox(height: 12),
+      _reflectionDesk(),
+    ],
+  );
+
+  Widget _reflectionDesk() => DiaryReflectionDesk(
     photos: [
       for (final moment in _moments)
         (
@@ -712,26 +857,41 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
     onAnswerChanged: () => setState(() {}),
   );
 
-  Widget _entryPreview() => DiaryPhotoEntryBook(
-    stories: [
-      for (final moment in _moments)
-        (
-          bytes: moment.bytes,
-          caption: moment.caption.text.trim(),
-          reflections: [
-            if (_includeReflections)
-              for (final answer in moment.writtenAnswers)
-                (question: answer.key, answer: answer.value.text.trim()),
+  Widget _entryPreview() => _opening
+      ? Padding(
+          padding: const EdgeInsets.only(top: 40),
+          child: Center(
+            child: Text(
+              'Opening your photo story…',
+              style: TextStyle(
+                fontStyle: FontStyle.italic,
+                color: DiaryMemoryPalette.of(context).muted,
+              ),
+            ),
+          ),
+        )
+      : DiaryPhotoEntryBook(
+          stories: [
+            for (final moment in _moments)
+              (
+                bytes: moment.bytes,
+                caption: moment.caption.text.trim(),
+                reflections: [
+                  if (_includeReflections)
+                    for (final answer in moment.writtenAnswers)
+                      (question: answer.key, answer: answer.value.text.trim()),
+                ],
+              ),
           ],
-        ),
-    ],
-    onEnlarge: (index) => _showPhoto(_moments[index], index),
-    onEditPhotos: _editPhotos,
-    onReflect: (index) {
-      _selected = index;
-      _changeStage(_PhotoStage.reflect);
-    },
-  );
+          onEnlarge: (index) => _showPhoto(_moments[index], index),
+          onEditPhotos: widget.readOnly ? null : _editPhotos,
+          onReflect: widget.readOnly
+              ? null
+              : (index) {
+                  _selected = index;
+                  _changeStage(_PhotoStage.reflect);
+                },
+        );
 
   Widget _footer() {
     if (_stage == _PhotoStage.reflect) {
@@ -792,17 +952,47 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
             ],
           if (_stage == _PhotoStage.review) ...[
             Text(
-              'Preview only · photos and words aren’t saved yet.',
+              _moments.any((moment) => moment.draft.missing)
+                  ? 'Some photos are kept only on the device that added them. Sync shares captions and words, not photos.'
+                  : 'Photos stay on this device. Sync shares captions and words, not photos.',
+              key: const ValueKey('diary-photo-local-note'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 10, height: 1.5, color: palette.muted),
             ),
+            if (widget.readOnly) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Saved stories can be changed on your primary device.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1.5,
+                  color: palette.muted,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
-            DiaryPaperTicket(
-              label: 'Done',
-              onPressed: () => Navigator.pop(context),
-              symbol: DiaryInkSymbol.check,
-              tone: 2,
-            ),
+            if (widget.readOnly)
+              DiaryPaperTicket(
+                label: 'Done',
+                onPressed: () => Navigator.pop(context),
+                symbol: DiaryInkSymbol.check,
+                tone: 2,
+              )
+            else
+              DiaryPaperTicket(
+                key: const ValueKey('diary-photo-save'),
+                label: _saving
+                    ? 'Saving…'
+                    : _reopened
+                    ? 'Save changes'
+                    : 'Save to diary',
+                onPressed: _saving || _opening || _moments.isEmpty
+                    ? null
+                    : _save,
+                symbol: DiaryInkSymbol.check,
+                tone: 2,
+              ),
           ],
         ],
       ),

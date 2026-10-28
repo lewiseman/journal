@@ -17,12 +17,15 @@ class DiaryPhotoEntryBook extends StatefulWidget {
     super.key,
     required this.stories,
     required this.onEnlarge,
-    required this.onEditPhotos,
-    required this.onReflect,
+    this.onEditPhotos,
+    this.onReflect,
   });
   final List<DiaryPhotoStory> stories;
-  final ValueChanged<int> onEnlarge, onReflect;
-  final VoidCallback onEditPhotos;
+  final ValueChanged<int> onEnlarge;
+
+  /// Null on a read-only device: the story can be read but not changed.
+  final ValueChanged<int>? onReflect;
+  final VoidCallback? onEditPhotos;
 
   @override
   State<DiaryPhotoEntryBook> createState() => _DiaryPhotoEntryBookState();
@@ -55,31 +58,32 @@ class _DiaryPhotoEntryBookState extends State<DiaryPhotoEntryBook> {
                 ),
               ),
             ),
-            DiaryInkAction(
-              label: 'Edit photos',
-              onPressed: widget.onEditPhotos,
-              child: Padding(
-                padding: const EdgeInsetsDirectional.only(start: 10),
-                child: Row(
-                  children: [
-                    DiaryInkGlyph(
-                      symbol: DiaryInkSymbol.album,
-                      color: palette.muted,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 7),
-                    Text(
-                      'Edit photos',
-                      style: TextStyle(
-                        fontSize: 11,
+            if (widget.onEditPhotos != null)
+              DiaryInkAction(
+                label: 'Edit photos',
+                onPressed: widget.onEditPhotos,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 10),
+                  child: Row(
+                    children: [
+                      DiaryInkGlyph(
+                        symbol: DiaryInkSymbol.album,
                         color: palette.muted,
-                        fontStyle: FontStyle.italic,
+                        size: 16,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 7),
+                      Text(
+                        'Edit photos',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: palette.muted,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -262,52 +266,53 @@ class _DiaryPhotoEntryBookState extends State<DiaryPhotoEntryBook> {
               ),
             ),
         ],
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: DiaryInkAction(
-            label: story.reflections.isEmpty
-                ? 'Find a few words'
-                : 'Revisit this moment',
-            onPressed: () => widget.onReflect(index),
-            child: CustomPaint(
-              foregroundPainter: DiaryInkUnderline(
-                ink: palette.muted,
-                dashed: true,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 13,
+        if (widget.onReflect != null)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DiaryInkAction(
+              label: story.reflections.isEmpty
+                  ? 'Find a few words'
+                  : 'Revisit this moment',
+              onPressed: () => widget.onReflect!(index),
+              child: CustomPaint(
+                foregroundPainter: DiaryInkUnderline(
+                  ink: palette.muted,
+                  dashed: true,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DiaryInkGlyph(
-                      symbol: story.reflections.isEmpty
-                          ? DiaryInkSymbol.add
-                          : DiaryInkSymbol.pencil,
-                      color: palette.muted,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 9),
-                    Flexible(
-                      child: Text(
-                        story.reflections.isEmpty
-                            ? 'Find a few words'
-                            : 'Revisit this moment',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
-                          color: palette.muted,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 13,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DiaryInkGlyph(
+                        symbol: story.reflections.isEmpty
+                            ? DiaryInkSymbol.add
+                            : DiaryInkSymbol.pencil,
+                        color: palette.muted,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 9),
+                      Flexible(
+                        child: Text(
+                          story.reflections.isEmpty
+                              ? 'Find a few words'
+                              : 'Revisit this moment',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: palette.muted,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

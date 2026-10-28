@@ -5,6 +5,7 @@ import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
+import 'package:journal/modules/diary/views/widgets/diary_photo_story_strip.dart';
 import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
 import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
 import 'package:journal/modules/presentation/presentation_body.dart';
@@ -174,7 +175,11 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
 
   // Moving wrappers reuse their paragraphs until the entity or theme changes.
   Widget _buildContent(BuildContext context, DiaryDayEntity day) {
-    final items = day.visibleItems.toList();
+    // Photo-only stories have no text, so the page shows display items while
+    // text features (details, presentation) keep to entries with words.
+    final items = day.displayItems.toList();
+    final textItems = day.visibleItems.toList();
+    final live = widget.interactive && DiaryPresentationScope.enabled(context);
     final title = day.isDeleted ? '' : day.dayTitle?.trim() ?? '';
     final mood = day.isDeleted ? null : decodeDayMood(day.dayMood);
     final themes = day.isDeleted ? const <String>[] : day.themes;
@@ -242,7 +247,16 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
             ),
             if (items.isNotEmpty) ...[
               for (final item in items) ...[
-                if (DiaryPresentationScope.enabled(context))
+                if (item.photos.isNotEmpty)
+                  DiaryPhotoStoryStrip(
+                    item: item,
+                    onOpen: live
+                        ? () => _openPhotoStory(context, day, item)
+                        : null,
+                  ),
+                if (item.content.trim().isEmpty)
+                  const SizedBox.shrink()
+                else if (DiaryPresentationScope.enabled(context))
                   PresentationBody(
                     source: PresentationSourceRef.diary(
                       day.dateString,
@@ -281,9 +295,7 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                     DiaryPresentationScope.enabled(context),
               ),
             ),
-            if (items.isNotEmpty &&
-                widget.interactive &&
-                DiaryPresentationScope.enabled(context))
+            if (textItems.isNotEmpty && live)
               TextButton.icon(
                 key: const ValueKey('diary-details-open'),
                 icon: const Icon(Icons.label_outline),
@@ -295,9 +307,7 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                   ),
                 ),
               ),
-            if (items.isNotEmpty &&
-                widget.interactive &&
-                DiaryPresentationScope.enabled(context))
+            if (textItems.isNotEmpty && live)
               TextButton.icon(
                 icon: const Icon(Icons.auto_fix_high_outlined),
                 label: const Text('Presentation'),
@@ -309,7 +319,7 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                         shrinkWrap: true,
                         children: [
                           const ListTile(title: Text('Choose a saved entry')),
-                          for (final item in items)
+                          for (final item in textItems)
                             ListTile(
                               title: Text(
                                 item.content,
@@ -344,6 +354,23 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
       ),
     );
   }
+}
+
+/// Opens a saved photo story at its entry; read-only without edit rights.
+void _openPhotoStory(BuildContext context, DiaryDayEntity day, DiaryItem item) {
+  if (ModalRoute.of(context)?.isCurrent == false) return;
+  final access = context.dependOnInheritedWidgetOfExactType<DiaryAccess>();
+  final reduced =
+      MediaQuery.disableAnimationsOf(context) ||
+      MediaQuery.accessibleNavigationOf(context);
+  context.nav.push<void>(
+    AddDiaryPhotosPage(
+      date: day.calendarDate,
+      story: item,
+      readOnly: !(access?.canEdit ?? true),
+    ),
+    transition: reduced ? NavTransition.none : NavTransition.platform,
+  );
 }
 
 class _DiaryAddActions extends StatelessWidget {

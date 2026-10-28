@@ -82,11 +82,23 @@ class DiaryDayEntity {
   DateTime get calendarDate =>
       TimeHelper.dateOnly(TimeHelper.fromIso(dateString));
 
+  /// Items with words. Text readers (search, AI questions, suggestions,
+  /// summaries) use this, so a photo-only story is never sent as empty text.
   @Transient()
   Iterable<DiaryItem> get visibleItems => isDeleted
       ? const <DiaryItem>[]
       : items.where(
           (item) => !item.isDeleted && item.content.trim().isNotEmpty,
+        );
+
+  /// Everything shown on the diary page, including photo-only stories.
+  @Transient()
+  Iterable<DiaryItem> get displayItems => isDeleted
+      ? const <DiaryItem>[]
+      : items.where(
+          (item) =>
+              !item.isDeleted &&
+              (item.content.trim().isNotEmpty || item.photos.isNotEmpty),
         );
 
   /// Parses items JSON into a list of DiaryItem objects

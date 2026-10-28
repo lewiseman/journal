@@ -10,6 +10,7 @@ import 'package:journal/objectbox/objectbox.g.dart';
 
 import '../models/diary_day_entity.dart';
 import '../models/diary_item.dart';
+import '../models/diary_photo.dart';
 import '../suggestions/diary_suggestion_contract.dart';
 
 class DiaryRepository {
@@ -106,9 +107,13 @@ class DiaryRepository {
     required String content,
     String? mood,
     List<String> attachmentPaths = const [],
+    List<DiaryPhoto> photos = const [],
     DateTime? timestamp,
     String? itemUuid,
   }) {
+    if (photos.isNotEmpty) {
+      attachmentPaths = [for (final photo in photos) photo.path];
+    }
     if (!sync.canEdit && dateString != formatDateKey(sync.now())) {
       throw StateError('This device can only add diary items for today.');
     }
@@ -136,6 +141,7 @@ class DiaryRepository {
       content: content,
       mood: mood,
       attachmentPaths: attachmentPaths,
+      photos: photos,
       deviceId: _device.deviceId,
       updatedAt: now,
       isDeleted: false,
@@ -204,6 +210,60 @@ class DiaryRepository {
     });
     onDataChanged?.call();
   }
+
+  /// Replaces a saved photo story's photos, order, captions and reviewed
+  /// words. Returns the item as it was so the caller can release copies the
+  /// story no longer uses. Text is recomposed from the photos.
+  DiaryItem updatePhotoStory({
+    required String dateString,
+    required String itemUuid,
+    required List<DiaryPhoto> photos,
+  }) {
+    if (photos.isEmpty) {
+      throw ArgumentError('A photo story needs at least one photo.');
+    }
+    late DiaryItem previous;
+    _db.store.runInTransaction(TxMode.write, () {
+      if (!sync.canEdit) {
+        throw StateError('Diary entries are read-only on this device.');
+      }
+      final day = getDay(dateString);
+      final items = day?.items ?? const <DiaryItem>[];
+      final index = items.indexWhere(
+        (item) => item.itemUuid == itemUuid && !item.isDeleted,
+      );
+      if (day == null || index < 0) {
+        throw StateError('This photo story is no longer in your diary.');
+      }
+      final now = sync.now();
+      previous = items[index];
+      items[index] = previous.copyWith(
+        content: DiaryPhoto.composeContent(photos),
+        photos: photos,
+        attachmentPaths: [for (final photo in photos) photo.path],
+        updatedAt: now,
+        deviceId: _device.deviceId,
+      );
+      day.items = items;
+      day.updatedAt = now;
+      day.lastEditedByDeviceId = _device.deviceId;
+      day.status = SyncStatus.pendingUpload;
+      _box.put(day);
+      sync.edited('diary', dateString, itemUuid);
+    });
+    onDataChanged?.call();
+    return previous;
+  }
+
+  /// Whether any live diary item other than [exceptItem] still uses [path].
+  bool isPhotoReferenced(String path, {String? exceptItem}) => getAllDays().any(
+    (day) => day.items.any(
+      (item) =>
+          !item.isDeleted &&
+          item.itemUuid != exceptItem &&
+          item.attachmentPaths.contains(path),
+    ),
+  );
 
   /// Soft deletes a timeline item (tombstone).
   void deleteTimelineItem({

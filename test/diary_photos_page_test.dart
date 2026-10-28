@@ -5,9 +5,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:journal/config/theme.dart';
+import 'package:journal/modules/diary/controllers/diary_photo_stories.dart';
+import 'package:journal/modules/diary/controllers/diary_providers.dart';
+import 'package:journal/modules/diary/models/diary_item.dart';
+import 'package:journal/modules/diary/models/diary_photo.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_photos_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_ink_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_photo_entry_book.dart';
@@ -16,15 +21,22 @@ import 'package:journal/modules/diary/views/widgets/diary_photo_widgets.dart';
 import 'package:journal/modules/diary/views/widgets/diary_reflection_desk.dart';
 import 'package:journal/modules/settings/models/local_settings.dart';
 
+import 'support/diary_photo_fixture.dart';
+
 const _captureKey = ValueKey('photo-capture');
 final _question = find.byKey(const ValueKey('diary-photo-question'));
 final _answer = find.byWidgetPredicate(
   (widget) => widget is TextField && widget.minLines == 3,
 );
 late Uint8List _photoBytes;
+late DiaryFixture _diary;
+late MemoryPhotoStore _store;
+
+// Distinct trailing bytes give each test photo its own identity.
+Uint8List _bytes(int index) => Uint8List.fromList([..._photoBytes, index]);
 
 XFile _photo(int index) => XFile.fromData(
-  _photoBytes,
+  _bytes(index),
   path: '/photo-$index.webp',
   mimeType: 'image/webp',
 );
@@ -39,6 +51,9 @@ Future<void> _mount(
   AppAccent accent = AppAccent.indigo,
   bool reduced = false,
   TextDirection direction = TextDirection.ltr,
+  DiaryItem? story,
+  bool readOnly = false,
+  DateTime? date,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -50,34 +65,43 @@ Future<void> _mount(
   final themes = AppThemeConfig.themesFor(accent);
   final base = dark ? themes.dark : themes.light;
   await tester.pumpWidget(
-    RepaintBoundary(
-      key: _captureKey,
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: base.copyWith(
-          textTheme: base.textTheme.apply(fontFamily: 'PhotoTest'),
+    ProviderScope(
+      overrides: [
+        diaryPhotoStoriesProvider.overrideWithValue(
+          DiaryPhotoStories(_diary.diary, _store),
         ),
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(scale),
-            disableAnimations: reduced,
+      ],
+      child: RepaintBoundary(
+        key: _captureKey,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: base.copyWith(
+            textTheme: base.textTheme.apply(fontFamily: 'PhotoTest'),
           ),
-          child: Directionality(textDirection: direction, child: child!),
-        ),
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: TextButton(
-                onPressed: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute(
-                    builder: (_) => AddDiaryPhotosPage(
-                      date: DateTime(2026, 10, 27),
-                      imagePicker:
-                          picker ?? () async => List.generate(photos, _photo),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(scale),
+              disableAnimations: reduced,
+            ),
+            child: Directionality(textDirection: direction, child: child!),
+          ),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => AddDiaryPhotosPage(
+                        date: date ?? DateTime(2026, 10, 27),
+                        story: story,
+                        readOnly: readOnly,
+                        imagePicker:
+                            picker ?? () async => List.generate(photos, _photo),
+                      ),
                     ),
                   ),
+                  child: const Text('Open photos'),
                 ),
-                child: const Text('Open photos'),
               ),
             ),
           ),
@@ -119,6 +143,12 @@ Future<void> _capture(WidgetTester tester, String name) async {
 }
 
 void main() {
+  setUp(() {
+    _diary = DiaryFixture.create(DateTime(2026, 10, 27, 12));
+    _store = MemoryPhotoStore();
+  });
+  tearDown(() => _diary.dispose());
+
   setUpAll(() async {
     _photoBytes = (await rootBundle.load('assets/images/onboarding/diary.webp'))
         .buffer
@@ -139,7 +169,7 @@ void main() {
   });
 
   testWidgets(
-    'cancelled picker can retry and photos alone finish the preview',
+    'cancelled picker can retry and just the photos saves a photo-only story',
     (tester) async {
       var calls = 0;
       await _mount(tester, picker: () async => calls++ == 0 ? [] : [_photo(0)]);
@@ -154,13 +184,22 @@ void main() {
       await _tap(tester, find.text('Just the photos'));
       expect(find.text('1 photo'), findsOneWidget);
       expect(_answer, findsNothing);
+      expect(find.textContaining('Preview only'), findsNothing);
       expect(
-        find.text('Preview only · photos and words aren’t saved yet.'),
+        find.text(
+          'Photos stay on this device. Sync shares captions and words, not photos.',
+        ),
         findsOneWidget,
       );
-      await _tap(tester, find.text('Done'));
+      expect(_diary.db.diaryBox.count(), 0);
+      await _tap(tester, find.text('Save to diary'));
       expect(find.text('Open photos'), findsOneWidget);
       expect(find.byType(AddDiaryPhotosPage), findsNothing);
+      final item = _diary.diary.getDay('2026-10-27')!.items.single;
+      expect(item.content, isEmpty);
+      expect(item.photos.single.path, item.attachmentPaths.single);
+      expect(_store.files[item.photos.single.path], _bytes(0));
+      expect(_diary.sync.pendingCreations.single.id, item.itemUuid);
       expect(tester.takeException(), isNull);
     },
   );
@@ -521,10 +560,233 @@ void main() {
   ) async {
     final pending = Completer<List<XFile>>();
     await _mount(tester, picker: () => pending.future);
-    await _tap(tester, find.byTooltip('Close photo preview'));
+    await _tap(tester, find.byTooltip('Close without saving'));
     pending.complete([_photo(0)]);
     await tester.pumpAndSettle();
     expect(find.text('Open photos'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  DiaryItem savedStory() => _diary.diary.getDay('2026-10-27')!.items.single;
+
+  testWidgets(
+    'a reflected story saves order, captions and reviewed words, then reopens',
+    (tester) async {
+      await _mount(tester);
+      await tester.enterText(find.byType(TextField), 'Leaving the market.');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _tap(tester, find.text('Generate questions'));
+      expect(
+        find.byKey(const ValueKey('diary-photo-sample-note')),
+        findsOneWidget,
+      );
+      final question = tester.widget<Text>(_question).data!;
+      await _write(tester, 'Mangoes everywhere.');
+      await _tap(tester, find.text('Review'));
+      await _tap(tester, find.text('Save to diary'));
+      final item = savedStory();
+      expect(item.photos.map((photo) => photo.caption), [
+        'Leaving the market.',
+        '',
+      ]);
+      expect(item.photos.first.reflections.single.question, question);
+      expect(
+        item.photos.first.reflections.single.answer,
+        'Mangoes everywhere.',
+      );
+      expect(item.photos.first.sha256, hasLength(64));
+      expect(item.content, 'Leaving the market.\n\nMangoes everywhere.');
+      expect(_diary.diary.getDay('2026-10-27')!.visibleItems, hasLength(1));
+
+      // Reopen after a restart: the record and private copies come back.
+      _diary.restart();
+      final reopened = savedStory();
+      await tester.pumpWidget(const SizedBox());
+      await _mount(tester, story: reopened);
+      expect(find.byType(DiaryPhotoEntryBook), findsOneWidget);
+      expect(find.text('Leaving the market.'), findsOneWidget);
+      expect(find.text('Mangoes everywhere.'), findsOneWidget);
+      expect(find.text('2 photos · 1 reflection'), findsOneWidget);
+      expect(
+        tester
+            .widget<DiaryPhotoEntryBook>(find.byType(DiaryPhotoEntryBook))
+            .stories
+            .map((story) => story.bytes),
+        [_bytes(0), _bytes(1)],
+      );
+      expect(find.text('Save changes'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'editing reorders, removes a photo and releases only its private copy',
+    (tester) async {
+      await _mount(tester, photos: 3);
+      await _tap(tester, find.text('Just the photos'));
+      await _tap(tester, find.text('Save to diary'));
+      final before = savedStory();
+      expect(_store.files, hasLength(3));
+      await tester.pumpWidget(const SizedBox());
+      await _mount(tester, story: before);
+      await _tap(tester, find.text('Edit photos'));
+      expect(find.text('Back to entry'), findsOneWidget);
+      await tester.tap(find.byTooltip('Remove photo 1'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Now first.');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _tap(tester, find.text('Back to entry'));
+      await _tap(tester, find.text('Save changes'));
+      final after = savedStory();
+      expect(after.itemUuid, before.itemUuid);
+      expect(after.photos.map((photo) => photo.id), [
+        before.photos[1].id,
+        before.photos[2].id,
+      ]);
+      expect(after.photos.first.caption, 'Now first.');
+      expect(_store.files.keys, after.attachmentPaths);
+      expect(_diary.sync.pendingCreations, hasLength(1));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('closing or going back never saves, new or reopened', (
+    tester,
+  ) async {
+    await _mount(tester);
+    await _tap(tester, find.text('Just the photos'));
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await _tap(tester, find.byTooltip('Close without saving'));
+    expect(find.byType(AddDiaryPhotosPage), findsNothing);
+    expect(_diary.db.diaryBox.count(), 0);
+    expect(_store.files, isEmpty);
+
+    _diary.diary.addTimelineItem(
+      dateString: '2026-10-27',
+      content: '',
+      photos: [
+        for (final i in [0, 1])
+          DiaryPhoto(id: 'p$i', path: 'diary_photos/p$i.jpg', caption: 'c$i'),
+      ],
+    );
+    _store.files['diary_photos/p0.jpg'] = _bytes(0);
+    _store.files['diary_photos/p1.jpg'] = _bytes(1);
+    final saved = savedStory();
+    await tester.pumpWidget(const SizedBox());
+    await _mount(tester, story: saved);
+    await _tap(tester, find.text('Edit photos'));
+    await tester.tap(find.byTooltip('Remove photo 1'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('1 photo'), findsOneWidget);
+    await _tap(tester, find.byTooltip('Close without saving'));
+    expect(find.byType(AddDiaryPhotosPage), findsNothing);
+    expect(savedStory().toJson(), saved.toJson());
+    expect(_store.files, hasLength(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'a photo from another device shows as missing and survives an edit',
+    (tester) async {
+      _diary.diary.addTimelineItem(
+        dateString: '2026-10-27',
+        content: 'From the tablet.',
+        photos: const [
+          DiaryPhoto(
+            id: 'remote',
+            path: 'diary_photos/remote.jpg',
+            caption: 'From the tablet.',
+          ),
+        ],
+      );
+      await _mount(tester, story: savedStory());
+      expect(find.text('Not on this device'), findsWidgets);
+      expect(
+        find.textContaining('kept only on the device that added them'),
+        findsOneWidget,
+      );
+      await _tap(tester, find.text('Edit photos'));
+      await tester.enterText(find.byType(TextField), 'Still from the tablet.');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await _tap(tester, find.text('Back to entry'));
+      await _tap(tester, find.text('Save changes'));
+      final item = savedStory();
+      expect(item.photos.single.path, 'diary_photos/remote.jpg');
+      expect(item.photos.single.caption, 'Still from the tablet.');
+      expect(_store.files, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('read-only devices can open a saved story but not change it', (
+    tester,
+  ) async {
+    _diary.diary.addTimelineItem(
+      dateString: '2026-10-27',
+      content: '',
+      photos: const [DiaryPhoto(id: 'p', path: 'diary_photos/p.jpg')],
+    );
+    _store.files['diary_photos/p.jpg'] = _bytes(0);
+    await _mount(tester, story: savedStory(), readOnly: true);
+    expect(find.byType(DiaryPhotoEntryBook), findsOneWidget);
+    expect(find.text('Edit photos'), findsNothing);
+    expect(find.text('Find a few words'), findsNothing);
+    expect(find.text('Save changes'), findsNothing);
+    expect(
+      find.text('Saved stories can be changed on your primary device.'),
+      findsOneWidget,
+    );
+    await _tap(tester, find.byKey(const ValueKey('diary-section-photos')));
+    expect(find.byType(DiaryPhotoEntryBook), findsOneWidget);
+    await _tap(tester, find.text('Done'));
+    expect(find.byType(AddDiaryPhotosPage), findsNothing);
+  });
+
+  testWidgets(
+    'a secondary device saves today and keeps a past-day draft on refusal',
+    (tester) async {
+      _diary.makeSecondary();
+      await _mount(tester, photos: 1);
+      await _tap(tester, find.text('Just the photos'));
+      await _tap(tester, find.text('Save to diary'));
+      expect(savedStory().photos, hasLength(1));
+      expect(_diary.sync.pendingCreations, hasLength(1));
+
+      await tester.pumpWidget(const SizedBox());
+      await _mount(tester, photos: 1, date: DateTime(2026, 10, 26));
+      await _tap(tester, find.text('Just the photos'));
+      await _tap(tester, find.text('Save to diary'));
+      expect(
+        find.text('This device can only add diary items for today.'),
+        findsOneWidget,
+      );
+      expect(find.byType(DiaryPhotoEntryBook), findsOneWidget);
+      expect(_diary.diary.getDay('2026-10-26'), isNull);
+      expect(_store.files, hasLength(1));
+    },
+  );
+
+  testWidgets('a failed copy saves nothing and keeps the story open', (
+    tester,
+  ) async {
+    _store.failWrites = true;
+    await _mount(tester);
+    await _tap(tester, find.text('Just the photos'));
+    await _tap(tester, find.text('Save to diary'));
+    expect(
+      find.text('Your photo story couldn’t be saved. It’s still here.'),
+      findsOneWidget,
+    );
+    expect(find.text('2 photos'), findsOneWidget);
+    expect(_diary.db.diaryBox.count(), 0);
+    _store.failWrites = false;
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Save to diary'));
+    expect(savedStory().photos, hasLength(2));
     expect(tester.takeException(), isNull);
   });
 

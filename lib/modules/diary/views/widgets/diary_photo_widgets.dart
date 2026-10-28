@@ -103,22 +103,70 @@ class DiaryPhotoImage extends StatelessWidget {
   final Uint8List bytes;
   final BoxFit fit;
 
+  /// Empty [bytes] mean the saved copy isn't on this device.
   @override
-  Widget build(BuildContext context) => Image.memory(
-    bytes,
-    fit: fit,
-    gaplessPlayback: true,
-    excludeFromSemantics: true,
-    errorBuilder: (context, error, stack) => ColoredBox(
-      color: context.colors.surfaceContainer,
-      child: Center(
-        child: Tooltip(
-          message: 'This photo could not be displayed',
-          child: Icon(
-            Icons.broken_image_outlined,
-            color: context.colors.onSurfaceVariant,
+  Widget build(BuildContext context) => bytes.isEmpty
+      ? const DiaryMissingPhoto()
+      : Image.memory(
+          bytes,
+          fit: fit,
+          gaplessPlayback: true,
+          excludeFromSemantics: true,
+          errorBuilder: (context, error, stack) => ColoredBox(
+            color: context.colors.surfaceContainer,
+            child: Center(
+              child: Tooltip(
+                message: 'This photo could not be displayed',
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+            ),
           ),
-        ),
+        );
+}
+
+/// Shown where a saved photo has no copy here, usually because another
+/// device added it: sync shares the story's words, never the image.
+class DiaryMissingPhoto extends StatelessWidget {
+  const DiaryMissingPhoto({super.key});
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Photo not on this device',
+    child: ColoredBox(
+      color: context.colors.surfaceContainer,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final icon = Icon(
+            Icons.hide_image_outlined,
+            color: context.colors.onSurfaceVariant,
+          );
+          // Small prints keep the icon; the tooltip still names the reason.
+          if (constraints.maxHeight < 90 || constraints.maxWidth < 90) {
+            return Center(
+              child: Tooltip(message: 'Not on this device', child: icon),
+            );
+          }
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                icon,
+                const SizedBox(height: 6),
+                Text(
+                  'Not on this device',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: context.colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     ),
   );
