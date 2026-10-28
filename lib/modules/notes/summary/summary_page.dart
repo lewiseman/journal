@@ -199,7 +199,7 @@ class NoteSummaryPage extends ConsumerWidget {
             ),
             if (state.handle != null)
               const Text(
-                'Dismiss keeps the task in Settings → AI task history. Accepted work continues on the computer. Clear preview acknowledges the result and removes desktop text when connected; an offline acknowledgment is retried on reconnection. Results expire within 24 hours of the request. Local status receipts remain for seven days.',
+                'Dismiss keeps the task in More → Local AI computer → AI task history. Accepted work continues on the computer. Clear preview acknowledges the result and removes desktop text when connected; an offline acknowledgment is retried on reconnection. Results expire within 24 hours of the request. Local status receipts remain for seven days.',
               ),
           ],
         ),

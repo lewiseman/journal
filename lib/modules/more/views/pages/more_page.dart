@@ -109,20 +109,20 @@ class _MorePageState extends ConsumerState<MorePage> {
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: Icon(
-                                    Icons.tune_rounded,
+                                    Icons.palette_outlined,
                                     color: context.colors.primary,
                                     size: 22,
                                   ),
                                 ),
                                 title: Text(
-                                  'Settings',
+                                  'Appearance',
                                   style: TextStyle(
                                     color: context.colors.onSurface,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 subtitle: Text(
-                                  'Colors, appearance and fonts',
+                                  'Colors, theme and fonts',
                                   style: TextStyle(
                                     color: context.colors.onSurfaceVariant,
                                     fontSize: 12,
@@ -133,7 +133,8 @@ class _MorePageState extends ConsumerState<MorePage> {
                                   Icons.chevron_right_rounded,
                                   color: context.colors.primary,
                                 ),
-                                onTap: () => context.nav.push(SettingsPage()),
+                                onTap: () =>
+                                    context.nav.push(const AppearancePage()),
                               ),
                             ),
                             const SizedBox(height: 16),

@@ -301,7 +301,7 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
               ),
             const SizedBox(height: 16),
             const Text(
-              'Dismiss keeps accepted work in Settings → AI task history for up to 24 hours. Accept saves a prior-body recovery copy on this phone. The 10 most recent copies survive restart, stay local and are removed by account reset. Accepted note content follows normal sync.',
+              'Dismiss keeps accepted work in More → Local AI computer → AI task history for up to 24 hours. Accept saves a prior-body recovery copy on this phone. The 10 most recent copies survive restart, stay local and are removed by account reset. Accepted note content follows normal sync.',
             ),
             if (widget.noteId != null || handle?.isTransformation == true)
               TextButton(

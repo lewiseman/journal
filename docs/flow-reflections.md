@@ -30,7 +30,7 @@ below).
 5. **Remove reflection** deletes the kept line. The thought stays.
 
 You can close the sheet while your computer is working. The result is moved to
-the thought while Flow is open, or when you open Settings → AI task history →
+the thought while Flow is open, or when you open More → Local AI computer → AI task history →
 **Flow reflection**, which also offers retry, cancel and clear.
 
 ## What is sent

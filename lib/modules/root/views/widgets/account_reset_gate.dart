@@ -1,5 +1,5 @@
 import 'package:journal/common.dart';
-import 'package:journal/modules/settings/views/widgets/reset_account_card.dart';
+import 'package:journal/modules/account/views/widgets/reset_account_progress.dart';
 
 final journalNavigatorKeyProvider = Provider<GlobalKey<NavigatorState>>((ref) {
   // A fast reset can complete before a frame paints the blocking screen.

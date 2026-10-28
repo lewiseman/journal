@@ -22,11 +22,12 @@ on startup/manual primary sync or after reclaiming the primary role.
 
 ## More
 
-More shows the expandable account sync card at the top, followed by Settings and
+More shows the expandable account sync card at the top, followed by Appearance and
 Local AI computer. The computer card shows its connection status and opens pairing
-and connection management.
+and connection management, with AI task history available on that page.
 When connected, tap the sync status panel to open Sync & devices for manual
-sync, primary device recovery and Log out. Logging out keeps the local journal.
+sync, primary device recovery, Log out and Reset account data. Logging out keeps
+the local journal. Reset account data opens a separate review and confirmation page.
 
 ## Sync behavior
 
@@ -81,9 +82,9 @@ when the app becomes inactive. Real voice services and capture remain future wor
 
 ## Resetting account data
 
-**Settings → Reset account data** requires the connected account and typing
-`DELETE` in its confirmation. Reset is disabled while syncing, including in an
-open confirmation dialog. Once sync is idle, it pauses sync, persists reset progress,
+**More → sync status → Reset account data** opens a dedicated page and requires
+the connected account and typing `DELETE` to confirm. Reset is disabled while
+syncing, including on the confirmation page. Once sync is idle, it pauses sync, persists reset progress,
 deletes all Journal Drive app-data (including legacy backups and primary
 registration), then removes local notes, diary days, thoughts, trash, sync metadata,
 private note-background copies and cached images. It signs out and clears the

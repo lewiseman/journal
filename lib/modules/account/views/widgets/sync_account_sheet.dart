@@ -1,4 +1,5 @@
 import 'package:journal/common.dart';
+import 'package:journal/modules/account/views/pages/reset_account_page.dart';
 import 'package:sync_wise/sync_wise.dart';
 
 class SyncAccountSheet extends ConsumerStatefulWidget {
@@ -215,6 +216,31 @@ class _SyncAccountSheetState extends ConsumerState<SyncAccountSheet> {
               title: const Text('Log out'),
               subtitle: const Text('Your journal stays on this device.'),
               onTap: busy ? null : _logout,
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              key: const ValueKey('reset-account-data'),
+              contentPadding: EdgeInsets.zero,
+              enabled: !busy,
+              leading: Icon(
+                Icons.delete_forever_outlined,
+                color: busy ? null : colors.error,
+              ),
+              title: Text(
+                'Reset account data',
+                style: TextStyle(color: busy ? null : colors.error),
+              ),
+              subtitle: Text(
+                sync.isSyncing
+                    ? 'Wait for sync to finish before resetting account data.'
+                    : 'Permanently delete your journal and backups.',
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: busy
+                  ? null
+                  : () => context.nav.replace<void, void>(
+                      ResetAccountPage(account: account),
+                    ),
             ),
           ],
         ),

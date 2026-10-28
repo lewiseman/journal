@@ -4,6 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:journal/config/theme.dart';
 
 import 'package:journal/modules/diary/questions/daily_question_controller.dart';
+import 'package:journal/modules/notes/summary/summary_history_page.dart';
 
 import 'companion_controller.dart';
 import 'companion_protocol.dart';
@@ -196,6 +197,20 @@ class CompanionPage extends ConsumerWidget {
                   child: const Text('Reload saved trust'),
                 ),
             ],
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            key: const ValueKey('companion-ai-task-history'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.history),
+            title: const Text('AI task history'),
+            subtitle: const Text('Recover summaries and review recent results'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const SummaryHistoryPage(),
+              ),
+            ),
           ),
           if (state.discovered.isNotEmpty) ...[
             const SizedBox(height: 20),
