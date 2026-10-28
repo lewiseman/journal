@@ -303,7 +303,7 @@ void main() {
     await _mount(tester);
     await tester.tap(_button);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Local AI settings'));
+    await tester.tap(find.byKey(const ValueKey('qvac-local-ai-settings')));
     await tester.pumpAndSettle();
     expect(find.byType(CompanionPage), findsOneWidget);
     expect(find.byType(QvacAssistantSheet), findsNothing);

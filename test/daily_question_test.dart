@@ -12,6 +12,9 @@ import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/diary/questions/daily_question_entity.dart';
 import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
 import 'package:journal/modules/diary/questions/daily_question_store.dart';
+import 'package:journal/modules/diary/views/pages/diary_page.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_curl.dart';
+import 'package:journal/modules/diary/views/widgets/diary_scene.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_store.dart';
@@ -649,6 +652,105 @@ void main() {
       expect(app.diary.getDay(today), null);
     },
   );
+
+  for (final populated in [false, true]) {
+    testWidgets(
+      'today keeps its question through a swipe and cancellation: entries=$populated',
+      (tester) async {
+        final app = (await tester.runAsync(
+          () => SyncFixture.create(MemoryDrive(), 'phone'),
+        ))!;
+        if (populated) {
+          app.diary.addTimelineItem(
+            dateString: today,
+            content: 'A quiet morning outside.',
+          );
+        }
+        const text = 'What is one small thing you noticed today?';
+        final store = summary.MemorySummaries();
+        final wire = summary.SummaryTransport(store)..output = output(text);
+        final container = questionContainer(app, store, wire);
+        addTearDown(container.dispose);
+        await tester.runAsync(() async {
+          await restored(container);
+          await answered(container);
+        });
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              home: Scaffold(
+                body: DiaryPage(clock: () => DateTime(2026, 10, 27)),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final live = find.byKey(const PageStorageKey('diary-content'));
+        final face = find.byKey(
+          ValueKey('diary-face-${DateTime(2026, 10, 27).toIso8601String()}'),
+        );
+        Finder questionIn(Finder parent) =>
+            find.descendant(of: parent, matching: find.text(text));
+        void expectSameQuestion() {
+          expect(questionIn(live), findsOneWidget);
+          expect(questionIn(face), findsOneWidget);
+          expect(
+            tester.getRect(questionIn(face)),
+            tester.getRect(questionIn(live)),
+          );
+        }
+
+        expectSameQuestion();
+        final faces = tester
+            .renderObjectList<RenderDiaryCurl>(find.byType(DiaryPaperCurl))
+            .toList();
+        await tester.runAsync(() async {
+          for (final face in faces) {
+            await face.prepareTextures();
+          }
+        });
+        await tester.pump();
+        final center = tester
+            .getRect(find.byKey(const ValueKey('diary-active-paper')))
+            .center;
+        final gesture = await tester.startGesture(center);
+        await gesture.moveBy(const Offset(25, 0));
+        await gesture.moveBy(const Offset(50, 0));
+        await tester.pump();
+        final scene = tester.widget<DiaryScene>(find.byType(DiaryScene));
+        expect(scene.turn, greaterThan(0));
+        expect(scene.day.dateString, today);
+        expect(questionIn(face), findsOneWidget);
+        final curl = tester.widget<DiaryPaperCurl>(
+          find.descendant(of: face, matching: find.byType(DiaryPaperCurl)),
+        );
+        expect(curl.visible, isTrue);
+        expect(curl.flat, isFalse);
+        await gesture.cancel();
+        await tester.pumpAndSettle();
+        expectSameQuestion();
+        await tester.dragFrom(center, const Offset(180, 0));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<DiaryScene>(find.byType(DiaryScene)).day.dateString,
+          '2026-10-26',
+        );
+        expect(questionIn(live), findsNothing);
+        await tester.dragFrom(center, const Offset(-180, 0));
+        await tester.pumpAndSettle();
+        expectSameQuestion();
+        expect(wire.submitted, hasLength(1));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        app.container.dispose();
+      },
+    );
+  }
 
   testWidgets(
     'prompt: blank lines until a question arrives automatically; a new entry replaces it',

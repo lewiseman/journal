@@ -23,8 +23,7 @@ import 'package:journal/modules/notes/models/note_attachment.dart';
 
 import 'package:journal/modules/notes/models/note_tag.dart';
 
-import '../../presentation/presentation_contract.dart';
-import '../../presentation/presentation_repository.dart';
+import '../../presentation/website_contract.dart';
 
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/history/diary_history_contract.dart';
@@ -77,6 +76,44 @@ bool _wellFormed(String text) {
   } catch (_) {
     return false;
   }
+}
+
+/// The connected computer when it advertises [operation] at [contract].
+TrustedComputer capableComputer(
+  CompanionState connection, {
+  required String contractKey,
+  required int contract,
+  required String operation,
+  required String fallback,
+  required String update,
+  String capabilityId = 'text',
+  String notReady = 'Load the writing model on your computer.',
+  String notReadyCode = 'NOT_READY',
+}) {
+  final computer = connection.selected;
+  if (computer == null ||
+      !computer.enabled ||
+      connection.phase != CompanionPhase.connected) {
+    throw CompanionFailure(
+      'UNAVAILABLE',
+      'Connect your trusted computer in More → Local QVAC. $fallback',
+    );
+  }
+  final capabilities = connection.status?['capabilities'] as List? ?? [];
+  final capability = capabilities
+      .whereType<Map>()
+      .where((c) => c['id'] == capabilityId)
+      .firstOrNull;
+  if (connection.status?['recovery'] != 1 ||
+      capability?[contractKey] != contract ||
+      capability?['operations'] is! List ||
+      !(capability!['operations'] as List).contains(operation)) {
+    throw CompanionFailure('INCOMPATIBLE_VERSION', update);
+  }
+  if (!['ready', 'busy'].contains(capability['status'])) {
+    throw CompanionFailure(notReadyCode, '$notReady $fallback');
+  }
+  return computer;
 }
 
 class NoteSummaryState {
@@ -269,7 +306,6 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
 
   void _watchSource(SummaryHandle? handle) {
     final key =
-        handle?.presentationSource?.key ??
         (handle?.isThoughtReflection == true
             ? 'thought:${handle!.noteId}'
             : null) ??
@@ -414,12 +450,17 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             ref.read(notesRepositoryProvider).getNoteByUuid(handle.noteId),
           );
     }
-    if (handle.isPresentation) {
-      final source = ref
-          .read(presentationRepositoryProvider)
-          .source(handle.presentationSource!);
-      return source != null &&
-          await hexHash(utf8.encode(source.encode())) == handle.revision;
+    if (handle.isNoteWebsite) {
+      if (handle.localSource == null) return false;
+      final request = WebsiteRequest.decode(handle.localSource!);
+      final note = ref
+          .read(notesRepositoryProvider)
+          .getNoteByUuid(handle.noteId);
+      return note != null &&
+          !note.isDeleted &&
+          !note.isPermanentlyDeleted &&
+          note.versionVectorJson == request.version &&
+          note.content == request.content;
     }
     final note = ref.read(notesRepositoryProvider).getNoteByUuid(handle.noteId);
     return note != null &&
@@ -428,72 +469,50 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         await summaryRevision(note) == handle.revision;
   }
 
-  Future<void> startPresentation(
-    PresentationSourceRef sourceRef, {
-    String intent = '',
-  }) async {
+  /// A self-contained website from saved note [noteId], shown as its
+  /// preview. Only the title, content and [description] are sent.
+  Future<void> startNoteWebsite(String noteId, String description) async {
     if (!await _readyToStart()) return;
     final generation = ++_generation;
     _show('submitting', busy: true, stale: false);
     try {
-      final source = ref.read(presentationRepositoryProvider).source(sourceRef);
-      if (source == null) {
+      final repository = ref.read(notesRepositoryProvider);
+      if (!repository.sync.canEdit) {
+        throw const CompanionFailure(
+          'READ_ONLY',
+          'Existing notes are read-only on this device, so a website cannot be saved here. Nothing was sent.',
+        );
+      }
+      final note = repository.getNoteByUuid(noteId);
+      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
         throw const CompanionFailure(
           'SOURCE_MISSING',
-          'This saved text is no longer available.',
+          'This note is no longer available.',
         );
       }
-      final blocks = PresentationBlocks(source.content);
-      final input = blocks.request(intent);
-      final connection = ref.read(companionControllerProvider);
-      final computer = connection.selected;
-      if (computer == null ||
-          !computer.enabled ||
-          connection.phase != CompanionPhase.connected) {
-        throw const CompanionFailure(
-          'UNAVAILABLE',
-          'Connect your trusted computer in More → Local QVAC.',
-        );
-      }
-      final capabilities = connection.status?['capabilities'] as List? ?? [];
-      final capability = capabilities
-          .whereType<Map>()
-          .where((c) => c['id'] == 'text')
-          .firstOrNull;
-      if (connection.status?['recovery'] != 1 ||
-          capability?['presentationContract'] != 1 ||
-          capability?['operations'] is! List ||
-          !(capability!['operations'] as List).contains(
-            presentationOperation,
-          )) {
-        throw const CompanionFailure(
-          'INCOMPATIBLE_VERSION',
-          'Update the companion to support safe presentations.',
-        );
-      }
-      if (!['ready', 'busy'].contains(capability['status'])) {
-        throw const CompanionFailure(
-          'NOT_READY',
-          'Load the writing model on your computer.',
-        );
-      }
-      final handle = SummaryHandle(
-        id: const Uuid().v4(),
-        noteId: sourceRef.id,
-        revision: await hexHash(utf8.encode(source.encode())),
-        computerId: computer.id,
-        deviceId: computer.deviceId,
-        created: DateTime.now().millisecondsSinceEpoch,
-        pendingText: input,
-        operation: presentationOperation,
-        localSource: source.encode(),
-        presentationSource: sourceRef,
+      final request = WebsiteRequest(
+        noteId: noteId,
+        version: note.versionVectorJson,
+        title: note.title,
+        content: note.content,
+        description: description,
       );
-      if (!_alive(generation)) return;
-      await _save(handle);
-      if (!_alive(generation)) return;
-      _show('submitting', handle: handle, busy: true);
-      await retry();
+      final input = request.request();
+      final computer = _capableComputer(
+        contractKey: 'websiteContract',
+        contract: noteWebsiteContract,
+        operation: noteWebsiteOperation,
+        fallback: 'Your note is unchanged.',
+        update: 'Update the companion to make websites.',
+      );
+      await _submitNew(
+        generation,
+        noteId: noteId,
+        local: request.encode(),
+        input: input,
+        operation: noteWebsiteOperation,
+        computer: computer,
+      );
     } catch (error) {
       if (_alive(generation)) {
         _failure(
@@ -563,7 +582,6 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     }
   }
 
-  /// The connected computer when it advertises [operation] at [contract].
   TrustedComputer _capableComputer({
     required String contractKey,
     required int contract,
@@ -573,33 +591,17 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     String capabilityId = 'text',
     String notReady = 'Load the writing model on your computer.',
     String notReadyCode = 'NOT_READY',
-  }) {
-    final connection = ref.read(companionControllerProvider);
-    final computer = connection.selected;
-    if (computer == null ||
-        !computer.enabled ||
-        connection.phase != CompanionPhase.connected) {
-      throw CompanionFailure(
-        'UNAVAILABLE',
-        'Connect your trusted computer in More → Local QVAC. $fallback',
-      );
-    }
-    final capabilities = connection.status?['capabilities'] as List? ?? [];
-    final capability = capabilities
-        .whereType<Map>()
-        .where((c) => c['id'] == capabilityId)
-        .firstOrNull;
-    if (connection.status?['recovery'] != 1 ||
-        capability?[contractKey] != contract ||
-        capability?['operations'] is! List ||
-        !(capability!['operations'] as List).contains(operation)) {
-      throw CompanionFailure('INCOMPATIBLE_VERSION', update);
-    }
-    if (!['ready', 'busy'].contains(capability['status'])) {
-      throw CompanionFailure(notReadyCode, '$notReady $fallback');
-    }
-    return computer;
-  }
+  }) => capableComputer(
+    ref.read(companionControllerProvider),
+    contractKey: contractKey,
+    contract: contract,
+    operation: operation,
+    fallback: fallback,
+    update: update,
+    capabilityId: capabilityId,
+    notReady: notReady,
+    notReadyCode: notReadyCode,
+  );
 
   /// S01: one grounded answer about the past from [selection]'s excerpts.
   /// Read-only, so secondary devices may ask too.
@@ -1879,17 +1881,9 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (phase == 'completed' &&
         job['acknowledged'] != true &&
         !invalidOutput &&
-        handle.isPresentation) {
+        handle.isNoteWebsite) {
       try {
-        if (handle.localSource == null) {
-          throw const FormatException('Missing protected source');
-        }
-        final snapshot = PresentationSnapshot.decode(handle.localSource!);
-        final blocks = PresentationBlocks(snapshot.content);
-        await compilePresentationBounded(
-          job['text'] as String,
-          blocks.nodes.length,
-        );
+        await sanitizeWebsiteBounded(job['text'] as String);
       } catch (_) {
         invalidOutput = true;
       }
@@ -1966,7 +1960,9 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
   bool _validOutput(SummaryHandle handle, String text) =>
       validSummaryText(
         text,
-        handle.isTransformation || handle.isPresentation
+        handle.isNoteWebsite
+            ? noteWebsiteOutputBytes
+            : handle.isTransformation
             ? transformOutputBytes
             : handle.isDiarySuggestion
             ? diaryOutputBytes
@@ -1989,10 +1985,22 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       (!handle.isTransformation || validTransformOutput(text)) &&
       (!handle.isThoughtReflection || validThoughtReflectionLine(text));
 
-  Future<bool> acceptPresentation() async {
+  /// The sanitized page of the current website task, for previewing.
+  Future<String?> noteWebsitePreview() async {
+    final handle = state.handle, text = state.text;
+    if (handle == null || !handle.isNoteWebsite || text == null) return null;
+    try {
+      return await sanitizeWebsiteBounded(text);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Saves the generated page on the note, keeping its content.
+  Future<bool> acceptNoteWebsite() async {
     final handle = state.handle, text = state.text, generation = _generation;
     if (handle == null ||
-        !handle.isPresentation ||
+        !handle.isNoteWebsite ||
         handle.localSource == null ||
         state.phase != 'completed' ||
         state.busy ||
@@ -2002,16 +2010,21 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       return false;
     }
     try {
-      final source = PresentationSnapshot.decode(handle.localSource!);
-      final blocks = PresentationBlocks(source.content);
-      final document = await compilePresentationBounded(
-        text,
-        blocks.nodes.length,
-      );
+      if (!await _matches(handle)) {
+        if (_alive(generation)) await refreshSource();
+        return false;
+      }
+      final request = WebsiteRequest.decode(handle.localSource!);
+      final html = await sanitizeWebsiteBounded(text);
       if (!_alive(generation) || state.handle?.id != handle.id) return false;
       ref
-          .read(presentationRepositoryProvider)
-          .accept(taskId: handle.id, snapshot: source, document: document);
+          .read(notesRepositoryProvider)
+          .setWebsite(
+            uuid: handle.noteId,
+            expectedVersion: request.version,
+            html: html,
+            sourceHash: request.contentHash,
+          );
       await clear();
       return true;
     } catch (error) {
@@ -2019,9 +2032,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         _show(
           'completed',
           text: text,
-          message: error is StateError
-              ? error.message.toString()
-              : 'This presentation could not be accepted safely.',
+          message: error is StateError ? error.message.toString() : 'This website could not be saved safely. Your note is unchanged.',
         );
       }
       return false;
@@ -2121,7 +2132,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     final handle = state.handle, generation = _generation;
     if (handle == null ||
         (handle.isTransformation ||
-            handle.isPresentation ||
+            handle.isNoteWebsite ||
+            handle.isRetiredPresentation ||
             handle.isNoteMetadata ||
             handle.isNoteIdeas ||
             handle.isNoteImage ||

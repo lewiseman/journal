@@ -138,7 +138,7 @@ void main() {
   }
 
   testWidgets(
-    'restored trust checks the actual companion; background clears readiness and disconnect persists',
+    'restored trust checks the actual companion; background keeps the last answer and disconnect persists',
     (tester) async {
       final store = MemoryComputers(ComputerRecords([computer()], 'desktop-1'));
       final transport = FakeTransport(), discovery = FakeDiscovery();
@@ -166,7 +166,11 @@ void main() {
       final requests = transport.routes.length;
       await tester.pump(const Duration(minutes: 2));
       expect(transport.routes.length, requests);
-      expect(container.read(companionControllerProvider).status, isNull);
+      expect(
+        container.read(companionControllerProvider).phase,
+        CompanionPhase.connected,
+      );
+      expect(container.read(companionControllerProvider).status, isNotNull);
       controller.foreground(true);
       await settle(tester);
       await controller.disconnect();
@@ -174,6 +178,57 @@ void main() {
       final count = transport.routes.length;
       await tester.pump(const Duration(minutes: 1));
       expect(transport.routes.length, count);
+      container.dispose();
+    },
+  );
+  testWidgets(
+    'refreshes keep the last answer and change it only when the result does',
+    (tester) async {
+      final transport = FakeTransport();
+      final container = ProviderContainer(
+        overrides: [
+          companionStoreProvider.overrideWithValue(
+            MemoryComputers(ComputerRecords([computer()], 'desktop-1')),
+          ),
+          companionTransportProvider.overrideWithValue(transport),
+          companionDiscoveryProvider.overrideWithValue(FakeDiscovery()),
+        ],
+      );
+      final phases = <CompanionPhase>[];
+      container.listen(
+        companionControllerProvider.select((state) => state.phase),
+        (_, phase) => phases.add(phase),
+        fireImmediately: true,
+      );
+      await settle(tester);
+      expect(phases, [
+        CompanionPhase.loading,
+        CompanionPhase.trusted,
+        CompanionPhase.connecting,
+        CompanionPhase.connected,
+      ]);
+      phases.clear();
+      // Periodic checks and a resume are silent while the answer holds.
+      await tester.pump(const Duration(seconds: 46));
+      final controller = container.read(companionControllerProvider.notifier);
+      controller.foreground(false);
+      controller.foreground(true);
+      await settle(tester);
+      expect(phases, isEmpty);
+      expect(container.read(companionControllerProvider).status, isNotNull);
+      // Losing the computer is the change that reaches the UI, once.
+      transport.failure = 'UNAVAILABLE';
+      await tester.pump(const Duration(seconds: 16));
+      await settle(tester);
+      await tester.pump(const Duration(seconds: 12));
+      await settle(tester);
+      expect(phases, [CompanionPhase.unavailable]);
+      // And coming back is the next one.
+      transport.failure = null;
+      controller.foreground(false);
+      controller.foreground(true);
+      await settle(tester);
+      expect(phases, [CompanionPhase.unavailable, CompanionPhase.connected]);
       container.dispose();
     },
   );

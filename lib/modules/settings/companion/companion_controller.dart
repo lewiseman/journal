@@ -190,6 +190,17 @@ class CompanionController extends Notifier<CompanionState> {
     }
   }
 
+  /// Whether the phase is an answer from the computer rather than progress.
+  bool get _settled => switch (state.phase) {
+    CompanionPhase.connected ||
+    CompanionPhase.unavailable ||
+    CompanionPhase.permissionDenied ||
+    CompanionPhase.incompatible ||
+    CompanionPhase.identityChanged ||
+    CompanionPhase.revoked => true,
+    _ => false,
+  };
+
   Future<void> _save(List<TrustedComputer> computers, String? selected) =>
       _store.save(ComputerRecords(computers, selected));
   void foreground(bool active) {
@@ -199,12 +210,17 @@ class CompanionController extends Notifier<CompanionState> {
     _networkDebounce?.cancel();
     unawaited(_discovery.stop());
     if (!ref.mounted) return;
+    final settled = _restored && state.selected != null && _settled;
     state = state.copyWith(
       scanning: false,
       busy: state.busy && state.phase != CompanionPhase.pairing,
       clearVerification: true,
-      clearStatus: true,
-      phase: !_restored
+      // The last answer stands across background and resume until the next
+      // check replaces it, so pages never flash through a checking state.
+      clearStatus: !settled,
+      phase: settled
+          ? state.phase
+          : !_restored
           ? CompanionPhase.loading
           : state.selected == null
           ? CompanionPhase.idle
@@ -252,9 +268,11 @@ class CompanionController extends Notifier<CompanionState> {
     try {
       await _save(state.computers, id);
       if (!ref.mounted) return;
+      // Another computer's answer does not carry over to this one.
       state = state.copyWith(
         busy: false,
         selectedId: id,
+        phase: CompanionPhase.trusted,
         clearStatus: true,
         clearMessage: true,
       );
@@ -284,11 +302,15 @@ class CompanionController extends Notifier<CompanionState> {
   ) async {
     if (!ref.mounted || !_foreground || generation != _generation) return;
     _probing = true;
-    state = state.copyWith(
-      phase: CompanionPhase.connecting,
-      clearStatus: true,
-      clearMessage: true,
-    );
+    // Only a first check shows progress. A refresh keeps the previous answer
+    // and changes it only when the result differs.
+    if (!_settled) {
+      state = state.copyWith(
+        phase: CompanionPhase.connecting,
+        clearStatus: true,
+        clearMessage: true,
+      );
+    }
     try {
       final status = await _client.status(computer);
       if (!ref.mounted || generation != _generation) return;

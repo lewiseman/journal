@@ -164,35 +164,38 @@ void main() {
     expect(peer.submissions, 1);
   });
 
-  test('a draft sends only your words and reports the computer\'s progress', () async {
-    final store = MemoryVoiceStore();
-    final peer = ConversationTransport(store)..loseAcceptance = false;
-    final session = DiaryConversation(
-      computer: () => computer,
-      dateString: '2026-10-28',
-      store: store,
-      transportFactory: () => peer,
-      autoOpen: false,
-    );
-    addTearDown(session.dispose);
-    await session.append('assistant', 'How was your day?');
-    await session.append('user', 'Calm.');
-    await session.append('assistant', 'What made it calm?');
-    await session.append('user', 'A long walk.');
-    await session.request('draft');
-    final prompt = jsonDecode(peer.input!['prompt'] as String) as Map;
-    expect(prompt['turns'], [
-      {'speaker': 'user', 'text': 'Calm.'},
-      {'speaker': 'user', 'text': 'A long walk.'},
-    ]);
-    expect(session.jobState, 'queued');
-    expect(session.polling, isTrue);
-    peer.complete = true;
-    await session.retrieve();
-    expect(session.draft, 'I walked home. I was happy.');
-    expect(session.jobState, isNull);
-    expect(session.polling, isFalse);
-  });
+  test(
+    'a draft sends only your words and reports the computer\'s progress',
+    () async {
+      final store = MemoryVoiceStore();
+      final peer = ConversationTransport(store)..loseAcceptance = false;
+      final session = DiaryConversation(
+        computer: () => computer,
+        dateString: '2026-10-28',
+        store: store,
+        transportFactory: () => peer,
+        autoOpen: false,
+      );
+      addTearDown(session.dispose);
+      await session.append('assistant', 'How was your day?');
+      await session.append('user', 'Calm.');
+      await session.append('assistant', 'What made it calm?');
+      await session.append('user', 'A long walk.');
+      await session.request('draft');
+      final prompt = jsonDecode(peer.input!['prompt'] as String) as Map;
+      expect(prompt['turns'], [
+        {'speaker': 'user', 'text': 'Calm.'},
+        {'speaker': 'user', 'text': 'A long walk.'},
+      ]);
+      expect(session.jobState, 'queued');
+      expect(session.polling, isTrue);
+      peer.complete = true;
+      await session.retrieve();
+      expect(session.draft, 'I walked home. I was happy.');
+      expect(session.jobState, isNull);
+      expect(session.polling, isFalse);
+    },
+  );
 
   test('a conversation over the limit is refused without sending', () async {
     final store = MemoryVoiceStore();

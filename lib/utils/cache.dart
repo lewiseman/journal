@@ -4,8 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences/util/legacy_to_async_migration_util.dart';
 
-
-
 // final storage = CacheStorage.instance;
 
 // // Save
@@ -42,7 +40,6 @@ import 'package:shared_preferences/util/legacy_to_async_migration_util.dart';
 
 // // Clear all managed preferences
 // await storage.clearAll();
-
 
 // ─────────────────────────────────────────────
 // Keys

@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "1:2813851369649388054",
-      "lastPropertyId": "18:6767032873498264914",
+      "lastPropertyId": "21:1590178056721556746",
       "name": "NoteEntity",
       "properties": [
         {
@@ -100,6 +100,21 @@
           "id": "18:6767032873498264914",
           "name": "isPinned",
           "type": 1
+        },
+        {
+          "id": "19:7324049614890551308",
+          "name": "presentationMode",
+          "type": 9
+        },
+        {
+          "id": "20:7806611058386502934",
+          "name": "website",
+          "type": 9
+        },
+        {
+          "id": "21:1590178056721556746",
+          "name": "websiteSourceHash",
+          "type": 9
         }
       ],
       "relations": []
@@ -355,57 +370,6 @@
       "relations": []
     },
     {
-      "id": "7:8632987772535014618",
-      "lastPropertyId": "8:2082740345693382024",
-      "name": "PresentationEntity",
-      "properties": [
-        {
-          "id": "1:8311469091311983583",
-          "name": "id",
-          "type": 6,
-          "flags": 1
-        },
-        {
-          "id": "2:6907951170184909512",
-          "name": "sourceKey",
-          "indexId": "7:4059988838941878495",
-          "type": 9,
-          "flags": 2080
-        },
-        {
-          "id": "3:1887138309386242050",
-          "name": "snapshot",
-          "type": 9
-        },
-        {
-          "id": "4:548624359035382779",
-          "name": "document",
-          "type": 9
-        },
-        {
-          "id": "5:5116074273557097887",
-          "name": "taskId",
-          "type": 9
-        },
-        {
-          "id": "6:8338728506673919612",
-          "name": "policy",
-          "type": 6
-        },
-        {
-          "id": "7:3071076729503788028",
-          "name": "created",
-          "type": 6
-        },
-        {
-          "id": "8:2082740345693382024",
-          "name": "enabled",
-          "type": 1
-        }
-      ],
-      "relations": []
-    },
-    {
       "id": "8:8694165784092694088",
       "lastPropertyId": "10:6154174911036584977",
       "name": "DailyQuestionEntity",
@@ -583,9 +547,22 @@
   "lastSequenceId": "0:0",
   "modelVersion": 5,
   "modelVersionParserMinimum": 5,
-  "retiredEntityUids": [],
-  "retiredIndexUids": [],
-  "retiredPropertyUids": [],
+  "retiredEntityUids": [
+    8632987772535014618
+  ],
+  "retiredIndexUids": [
+    4059988838941878495
+  ],
+  "retiredPropertyUids": [
+    8311469091311983583,
+    6907951170184909512,
+    1887138309386242050,
+    548624359035382779,
+    5116074273557097887,
+    8338728506673919612,
+    3071076729503788028,
+    2082740345693382024
+  ],
   "retiredRelationUids": [],
   "version": 1
 }

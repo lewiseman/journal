@@ -1,4 +1,5 @@
 import 'package:journal/common.dart';
+import 'package:journal/config/diary_typography.dart';
 import 'package:sync_wise/sync_wise.dart';
 import 'package:journal/modules/root/views/widgets/account_reset_gate.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
@@ -16,6 +17,7 @@ final _assistantObserverProvider = Provider<NavigatorObserver>((ref) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerDiaryFontLicenses();
   await CacheStorage.init();
   objectbox = await ObjectBox.create();
   await DeviceIdentityService.initialize();

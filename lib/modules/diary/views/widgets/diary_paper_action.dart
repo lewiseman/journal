@@ -11,6 +11,9 @@ enum DiaryPaperAction {
   final String tooltip;
 }
 
+/// The voice drawing in its 48×48 box, shared with larger ink controls.
+List<Path> get diaryVoiceInk => _PaperActionPainter._voice;
+
 /// Small ink drawings on the existing paper, with a full-sized touch target.
 class DiaryPaperActionButton extends StatelessWidget {
   const DiaryPaperActionButton({

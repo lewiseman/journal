@@ -30,6 +30,16 @@ class NoteEntity {
 
   bool isPinned;
 
+  /// How the note is presented: `''`, `'markdown'` or `'html'`.
+  String presentationMode;
+
+  /// A sanitized, self-contained HTML page generated from the note, shown as
+  /// its preview in place of the content. Empty when there is none.
+  String website;
+
+  /// SHA-256 of the content [website] was generated from.
+  String websiteSourceHash;
+
   bool isDeleted;
   bool isPermanentlyDeleted;
 
@@ -55,6 +65,9 @@ class NoteEntity {
     DateTime? updatedAt,
     this.isDeleted = false,
     this.isPinned = false,
+    this.presentationMode = '',
+    this.website = '',
+    this.websiteSourceHash = '',
     this.isPermanentlyDeleted = false,
     this.deletedAt,
     this.lastEditedByDeviceId = '',
@@ -90,6 +103,9 @@ class NoteEntity {
     'attachments': attachments,
     'background': background,
     'is_pinned': isPinned,
+    'presentation_mode': presentationMode,
+    'website': website,
+    'website_source_hash': websiteSourceHash,
     'created_at': createdAt.toIso8601String(),
     'updated_at': updatedAt.toIso8601String(),
     'is_deleted': isDeleted,
@@ -121,6 +137,9 @@ class NoteEntity {
     background:
         (json['background'] as Map?)?.cast<String, dynamic>() ?? const {},
     isPinned: json['is_pinned'] as bool? ?? false,
+    presentationMode: json['presentation_mode'] as String? ?? '',
+    website: json['website'] as String? ?? '',
+    websiteSourceHash: json['website_source_hash'] as String? ?? '',
     createdAt: DateTime.parse(json['created_at'] as String),
     updatedAt: DateTime.parse(json['updated_at'] as String),
     isDeleted: json['is_deleted'] as bool? ?? false,

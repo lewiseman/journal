@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts_lite.dart';
 import 'package:journal/common.dart';
 import 'package:journal/utils/font_download_client.dart';
+import 'package:journal/config/diary_typography.dart';
 
 extension JournalThemeContext on BuildContext {
   ColorScheme get colors => Theme.of(this).colorScheme;
@@ -20,10 +21,19 @@ extension JournalColorEffects on ColorScheme {
 
 final appThemesProvider = Provider<JournalTheme>((ref) {
   final accent = ref.watch(settingsController.select((value) => value.accent));
-  return AppThemeConfig.themesFor(
+  final themes = AppThemeConfig.themesFor(
     accent,
     fonts: ref.watch(fontThemesProvider).value,
   );
+  final diary =
+      ref.watch(diaryTypographyProvider).value ?? const DiaryTypography();
+  ThemeData apply(ThemeData theme) => theme.copyWith(
+    extensions: [
+      ...theme.extensions.values.where((e) => e is! DiaryTypography),
+      diary,
+    ],
+  );
+  return (light: apply(themes.light), dark: apply(themes.dark));
 });
 
 typedef JournalTheme = ({ThemeData light, ThemeData dark});

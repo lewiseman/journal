@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:journal/modules/voice/controllers/voice_store.dart';
 
@@ -9,6 +11,9 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/notes/controllers/note_attachment_service.dart';
+import 'package:journal/modules/notes/draft/note_draft_ai.dart';
+import 'package:journal/modules/notes/draft/note_draft_pages.dart';
+import 'package:journal/modules/notes/images/note_scan.dart';
 import 'package:journal/modules/notes/models/note_attachment.dart';
 import 'package:journal/modules/notes/models/note_tag.dart';
 import 'package:journal/modules/notes/views/widgets/edit_note_card_bg.dart';
@@ -22,8 +27,7 @@ import 'package:journal/modules/notes/views/widgets/note_paint_timing.dart';
 import 'package:journal/modules/notes/views/widgets/note_tag_picker.dart';
 import 'package:journal/modules/notes/views/widgets/unsaved_note_sheet.dart';
 import 'package:journal/modules/notes/metadata/note_help_pages.dart';
-import 'package:journal/modules/presentation/presentation_body.dart';
-import 'package:journal/modules/presentation/presentation_contract.dart';
+import 'package:journal/modules/presentation/note_website_view.dart';
 
 class EditNotePage extends ConsumerStatefulWidget {
   const new({super.key, this.existingNote, this.starterTitle});
@@ -44,6 +48,11 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
   late NoteEntity? _savedNote;
   late String _savedDraft;
   bool _exitSheetOpen = false;
+
+  // Files QVAC made for this note before it was saved, and scan readings to
+  // keep once it is. Unsaved, they are deleted when the editor closes.
+  final _draftFiles = <String>{};
+  final _pendingOriginals = <String, String>{};
   bool _pickingAttachments = false;
   late bool _isPreviewMode = widget.existingNote != null;
   // Randomize new notes while keeping saved notes repeatable across openings.
@@ -211,6 +220,57 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
     );
   }
 
+  void _applyDraft(NoteDraftResult result) {
+    if (!mounted || _savedNote != null) return;
+    String append(String text) {
+      final content = _contentController.text.trimRight();
+      return content.isEmpty ? text : '$content\n\n$text';
+    }
+
+    setState(() {
+      switch (result) {
+        case DraftTemplateResult(:final template):
+          if (_titleController.text.trim().isEmpty) {
+            _titleController.text = template.title;
+          }
+          _contentController.text = append(template.body);
+        case DraftScanResult(:final text, :final path, :final original):
+          _contentController.text = append(text);
+          _attachmentPaths = [
+            ..._attachmentPaths,
+            NoteAttachment.fromPath(path).toMap(),
+          ];
+          _pendingOriginals[path] = original;
+          _draftFiles.add(path);
+        case DraftBackgroundResult(:final image):
+          _background = {
+            ..._background,
+            'image': image,
+            'image_source': 'local',
+          };
+          _draftFiles.add(image);
+      }
+    });
+  }
+
+  /// Keeps each scan's unedited reading beside the page once the note exists.
+  void _keepScanOriginals(NoteEntity note) {
+    if (_pendingOriginals.isEmpty) return;
+    final store = ref.read(noteScanStoreProvider);
+    final attached = {
+      for (final entry in note.attachments)
+        if (NoteAttachment.tryFromMap(entry) case final attachment?)
+          attachment.path,
+    };
+    for (final MapEntry(key: path, value: text) in _pendingOriginals.entries) {
+      if (!attached.contains(path)) continue;
+      unawaited(
+        store.writeOriginal(path, note.uuid, text).catchError((Object _) {}),
+      );
+    }
+    _pendingOriginals.clear();
+  }
+
   void _reloadSaved(String uuid) {
     if (!mounted || _hasUnsavedChanges) return;
     final updated = ref.read(notesRepositoryProvider).getNoteByUuid(uuid);
@@ -349,6 +409,18 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
 
   @override
   void dispose() {
+    final saved = _savedNote;
+    final kept = {
+      for (final entry in saved?.attachments ?? const <Map<String, dynamic>>[])
+        if (NoteAttachment.tryFromMap(entry) case final attachment?)
+          attachment.path,
+      if (saved?.background['image'] case final String image) image,
+    };
+    for (final path in _draftFiles.difference(kept)) {
+      try {
+        File(path).deleteSync();
+      } catch (_) {}
+    }
     _titleController.dispose();
     _contentController.dispose();
     _contentFocusNode.dispose();
@@ -397,6 +469,7 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
     _titleController.text = _savedNote!.title;
     _contentController.text = _savedNote!.content;
     _savedDraft = _draftSnapshot;
+    _keepScanOriginals(_savedNote!);
 
     _restorePreview();
     return true;
@@ -404,6 +477,8 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
 
   @override
   Widget build(BuildContext context) {
+    // A new note's QVAC task lives as long as this editor, not the sheet.
+    ref.listen(noteDraftAiProvider, (_, _) {});
     final canModifySaved =
         ref.watch(syncDeviceRoleProvider) != SyncDeviceRole.secondary;
     final art = NoteArtSelection.fromBackground(_background);
@@ -573,7 +648,10 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
             builder: (context, scrollController) => NoteAssistant(
               noteId: noteId,
               available:
-                  _isPreviewMode && expansion == 0 && !_hasUnsavedChanges,
+                  noteId == null ||
+                  (_isPreviewMode && expansion == 0 && !_hasUnsavedChanges),
+              draftTitle: noteId == null ? _titleController.text : null,
+              onDraftResult: noteId == null ? _applyDraft : null,
               scrollController: scrollController,
               onChanged: () {
                 if (noteId != null) _reloadSaved(noteId);
@@ -708,22 +786,16 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                 ),
               )
             // The paper's CustomScrollView already handles scrolling.
-            : _savedNote == null
-            ? MarkdownBody(
+            // A generated website replaces the text preview; the text stays.
+            : _savedNote?.website.isNotEmpty == true
+            ? SizedBox(
+                height: MediaQuery.sizeOf(context).height * .7,
+                child: NoteWebsiteView(html: _savedNote!.website),
+              )
+            : MarkdownBody(
+                key: const ValueKey('note-content-preview'),
                 data: _contentController.text,
                 styleSheet: markdownStyle,
-              )
-            : DefaultTextStyle.merge(
-                style: bodyStyle,
-                child: PresentationBody(
-                  source: PresentationSourceRef.note(_savedNote!.uuid),
-                  content: _contentController.text,
-                  fallback: MarkdownBody(
-                    key: const ValueKey('note-content-preview'),
-                    data: _contentController.text,
-                    styleSheet: markdownStyle,
-                  ),
-                ),
               ),
       ),
     ];

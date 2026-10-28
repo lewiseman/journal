@@ -84,9 +84,7 @@ class _NotesPageState extends ConsumerState<NotesPage> {
                 h.source.id,
             ];
       final byUuid = {for (final note in result) note.uuid: note};
-      return [
-        for (final uuid in order) ?byUuid[uuid],
-      ];
+      return [for (final uuid in order) ?byUuid[uuid]];
     }
     // Keep the repository's ordering within each group.
     return [

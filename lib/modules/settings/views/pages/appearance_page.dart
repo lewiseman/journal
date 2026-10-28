@@ -1,11 +1,14 @@
 import 'package:journal/common.dart';
+import 'package:journal/config/diary_typography.dart';
+import 'package:journal/modules/diary/models/diary_ai_conversation.dart';
+import 'package:journal/modules/diary/views/widgets/diary_notebook_entry.dart';
+import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 
 class AppearancePage extends ConsumerWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
     final localSettings = ref.watch(settingsController);
     final selectedTheme = localSettings.themeMode;
     return Scaffold(
@@ -28,11 +31,39 @@ class AppearancePage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _buildJournalPreview(context, colors),
+          DiaryTypographyScope(
+            value:
+                ref.watch(diaryTypographyProvider).value ??
+                DiaryTypography.of(context),
+            child: const _DiaryAppearancePreview(),
+          ),
           SizedBox(height: 24),
           _sectionTitle('Typography'),
           const SizedBox(height: 12),
-          _buildFontButton(context, localSettings.fontFamily, ref),
+          _buildFontButton(
+            context,
+            localSettings.fontFamily,
+            label: 'Journal font',
+            onSelected: ref.read(settingsController.notifier).setFontFamily,
+          ),
+          const SizedBox(height: 10),
+          _buildFontButton(
+            context,
+            localSettings.diaryTitleFontFamily,
+            label: 'Diary title font',
+            onSelected: ref
+                .read(settingsController.notifier)
+                .setDiaryTitleFontFamily,
+          ),
+          const SizedBox(height: 10),
+          _buildFontButton(
+            context,
+            localSettings.diaryBodyFontFamily,
+            label: 'Diary body font',
+            onSelected: ref
+                .read(settingsController.notifier)
+                .setDiaryBodyFontFamily,
+          ),
           _sectionDivider(),
           _sectionTitle('Theme'),
           const SizedBox(height: 12),
@@ -67,7 +98,12 @@ class AppearancePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildFontButton(BuildContext context, String font, WidgetRef ref) {
+  Widget _buildFontButton(
+    BuildContext context,
+    String font, {
+    required String label,
+    required Future<void> Function(String) onSelected,
+  }) {
     return Material(
       color: context.colors.surfaceContainer,
       shape: RoundedRectangleBorder(
@@ -91,9 +127,7 @@ class AppearancePage extends ConsumerWidget {
                 child: _FontPickerSheet(
                   fonts: LocalSettings.fontFamilies,
                   selectedFont: font,
-                  onSelected: (font) {
-                    ref.read(settingsController.notifier).setFontFamily(font);
-                  },
+                  onSelected: onSelected,
                 ),
               ),
             ),
@@ -121,7 +155,7 @@ class AppearancePage extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Journal font', style: TextStyle(fontSize: 16)),
+                    Text(label, style: TextStyle(fontSize: 16)),
                     const SizedBox(height: 3),
                     Text(
                       font,
@@ -224,7 +258,7 @@ class AppearancePage extends ConsumerWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        height: 146,
+        padding: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
           color: selected
               ? context.colors.surfaceContainerHighest
@@ -304,101 +338,68 @@ class AppearancePage extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildJournalPreview(BuildContext context, ColorScheme colors) {
-    final today = DateTime.now();
+class _DiaryAppearancePreview extends StatelessWidget {
+  const _DiaryAppearancePreview();
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border.all(color: context.borderColor1),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(
-              alpha: context.isDark ? 0.12 : 0.035,
-            ),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
+  static final _date = DateTime(2026, 10, 28);
+  static final _entry = DiaryItem(
+    itemUuid: 'appearance-preview',
+    createdAt: _date,
+    updatedAt: _date,
+    content: 'Coffee by the window, and nowhere to rush. I want to remember the small things.',
+    aiConversation: DiaryAiConversation(
+      createdAt: _date,
+      turns: const [
+        {'speaker': 'user', 'text': 'A quiet morning.'},
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final fonts = DiaryTypography.of(context);
+    return IgnorePointer(
+      child: CustomPaint(
+        key: const ValueKey('diary-appearance-preview'),
+        painter: DiaryPaperPainter(
+          shape: DiaryPaperShape.forDate(_date),
+          paper: context.colors.surface,
+          ink: context.colors.onSurface,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(25, 23, 25, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'A PAGE FROM YOUR DIARY',
+                style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1.3,
+                  height: 1.5,
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'A little room to breathe.',
+                style: fonts.title.copyWith(color: context.colors.onSurface),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                '😌 Calm',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 21),
+              DiaryNotebookEntry(item: _entry),
+            ],
           ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 0,
-            left: 0,
-            bottom: 0,
-            child: Container(width: 4, color: context.colors.primary),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 12, 12, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  TimeHelper.format(
-                    today,
-                    pattern: TimeFormat.fullDate,
-                  ).toUpperCase(),
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 11,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'A little space for your thoughts.',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  'I\'m enjoying a quiet morning with a cup of coffee '
-                  'and a good book. Grateful for these small moments.',
-                  style: TextStyle(),
-                ),
-                const SizedBox(height: 13),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: context.colors.primary.withValues(
-                      alpha: context.isDark ? 0.24 : 0.10,
-                    ),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.sentiment_satisfied_alt_outlined,
-                        color: context.isDark
-                            ? context.colors.onSurface
-                            : context.colors.primary,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        'Calm',
-                        style: TextStyle(
-                          color: context.isDark
-                              ? context.colors.onSurface
-                              : context.colors.primary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -413,7 +414,7 @@ class _FontPickerSheet extends StatefulWidget {
 
   final List<String> fonts;
   final String selectedFont;
-  final ValueChanged<String> onSelected;
+  final Future<void> Function(String) onSelected;
 
   @override
   State<_FontPickerSheet> createState() => _FontPickerSheetState();
@@ -422,6 +423,25 @@ class _FontPickerSheet extends StatefulWidget {
 class _FontPickerSheetState extends State<_FontPickerSheet> {
   String _query = '';
   late String _selectedFont;
+  String? _loadingFont;
+  String? _fontError;
+
+  Future<void> _select(String font) async {
+    setState(() {
+      _loadingFont = font;
+      _fontError = null;
+    });
+    try {
+      await widget.onSelected(font);
+      if (mounted) setState(() => _selectedFont = font);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _fontError = 'This font couldn’t be loaded. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _loadingFont = null);
+    }
+  }
 
   @override
   void initState() {
@@ -496,6 +516,21 @@ class _FontPickerSheetState extends State<_FontPickerSheet> {
               ),
             ),
 
+            if (_fontError != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _fontError!,
+                    key: const ValueKey('font-load-error'),
+                    style: TextStyle(color: colors.error),
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
 
             Expanded(
@@ -525,13 +560,19 @@ class _FontPickerSheetState extends State<_FontPickerSheet> {
                             horizontal: 24,
                           ),
                           title: Text(font, style: TextStyle(fontSize: 16)),
-                          trailing: selected
+                          trailing: _loadingFont == font
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : selected
                               ? Icon(Icons.check_rounded, color: colors.primary)
                               : null,
-                          onTap: () {
-                            setState(() => _selectedFont = font);
-                            widget.onSelected(font);
-                          },
+                          onTap: _loadingFont != null
+                              ? null
+                              : () => _select(font),
                         );
                       },
                     ),

@@ -63,41 +63,50 @@ void main() {
     conversation.dispose();
   });
 
-  test('a streamed reply is kept, spoken, then the turn is handed back', () async {
-    await talk.handle({'type': 'thinking'});
-    await talk.handle({'type': 'token', 'text': 'How was '});
-    await talk.handle({'type': 'token', 'text': 'your day?'});
-    expect(talk.streaming, 'How was your day?');
-    await talk.handle({'type': 'reply', 'text': 'How was your day?'});
-    await pumpEventQueue();
-    expect(conversation.turns.single, {
-      'speaker': 'assistant',
-      'text': 'How was your day?',
-    });
-    expect(voice.said, ['How was your day?']);
-    expect(talk.streaming, isEmpty);
-    expect(talk.phase, TalkPhase.listening);
-  });
+  test(
+    'a streamed reply is kept, spoken, then the turn is handed back',
+    () async {
+      await talk.handle({'type': 'thinking'});
+      await talk.handle({'type': 'token', 'text': 'How was '});
+      await talk.handle({'type': 'token', 'text': 'your day?'});
+      expect(talk.streaming, 'How was your day?');
+      await talk.handle({'type': 'reply', 'text': 'How was your day?'});
+      await pumpEventQueue();
+      expect(conversation.turns.single, {
+        'speaker': 'assistant',
+        'text': 'How was your day?',
+      });
+      expect(voice.said, ['How was your day?']);
+      expect(talk.streaming, isEmpty);
+      expect(talk.phase, TalkPhase.listening);
+    },
+  );
 
-  test('the microphone runs only while listening and the transcribed turn is kept', () async {
-    await talk.handle({'type': 'listening'});
-    expect(mic.on, isTrue);
-    await talk.handle({
-      'type': 'segment',
-      'segment': {'id': 0, 'text': 'I went to the market.'},
-    });
-    await talk.handle({
-      'type': 'segment',
-      'segment': {'id': 1, 'text': ' It rained.'},
-    });
-    expect(talk.heard, 'I went to the market. It rained.');
-    await talk.handle({'type': 'endpoint'});
-    expect(mic.on, isFalse);
-    expect(talk.phase, TalkPhase.transcribing);
-    await talk.handle({'type': 'turn', 'text': 'I went to the market. It rained.'});
-    expect(conversation.turns.single['speaker'], 'user');
-    expect(talk.heard, isEmpty);
-  });
+  test(
+    'the microphone runs only while listening and the transcribed turn is kept',
+    () async {
+      await talk.handle({'type': 'listening'});
+      expect(mic.on, isTrue);
+      await talk.handle({
+        'type': 'segment',
+        'segment': {'id': 0, 'text': 'I went to the market.'},
+      });
+      await talk.handle({
+        'type': 'segment',
+        'segment': {'id': 1, 'text': ' It rained.'},
+      });
+      expect(talk.heard, 'I went to the market. It rained.');
+      await talk.handle({'type': 'endpoint'});
+      expect(mic.on, isFalse);
+      expect(talk.phase, TalkPhase.transcribing);
+      await talk.handle({
+        'type': 'turn',
+        'text': 'I went to the market. It rained.',
+      });
+      expect(conversation.turns.single['speaker'], 'user');
+      expect(talk.heard, isEmpty);
+    },
+  );
 
   test('errors pause the loop; leaving the foreground keeps replies without speaking them', () async {
     await talk.handle({'type': 'listening'});

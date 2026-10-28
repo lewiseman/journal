@@ -1,11 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:journal/common.dart' hide DiaryDayEntity;
+import 'package:journal/config/diary_typography.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_photos_page.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_text_page.dart';
-import 'package:journal/modules/diary/views/widgets/diary_paper_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
-import 'package:journal/modules/diary/views/widgets/diary_photo_story_strip.dart';
+import 'package:journal/modules/diary/views/widgets/diary_notebook_entry.dart';
+import 'package:journal/modules/diary/views/widgets/diary_photo_add_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
 import 'package:journal/modules/voice/views/pages/diary_conversation_page.dart';
 import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
@@ -189,6 +192,7 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
       child: _DiaryAddActions(
         date: day.calendarDate,
         dateString: day.dateString,
+        imageCount: items.fold(0, (count, item) => count + item.photos.length),
         live: live,
       ),
     );
@@ -200,92 +204,73 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
       ...themes,
     ].join(' · ');
     final paper = diaryPaperColors(context);
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: DefaultTextStyle(
-        style: Theme.of(context).textTheme.bodyLarge!
-            .copyWith(color: paper.foreground, fontSize: 16, height: 1.65),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: items.isEmpty
-              ? MainAxisAlignment.spaceBetween
-              : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(
-              key: const ValueKey('diary-day-heading'),
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+    final typography = DiaryTypography.of(context);
+    final content = DefaultTextStyle(
+      style: Theme.of(context).textTheme.bodyLarge!
+          .copyWith(color: paper.foreground, fontSize: 16, height: 1.65),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: items.isEmpty
+            ? MainAxisAlignment.spaceBetween
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            key: const ValueKey('diary-day-heading'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title.isNotEmpty) ...[
                 Text(
-                  TimeHelper.format(
-                    day.calendarDate,
-                    pattern: TimeFormat.shortWeekdayDate,
-                    toLocal: false,
-                  ),
+                  title,
+                  style: typography.title.copyWith(color: paper.foreground),
+                ),
+                SizedBox(height: details.isEmpty ? 26 : 10),
+              ],
+              if (details.isNotEmpty) ...[
+                Text(
+                  details,
+                  key: const ValueKey('diary-day-details'),
                   style: TextStyle(
                     color: paper.secondary,
-                    fontSize: 10,
-                    letterSpacing: 1.1,
-                    height: 1.5,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 18),
-                if (title.isNotEmpty) ...[
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 29,
-                      height: 1.16,
-                      letterSpacing: -.9,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  SizedBox(height: details.isEmpty ? 26 : 10),
-                ],
-                if (details.isNotEmpty) ...[
-                  Text(
-                    details,
-                    key: const ValueKey('diary-day-details'),
-                    style: TextStyle(
-                      color: paper.secondary,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 26),
-                ],
-              ],
-            ),
-            if (actionsAtTop) actions,
-            if (items.isNotEmpty) ...[
-              for (final item in items) ...[
-                if (item.photos.isNotEmpty)
-                  DiaryPhotoStoryStrip(
-                    item: item,
-                    onOpen: live
-                        ? () => _openPhotoStory(context, day, item)
-                        : null,
-                  ),
-                if (item.aiConversation?.turns.isNotEmpty ?? false)
-                  _DiaryConversationChip(
-                    item: item,
-                    onOpen: live
-                        ? () => _openConversation(context, day, item)
-                        : null,
-                  ),
-                if (item.content.trim().isEmpty)
-                  const SizedBox.shrink()
-                else
-                  Text(item.content.trim(), key: ValueKey(item.itemUuid)),
                 const SizedBox(height: 26),
               ],
             ],
-            if (!actionsAtTop) actions,
-            // A zero-height footer balances the space around the invitation.
-            if (items.isEmpty) const SizedBox.shrink(),
+          ),
+          if (actionsAtTop) actions,
+          if (items.isNotEmpty) ...[
+            for (final (index, item) in items.indexed) ...[
+              if (index > 0) const DiaryEntryBreak(),
+              DiaryNotebookEntry(
+                key: ValueKey('diary-entry-${item.itemUuid}'),
+                item: item,
+                onOpenPhotos: live
+                    ? () => _openPhotoStory(context, day, item)
+                    : null,
+                onOpenConversation: live
+                    ? () => _openConversation(context, day, item)
+                    : null,
+              ),
+            ],
+            const SizedBox(height: 26),
           ],
+          if (!actionsAtTop) actions,
+          // A zero-height footer balances the space around the invitation.
+          if (items.isEmpty) const SizedBox.shrink(),
+        ],
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) => Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: 24,
+          horizontal: math.max(24, (constraints.maxWidth - 560) / 2),
         ),
+        child: content,
       ),
     );
   }
@@ -305,71 +290,6 @@ void _openConversation(
     DiaryConversationPage(dateString: day.dateString, itemUuid: item.itemUuid),
     transition: reduced ? NavTransition.none : NavTransition.platform,
   );
-}
-
-/// Marks an entry that came from a voice conversation.
-class _DiaryConversationChip extends StatelessWidget {
-  const _DiaryConversationChip({required this.item, this.onOpen});
-  final DiaryItem item;
-  final VoidCallback? onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final turns = item.aiConversation!.turns.length;
-    final label = item.content.trim().isEmpty
-        ? 'Conversation · no entry yet'
-        : 'Conversation · $turns ${turns == 1 ? 'turn' : 'turns'}';
-    final paper = diaryPaperColors(context);
-    // Plain paint, no Material: the page curl snapshots this card, which
-    // must not contain composited layers such as a chip's ink.
-    return Semantics(
-      button: onOpen != null,
-      label: label,
-      excludeSemantics: true,
-      child: GestureDetector(
-        key: ValueKey('diary-conversation-${item.itemUuid}'),
-        behavior: HitTestBehavior.opaque,
-        onTap: onOpen,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: paper.secondary.withValues(alpha: .35),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.forum_outlined,
-                      size: 16,
-                      color: paper.secondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        label,
-                        style: TextStyle(color: paper.secondary, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// Opens a saved photo story at its entry; read-only without edit rights.
@@ -393,13 +313,16 @@ class _DiaryAddActions extends StatelessWidget {
   const _DiaryAddActions({
     required this.date,
     required this.dateString,
+    required this.imageCount,
     this.live = false,
   });
 
   final DateTime date;
   final String dateString;
+  final int imageCount;
 
-  /// The live reading view; previews and page curls keep the plain prompt.
+  /// Only the live reading view requests a missing daily question.
+  /// Previews and page curls display the same current question.
   final bool live;
 
   void _openText(BuildContext context) {
@@ -444,38 +367,28 @@ class _DiaryAddActions extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: live && access != null && date == access.today
+              child:
+                  DiaryLiveScope.enabled(context) &&
+                      access != null &&
+                      date == access.today
                   ? DailyQuestionPrompt(
                       day: dateString,
                       onWrite: () => _openText(context),
+                      ensureQuestion: live,
                     )
                   : DiaryWritingPrompt(onTap: () => _openText(context)),
             ),
             const SizedBox(height: 24),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                for (final action in [
-                  DiaryPaperAction.image,
-                  DiaryPaperAction.more,
-                ])
-                  DiaryPaperActionButton(
-                    action: action,
-                    onPressed: switch (action) {
-                      DiaryPaperAction.image => () => _openPhotos(context),
-                      _ => _noop,
-                    },
-                  ),
-              ],
+            Align(
+              alignment: Alignment.center,
+              child: DiaryPhotoAddAction(
+                imageCount: imageCount,
+                onPressed: () => _openPhotos(context),
+              ),
             ),
           ],
         ),
       ),
     );
   }
-
-  // The additional menu will be connected in a later pass.
-  static void _noop() {}
 }

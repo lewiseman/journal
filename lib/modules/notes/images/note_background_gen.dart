@@ -189,6 +189,14 @@ class NoteBackgroundStore {
     return accepted;
   }
 
+  /// Copies a preview to a permanent app-owned file for an unsaved note,
+  /// without a recovery record, and returns the file's path.
+  Future<String> adopt(String taskId) async {
+    final target = p.join((await _dir('')).path, '${const Uuid().v4()}.png');
+    await (await preview(taskId)).copy(target);
+    return target;
+  }
+
   /// The recovery record when [background] is a generated image of [noteId].
   Future<NoteBackgroundRecovery?> recovery(
     String noteId,

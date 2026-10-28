@@ -11,7 +11,7 @@ import '../metadata/note_help_contract.dart';
 import '../images/note_image_contract.dart';
 import '../images/note_scan.dart';
 import '../images/note_background_gen.dart';
-import '../../presentation/presentation_contract.dart';
+import '../../presentation/website_contract.dart';
 import '../../diary/history/diary_history_contract.dart';
 import '../../diary/questions/daily_question_contract.dart';
 import '../../diary/suggestions/diary_suggestion_contract.dart';
@@ -28,7 +28,6 @@ class SummaryHandle {
     this.pendingText,
     this.operation = 'summarize-note',
     this.localSource,
-    this.presentationSource,
     this.accepted = false,
     this.cancelWanted = false,
     this.deviceId = '',
@@ -44,8 +43,12 @@ class SummaryHandle {
   final bool ackPending, acknowledged;
   final String operation;
   final String? localSource;
-  final PresentationSourceRef? presentationSource;
-  bool get isPresentation => operation == presentationOperation;
+
+  /// A website generated from saved note [noteId].
+  bool get isNoteWebsite => operation == noteWebsiteOperation;
+
+  /// The retired block-styling presentation, kept readable in history only.
+  bool get isRetiredPresentation => operation == 'present-text';
   bool get isTransformation => transformOperations.containsKey(operation);
 
   /// J01 diary-day suggestions. [noteId] holds the civil date key.
@@ -93,7 +96,6 @@ class SummaryHandle {
     id: id,
     operation: operation,
     localSource: dropSource ? null : localSource,
-    presentationSource: presentationSource,
     noteId: noteId,
     revision: revision,
     computerId: computerId,
@@ -117,8 +119,6 @@ class SummaryHandle {
     'created': created,
     'pendingText': pendingText,
     'localSource': localSource,
-    if (presentationSource != null)
-      'presentationSource': presentationSource!.toJson(),
     'accepted': accepted,
     'cancelWanted': cancelWanted,
     'deviceId': deviceId,
@@ -131,11 +131,6 @@ class SummaryHandle {
       id: json['id'] as String,
       operation: json['operation'] as String? ?? 'summarize-note',
       localSource: json['localSource'] as String?,
-      presentationSource: json['presentationSource'] == null
-          ? null
-          : PresentationSourceRef.fromJson(
-              json['presentationSource'] as Map<String, dynamic>,
-            ),
       noteId: json['noteId'] as String,
       revision: json['revision'] as String,
       computerId: json['computerId'] as String,
@@ -149,7 +144,8 @@ class SummaryHandle {
       acknowledged: json['acknowledged'] as bool? ?? false,
     );
     if ((!handle.isTransformation &&
-            !handle.isPresentation &&
+            !handle.isNoteWebsite &&
+            !handle.isRetiredPresentation &&
             !handle.isDiaryDay &&
             !handle.isNoteMetadata &&
             !handle.isNoteIdeas &&
@@ -168,13 +164,12 @@ class SummaryHandle {
         utf8.encode(handle.pendingText ?? '').length > 2000) {
       throw const FormatException('Invalid summary handle');
     }
-    if (handle.isPresentation && handle.presentationSource == null) {
-      throw const FormatException('Missing presentation source');
-    }
     if (handle.localSource != null) {
-      if (handle.isPresentation) {
-        final snapshot = PresentationSnapshot.decode(handle.localSource!);
-        if (snapshot.ref.key != handle.presentationSource!.key) {
+      if (handle.isRetiredPresentation) {
+        // Its source format is gone; history keeps only the receipt.
+      } else if (handle.isNoteWebsite) {
+        if (WebsiteRequest.decode(handle.localSource!).noteId !=
+            handle.noteId) {
           throw const FormatException('Mismatched source');
         }
       } else if (handle.isDiarySuggestion) {
@@ -313,8 +308,10 @@ class ObjectBoxSummaryStore extends SummaryStore {
       if (row != null) handle = _decode(row);
     }
     if (handle != null) {
-      if (handle.created + const Duration(days: 7).inMilliseconds <=
-          DateTime.now().millisecondsSinceEpoch) {
+      // A styling task from before websites can no longer be accepted.
+      if (handle.isRetiredPresentation ||
+          handle.created + const Duration(days: 7).inMilliseconds <=
+              DateTime.now().millisecondsSinceEpoch) {
         await save(null);
         final query = _box
             .query(SummaryTaskEntity_.taskId.equals(handle.id))

@@ -8,7 +8,7 @@ import 'summary_controller.dart';
 import 'summary_page.dart';
 import '../transform/transform_page.dart';
 import '../transform/transform_contract.dart';
-import '../../presentation/presentation_page.dart';
+import '../../presentation/note_presentation_page.dart';
 import '../../diary/suggestions/diary_details_page.dart';
 
 String summaryPhaseLabel(String phase) => switch (phase) {
@@ -111,8 +111,10 @@ class SummaryHistoryPage extends ConsumerWidget {
                                   ? 'Diary question'
                                   : task.isThoughtReflection
                                   ? 'Flow reflection'
-                                  : task.isPresentation
-                                  ? 'Presentation'
+                                  : task.isNoteWebsite
+                                  ? 'Note website'
+                                  : task.isRetiredPresentation
+                                  ? 'Presentation (retired)'
                                   : task.isNoteMetadata
                                   ? 'Title & tag ideas'
                                   : task.isNoteIdeas
@@ -155,7 +157,9 @@ class SummaryHistoryPage extends ConsumerWidget {
                                 onPressed: () => _open(
                                   context,
                                   transformation: task.isTransformation,
-                                  presentation: task.isPresentation,
+                                  website: task.isNoteWebsite
+                                      ? task.noteId
+                                      : null,
                                   diaryDate: task.isDiarySuggestion
                                       ? task.noteId
                                       : null,
@@ -183,14 +187,14 @@ class SummaryHistoryPage extends ConsumerWidget {
   void _open(
     BuildContext context, {
     bool transformation = false,
-    bool presentation = false,
+    String? website,
     String? diaryDate,
   }) => Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => diaryDate != null
           ? DiaryDetailsPage(dateString: diaryDate)
-          : presentation
-          ? const PresentationPage()
+          : website != null
+          ? NotePresentationPage(noteId: website)
           : transformation
           ? const NoteTransformPage()
           : const NoteSummaryPage(),

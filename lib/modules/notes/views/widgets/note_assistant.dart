@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
+import 'package:journal/modules/notes/draft/note_draft_pages.dart';
 import 'package:journal/modules/notes/images/note_background_page.dart';
 import 'package:journal/modules/notes/images/note_image_page.dart';
 import 'package:journal/modules/notes/images/note_scan_page.dart';
@@ -8,14 +9,14 @@ import 'package:journal/modules/notes/metadata/note_help_pages.dart';
 import 'package:journal/modules/notes/models/note_attachment.dart';
 import 'package:journal/modules/notes/summary/summary_page.dart';
 import 'package:journal/modules/notes/transform/transform_page.dart';
-import 'package:journal/modules/presentation/presentation_contract.dart';
-import 'package:journal/modules/presentation/presentation_page.dart';
+import 'package:journal/modules/presentation/note_presentation_page.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/settings/companion/companion_page.dart';
 import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
 
 enum _NoteTool {
+  template('Starting template', Icons.dashboard_customize_outlined),
   summary('Summarize', Icons.summarize_outlined),
   writing('Writing help', Icons.edit_note_rounded),
   metadata('Title & tag ideas', Icons.sell_outlined),
@@ -28,6 +29,9 @@ enum _NoteTool {
   const _NoteTool(this.label, this.icon);
   final String label;
   final IconData icon;
+
+  /// What a new, unsaved note can use; results stay in the editor's draft.
+  static const draft = [template, scan, background];
 }
 
 /// Keeps the existing tool routes and their typed results inside the sheet.
@@ -41,12 +45,20 @@ class NoteAssistant extends StatefulWidget {
     required this.scrollController,
     required this.onChanged,
     required this.onMetadataApplied,
+    this.draftTitle,
+    this.onDraftResult,
   });
   final String? noteId;
   final bool available;
   final ScrollController scrollController;
   final VoidCallback onChanged;
   final ValueChanged<NoteMetadataUndo> onMetadataApplied;
+
+  /// Set for a new, unsaved note: its current title, and where results go.
+  final String? draftTitle;
+  final ValueChanged<NoteDraftResult>? onDraftResult;
+
+  bool get draft => onDraftResult != null;
 
   @override
   State<NoteAssistant> createState() => _NoteAssistantState();
@@ -70,6 +82,7 @@ class _NoteAssistantState extends State<NoteAssistant> {
   );
 
   Future<void> _open(_NoteTool tool) async {
+    if (widget.draft) return _openDraft(tool);
     final noteId = widget.noteId;
     if (!widget.available || noteId == null) return;
     FocusScope.of(context).unfocus();
@@ -86,9 +99,8 @@ class _NoteAssistantState extends State<NoteAssistant> {
           _NoteTool.scan => NoteScanPage(noteId: noteId),
           _NoteTool.background => NoteBackgroundPage(noteId: noteId),
           _NoteTool.recovery => NoteRecoveryPage(noteId: noteId),
-          _NoteTool.presentation => PresentationPage(
-            source: PresentationSourceRef.note(noteId),
-          ),
+          _NoteTool.presentation => NotePresentationPage(noteId: noteId),
+          _NoteTool.template => throw StateError('Only new notes use this.'),
         },
       ),
     );
@@ -100,6 +112,29 @@ class _NoteAssistantState extends State<NoteAssistant> {
     } else {
       widget.onChanged();
     }
+  }
+
+  Future<void> _openDraft(_NoteTool tool) async {
+    if (!widget.available) return;
+    FocusScope.of(context).unfocus();
+    if (widget.scrollController.hasClients) {
+      widget.scrollController.jumpTo(0);
+    }
+    final result = await _navigator.currentState!.push<Object?>(
+      _route(
+        (_) => switch (tool) {
+          _NoteTool.template => NoteDraftTemplatePage(
+            topic: widget.draftTitle ?? '',
+          ),
+          _NoteTool.scan => const NoteDraftScanPage(),
+          _ => const NoteDraftBackgroundPage(),
+        },
+      ),
+    );
+    if (!mounted || result is! NoteDraftResult) return;
+    // Close the sheet so the person sees the result land in their note.
+    Navigator.of(context).pop();
+    widget.onDraftResult!(result);
   }
 
   @override
@@ -119,6 +154,7 @@ class _NoteAssistantState extends State<NoteAssistant> {
       onGenerateRoute: (_) => _route(
         (_) => _NoteAssistantMenu(
           noteId: widget.noteId,
+          draft: widget.draft,
           available: widget.available,
           scrollController: widget.scrollController,
           onOpen: _open,
@@ -133,13 +169,14 @@ class _NoteAssistantState extends State<NoteAssistant> {
 class _NoteAssistantMenu extends ConsumerWidget {
   const _NoteAssistantMenu({
     required this.noteId,
+    required this.draft,
     required this.available,
     required this.scrollController,
     required this.onOpen,
     required this.onClose,
   });
   final String? noteId;
-  final bool available;
+  final bool draft, available;
   final ScrollController scrollController;
   final ValueChanged<_NoteTool> onOpen;
   final VoidCallback onClose;
@@ -172,6 +209,20 @@ class _NoteAssistantMenu extends ConsumerWidget {
       companionControllerProvider.select((state) => state.phase),
     );
     final theme = Theme.of(context);
+    final connected = phase == CompanionPhase.connected;
+    final tools = draft
+        ? _NoteTool.draft
+        : [
+            for (final tool in _NoteTool.values)
+              if (tool != _NoteTool.template &&
+                  (tool != _NoteTool.image || hasImage) &&
+                  (canEdit ||
+                      (tool != _NoteTool.scan && tool != _NoteTool.background)))
+                tool,
+          ];
+    bool enabled(_NoteTool tool) => draft
+        ? available && connected
+        : canUse && (tool != _NoteTool.summary || hasText);
     return Material(
       color: theme.colorScheme.surface,
       child: ListView(
@@ -188,7 +239,10 @@ class _NoteAssistantMenu extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Your note', style: theme.textTheme.headlineSmall),
+                child: Text(
+                  draft ? 'New note' : 'Your note',
+                  style: theme.textTheme.headlineSmall,
+                ),
               ),
               IconButton(
                 tooltip: 'Close',
@@ -207,7 +261,7 @@ class _NoteAssistantMenu extends ConsumerWidget {
             ),
           const SizedBox(height: 6),
           Text(companionPhaseLabel(phase), style: theme.textTheme.bodySmall),
-          if (!canUse) ...[
+          if (!canUse && !draft) ...[
             const SizedBox(height: 16),
             const Text(
               'Save your note and close the editor to use these tools.',
@@ -215,21 +269,16 @@ class _NoteAssistantMenu extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 20),
-          for (final tool in _NoteTool.values)
-            if ((tool != _NoteTool.image || hasImage) &&
-                (canEdit ||
-                    (tool != _NoteTool.scan && tool != _NoteTool.background)))
-              ListTile(
-                key: ValueKey('note-assistant-${tool.name}'),
-                contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                leading: Icon(tool.icon),
-                title: Text(tool.label),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                enabled: canUse && (tool != _NoteTool.summary || hasText),
-                onTap: canUse && (tool != _NoteTool.summary || hasText)
-                    ? () => onOpen(tool)
-                    : null,
-              ),
+          for (final tool in tools)
+            ListTile(
+              key: ValueKey('note-assistant-${tool.name}'),
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              leading: Icon(tool.icon),
+              title: Text(tool.label),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              enabled: enabled(tool),
+              onTap: enabled(tool) ? () => onOpen(tool) : null,
+            ),
         ],
       ),
     );

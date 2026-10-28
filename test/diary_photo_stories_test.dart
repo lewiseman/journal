@@ -257,6 +257,12 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('A day, held here.'), findsNothing);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('diary-image-count')))
+            .data,
+        '1',
+      );
       expect(find.text('Day details'), findsNothing);
       expect(tester.takeException(), isNull);
     },

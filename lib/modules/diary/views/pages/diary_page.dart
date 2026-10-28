@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:journal/common.dart' hide DiaryDayEntity;
+import 'package:journal/config/diary_typography.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/diary/views/widgets/diary_assistant.dart';
 import 'package:journal/modules/diary/controllers/diary_search_service.dart';
@@ -67,6 +68,7 @@ class _DiaryReader extends StatefulWidget {
 
 class _DiaryPageState extends State<_DiaryReader>
     with TickerProviderStateMixin {
+  DiaryTypography? _paperTypography;
   static const _spring = SpringDescription(
     mass: 1,
     stiffness: 310,
@@ -335,6 +337,12 @@ class _DiaryPageState extends State<_DiaryReader>
 
   @override
   Widget build(BuildContext context) {
+    final requestedTypography =
+        Theme.of(context).extension<DiaryTypography>() ??
+        const DiaryTypography();
+    if (!_busy || _paperTypography == null) {
+      _paperTypography = requestedTypography;
+    }
     final top = MediaQuery.paddingOf(context).top;
     final width = MediaQuery.sizeOf(context).width;
     final artworkWidth = width.clamp(0.0, 700.0);
@@ -525,7 +533,7 @@ class _DiaryPageState extends State<_DiaryReader>
         onPointerCancel: (_) {
           if (_dragging) _settle(commit: false);
         },
-        child: page,
+        child: DiaryTypographyScope(value: _paperTypography!, child: page),
       ),
     );
   }

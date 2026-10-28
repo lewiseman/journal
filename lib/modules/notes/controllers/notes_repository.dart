@@ -473,6 +473,82 @@ class NotesRepository {
     return saved;
   }
 
+  /// Saves a generated [html] page as the note's preview, keeping its content,
+  /// if the note still has [expectedVersion].
+  NoteEntity setWebsite({
+    required String uuid,
+    required String expectedVersion,
+    required String html,
+    required String sourceHash,
+  }) {
+    if (html.trim().isEmpty ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(sourceHash)) {
+      throw StateError('Invalid website. Your note is unchanged.');
+    }
+    return _present(uuid, expectedVersion: expectedVersion, (note) {
+      note
+        ..website = html
+        ..websiteSourceHash = sourceHash
+        ..presentationMode = 'html';
+    });
+  }
+
+  /// Removes the note's website; its preview returns to the content.
+  NoteEntity clearWebsite(String uuid) => _present(uuid, (note) {
+    note
+      ..website = ''
+      ..websiteSourceHash = '';
+    if (note.presentationMode == 'html') note.presentationMode = '';
+  });
+
+  /// Records the chosen presentation. Markdown has no separate page, so
+  /// choosing it removes any website.
+  NoteEntity setPresentationMode(String uuid, String mode) {
+    if (!const {'', 'markdown', 'html'}.contains(mode)) {
+      throw StateError('Unknown presentation.');
+    }
+    return _present(uuid, (note) {
+      note.presentationMode = mode;
+      if (mode == 'markdown') {
+        note
+          ..website = ''
+          ..websiteSourceHash = '';
+      }
+    });
+  }
+
+  NoteEntity _present(
+    String uuid,
+    void Function(NoteEntity note) change, {
+    String? expectedVersion,
+  }) {
+    _editable();
+    late NoteEntity saved;
+    _db.store.runInTransaction(TxMode.write, () {
+      final note = getNoteByUuid(uuid);
+      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
+        throw StateError('This note is no longer available.');
+      }
+      if (expectedVersion != null &&
+          !note.versionVector.isEqualTo(
+            VersionVector.fromJsonString(expectedVersion),
+          )) {
+        throw StateError(
+          'The note changed. Generate its website again from the new text.',
+        );
+      }
+      change(note);
+      note
+        ..updatedAt = sync.now()
+        ..lastEditedByDeviceId = device
+        ..versionVector = note.versionVector.increment(device)
+        ..status = SyncStatus.pendingUpload;
+      _persist(note);
+      saved = note;
+    });
+    return saved;
+  }
+
   /// Every attachment path on any stored note, including notes in Trash.
   Set<String> allAttachmentPaths() => {
     for (final note in _box.getAll())

@@ -256,46 +256,10 @@ class _NoteScanPageState extends ConsumerState<NoteScanPage> {
               ],
               if (result != null && !result.empty) ...[
                 const SizedBox(height: 8),
-                Text(
-                  result.check == null
-                      ? 'Not cross-checked: no second reader is installed on your computer. Check names, dates and numbers yourself.'
-                      : result.disagreements.isEmpty
-                      ? 'A second reader agreed on names, dates and numbers. Still check the text.'
-                      : 'Check these: a second reader read them differently.',
-                  key: const ValueKey('note-scan-check-summary'),
-                ),
-                if (result.disagreements.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    children: [
-                      for (final word in result.disagreements)
-                        Chip(
-                          avatar: const Icon(Icons.help_outline, size: 16),
-                          label: Text(word),
-                        ),
-                    ],
-                  ),
-                if (result.unreadableMarks > 0)
-                  Text(
-                    '${result.unreadableMarks} place${result.unreadableMarks == 1 ? '' : 's'} marked [?] could not be read. Replace them with what the page says.',
-                    key: const ValueKey('note-scan-marks'),
-                  ),
-                const SizedBox(height: 8),
-                TextField(
-                  key: const ValueKey('note-scan-text'),
+                NoteScanReview(
+                  result: result,
                   controller: _text,
-                  minLines: 4,
-                  maxLines: 14,
-                  decoration: const InputDecoration(
-                    labelText: 'Text to insert (edit freely)',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: const Text('Original transcription'),
-                  children: [SelectableText(result.text)],
+                  onChanged: () => setState(() {}),
                 ),
                 FilledButton(
                   key: const ValueKey('note-scan-insert'),
@@ -403,4 +367,65 @@ class _NoteScanPageState extends ConsumerState<NoteScanPage> {
       ),
     );
   }
+}
+
+/// The reviewed transcription: how far to trust it, and the text to insert.
+class NoteScanReview extends StatelessWidget {
+  const NoteScanReview({
+    super.key,
+    required this.result,
+    required this.controller,
+    this.onChanged,
+  });
+  final NoteScanResult result;
+  final TextEditingController controller;
+  final VoidCallback? onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        result.check == null
+            ? 'Not cross-checked: no second reader is installed on your computer. Check names, dates and numbers yourself.'
+            : result.disagreements.isEmpty
+            ? 'A second reader agreed on names, dates and numbers. Still check the text.'
+            : 'Check these: a second reader read them differently.',
+        key: const ValueKey('note-scan-check-summary'),
+      ),
+      if (result.disagreements.isNotEmpty)
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final word in result.disagreements)
+              Chip(
+                avatar: const Icon(Icons.help_outline, size: 16),
+                label: Text(word),
+              ),
+          ],
+        ),
+      if (result.unreadableMarks > 0)
+        Text(
+          '${result.unreadableMarks} place${result.unreadableMarks == 1 ? '' : 's'} marked [?] could not be read. Replace them with what the page says.',
+          key: const ValueKey('note-scan-marks'),
+        ),
+      const SizedBox(height: 8),
+      TextField(
+        key: const ValueKey('note-scan-text'),
+        controller: controller,
+        minLines: 4,
+        maxLines: 14,
+        decoration: const InputDecoration(
+          labelText: 'Text to insert (edit freely)',
+          border: OutlineInputBorder(),
+        ),
+        onChanged: (_) => onChanged?.call(),
+      ),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: const Text('Original transcription'),
+        children: [SelectableText(result.text)],
+      ),
+    ],
+  );
 }

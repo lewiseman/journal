@@ -18,7 +18,7 @@ import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_page.dart';
 import 'package:journal/modules/notes/transform/transform_page.dart';
 import 'package:journal/modules/notes/views/pages/edit_note_page.dart';
-import 'package:journal/modules/presentation/presentation_page.dart';
+import 'package:journal/modules/presentation/note_presentation_page.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:sync_wise/sync_wise.dart';
@@ -203,7 +203,7 @@ void main() {
         'scan': NoteScanPage,
         'background': NoteBackgroundPage,
         'recovery': NoteRecoveryPage,
-        'presentation': PresentationPage,
+        'presentation': NotePresentationPage,
       }.entries) {
         await _open(tester, tool.key);
         expect(find.byType(tool.value), findsOneWidget);
@@ -271,42 +271,42 @@ void main() {
     await _unmount(tester, app);
   });
 
-  for (final newNote in [true, false]) {
-    testWidgets(
-      '${newNote ? 'unsaved notes' : 'editor drafts'} keep AI tools unavailable',
-      (tester) async {
-        final app = await _mount(tester, newNote: newNote);
-        if (!newNote) {
-          await tester.drag(_button, const Offset(0, -180));
-          await tester.pumpAndSettle();
-          await tester.tap(find.byTooltip('Edit note'));
-          await tester.pumpAndSettle();
-          await tester.enterText(
-            find.byKey(const ValueKey('note-content-editor')),
-            'A draft that has not been saved.',
-          );
-        }
-        await tester.tap(_button);
+  // New notes get their own draft tools; see note_draft_ai_test.dart.
+  for (final newNote in [false]) {
+    testWidgets('editor drafts of saved notes keep AI tools unavailable', (
+      tester,
+    ) async {
+      final app = await _mount(tester, newNote: newNote);
+      if (!newNote) {
+        await tester.drag(_button, const Offset(0, -180));
         await tester.pumpAndSettle();
-        expect(
-          find.byKey(const ValueKey('note-assistant-save-first')),
-          findsOneWidget,
+        await tester.tap(find.byTooltip('Edit note'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const ValueKey('note-content-editor')),
+          'A draft that has not been saved.',
         );
-        for (final tile in tester.widgetList<ListTile>(
-          find.descendant(of: _menu, matching: find.byType(ListTile)),
-        )) {
-          expect(tile.enabled, false);
-        }
-        expect(find.byType(NoteSummaryPage), findsNothing);
-        if (!newNote) {
-          expect(
-            app.notes.getNoteByUuid('selected-note')!.content,
-            'A quiet walk by the river.',
-          );
-        }
-        await _unmount(tester, app);
-      },
-    );
+      }
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('note-assistant-save-first')),
+        findsOneWidget,
+      );
+      for (final tile in tester.widgetList<ListTile>(
+        find.descendant(of: _menu, matching: find.byType(ListTile)),
+      )) {
+        expect(tile.enabled, false);
+      }
+      expect(find.byType(NoteSummaryPage), findsNothing);
+      if (!newNote) {
+        expect(
+          app.notes.getNoteByUuid('selected-note')!.content,
+          'A quiet walk by the river.',
+        );
+      }
+      await _unmount(tester, app);
+    });
   }
 
   testWidgets(

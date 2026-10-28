@@ -359,6 +359,36 @@ class _FloatingAssistantState extends State<_FloatingAssistant>
   }
 }
 
+/// One reading of the companion phase, shared by the sticker and the sheet.
+({bool connected, bool checking, Color color, String short}) _qvacStatus(
+  CompanionPhase phase,
+  ColorScheme colors,
+) {
+  final connected = phase == CompanionPhase.connected;
+  final checking = switch (phase) {
+    CompanionPhase.loading ||
+    CompanionPhase.connecting ||
+    CompanionPhase.pairing => true,
+    _ => false,
+  };
+  return (
+    connected: connected,
+    checking: checking,
+    color: connected
+        ? const Color(0xff619476)
+        : checking
+        ? const Color(0xffb68b43)
+        : colors.onSurfaceVariant,
+    short: connected
+        ? 'Connected'
+        : checking
+        ? 'Checking…'
+        : phase == CompanionPhase.idle
+        ? 'Not set up'
+        : 'Offline',
+  );
+}
+
 class QvacAssistantButton extends ConsumerWidget {
   const QvacAssistantButton({
     super.key,
@@ -383,18 +413,10 @@ class QvacAssistantButton extends ConsumerWidget {
       companionControllerProvider.select((state) => state.phase),
     );
     final colors = Theme.of(context).colorScheme;
-    final connected = phase == CompanionPhase.connected;
-    final checking = switch (phase) {
-      CompanionPhase.loading ||
-      CompanionPhase.connecting ||
-      CompanionPhase.pairing => true,
-      _ => false,
-    };
-    final color = connected
-        ? const Color(0xff619476)
-        : checking
-        ? const Color(0xffb68b43)
-        : colors.onSurfaceVariant;
+    final (:connected, :checking, :color, short: _) = _qvacStatus(
+      phase,
+      colors,
+    );
     final label = companionPhaseLabel(phase);
     return Semantics(
       key: const ValueKey('qvac-assistant-button'),
@@ -650,11 +672,8 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
                 bottom: constraints.maxHeight * size + 12,
                 child: Opacity(
                   opacity: ((exposed - 76) / 48).clamp(0, 1),
-                  child: FilledButton.tonalIcon(
-                    key: const ValueKey('qvac-local-ai-settings'),
+                  child: _SettingsTag(
                     onPressed: () => Navigator.pop(context, true),
-                    icon: const Icon(Icons.tune_rounded, size: 20),
-                    label: const Text('Local AI settings'),
                   ),
                 ),
               ),
@@ -738,6 +757,108 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
       },
     ),
   );
+}
+
+/// QVAC's own tag above every page sheet: the floating sticker in small,
+/// with the same status dot, so settings read as part of the assistant.
+class _SettingsTag extends ConsumerWidget {
+  const _SettingsTag({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final phase = ref.watch(
+      companionControllerProvider.select((state) => state.phase),
+    );
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final status = _qvacStatus(phase, colors);
+    return Semantics(
+      key: const ValueKey('qvac-local-ai-settings'),
+      button: true,
+      label: 'Local AI settings, ${status.short}',
+      onTap: onPressed,
+      excludeSemantics: true,
+      child: Material(
+        color: colors.surface,
+        elevation: 3,
+        shadowColor: colors.shadow.withValues(alpha: .35),
+        shape: StadiumBorder(
+          side: BorderSide(color: colors.outlineVariant.withValues(alpha: .6)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          excludeFromSemantics: true,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 14, 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: 34,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Image.asset(
+                        qvacArtwork,
+                        width: 34,
+                        height: 34,
+                        excludeFromSemantics: true,
+                      ),
+                      PositionedDirectional(
+                        end: -1,
+                        bottom: -1,
+                        child: AnimatedContainer(
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 240),
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: status.color,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: colors.surface, width: 2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Local AI',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
+                    ),
+                    Text(
+                      status.short,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                Icon(
+                  Icons.tune_rounded,
+                  size: 18,
+                  color: colors.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _QvacPlaceholder extends ConsumerWidget {

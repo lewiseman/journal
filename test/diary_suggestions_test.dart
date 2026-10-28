@@ -110,30 +110,31 @@ Future<void> waitFor(ProviderContainer container, String phase) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  DiarySuggestionSource source(List<String> texts) => DiarySuggestionSource(
-    day,
-    [
-      for (var i = 0; i < texts.length; i++)
-        {'item_uuid': 'u$i', 'content': texts[i]},
-    ],
-  );
+  DiarySuggestionSource source(List<String> texts) =>
+      DiarySuggestionSource(day, [
+        for (var i = 0; i < texts.length; i++)
+          {'item_uuid': 'u$i', 'content': texts[i]},
+      ]);
 
-  test('request sends only entry text under temporary IDs; never truncates', () {
-    final request =
-        jsonDecode(source(['Walk.', 'Deadline.']).request()) as Map;
-    expect(request.keys, ['entries']);
-    expect(request['entries'], [
-      {'id': 'e0', 'text': 'Walk.'},
-      {'id': 'e1', 'text': 'Deadline.'},
-    ]);
-    expect(jsonEncode(request), isNot(contains('u0')));
-    expect(jsonEncode(request), isNot(contains(day)));
-    expect(() => source(['x' * 1990]).request(), throwsFormatException);
-    expect(
-      () => source(List.filled(13, 'x')).request(),
-      throwsFormatException,
-    );
-  });
+  test(
+    'request sends only entry text under temporary IDs; never truncates',
+    () {
+      final request =
+          jsonDecode(source(['Walk.', 'Deadline.']).request()) as Map;
+      expect(request.keys, ['entries']);
+      expect(request['entries'], [
+        {'id': 'e0', 'text': 'Walk.'},
+        {'id': 'e1', 'text': 'Deadline.'},
+      ]);
+      expect(jsonEncode(request), isNot(contains('u0')));
+      expect(jsonEncode(request), isNot(contains(day)));
+      expect(() => source(['x' * 1990]).request(), throwsFormatException);
+      expect(
+        () => source(List.filled(13, 'x')).request(),
+        throwsFormatException,
+      );
+    },
+  );
 
   test('sparse day yields an honest empty result rather than invention', () {
     final parsed = DiarySuggestions.parse(
@@ -160,25 +161,30 @@ void main() {
     expect(invented.dropped, 3);
   });
 
-  test('mixed emotions keep both grounded themes and suggest no single mood', () {
-    final parsed = DiarySuggestions.parse(
-      output(),
-      source([
-        'I was proud of the walk by the river this morning.',
-        'Then the deadline slipped and I felt flat all evening.',
-      ]),
-    );
-    expect(parsed.title, 'Morning walk and a slipped deadline');
-    expect(parsed.mood.value, 'mixed');
-    expect(parsed.mood.mood, null);
-    expect(parsed.themes.map((t) => t.label), [
-      'work pressure',
-      'time outdoors',
-    ]);
-  });
+  test(
+    'mixed emotions keep both grounded themes and suggest no single mood',
+    () {
+      final parsed = DiarySuggestions.parse(
+        output(),
+        source([
+          'I was proud of the walk by the river this morning.',
+          'Then the deadline slipped and I felt flat all evening.',
+        ]),
+      );
+      expect(parsed.title, 'Morning walk and a slipped deadline');
+      expect(parsed.mood.value, 'mixed');
+      expect(parsed.mood.mood, null);
+      expect(parsed.themes.map((t) => t.label), [
+        'work pressure',
+        'time outdoors',
+      ]);
+    },
+  );
 
   test('diagnoses, sensitive inferences and invalid envelopes are refused', () {
-    final src = source(['I felt low and could not sleep, the deadline slipped.']);
+    final src = source([
+      'I felt low and could not sleep, the deadline slipped.',
+    ]);
     final parsed = DiarySuggestions.parse(
       output(
         title: 'Signs of depression',
@@ -244,10 +250,7 @@ void main() {
     expect(saved.itemsJson, itemsBefore);
     expect(saved.status, SyncStatus.pendingUpload);
     expect(app.storage.dirty('diary', day, 'metadata'), true);
-    expect(
-      DiaryCalendarDay.fromEntity(saved).mood,
-      DiaryCalendarMood.calm,
-    );
+    expect(DiaryCalendarDay.fromEntity(saved).mood, DiaryCalendarMood.calm);
     expect(saved.toSyncJson('phone')['day_themes'], '["time outdoors"]');
     expect(
       () => app.diary.applyDaySuggestions(
@@ -320,20 +323,26 @@ void main() {
     expect(diary.getDay(day)!.dayTitle, 'River walk');
   });
 
-  test('themes travel in sync documents and older documents stay unchanged', () {
-    final plain = DiaryDayEntity(dateString: day);
-    expect(plain.toSyncJson('phone').containsKey('day_themes'), false);
-    final themed = DiaryDayEntity(
-      dateString: day,
-      dayThemes: encodeDayThemes(['rest', 'family']),
-    );
-    final remote = DiaryDayEntity.fromSyncJson(themed.toSyncJson('phone'));
-    expect(remote.themes, ['rest', 'family']);
-    expect(DiaryDayEntity(dateString: day, dayThemes: '{bad').themes, isEmpty);
-    expect(() => encodeDayThemes(['a', 'b', 'c', 'd']), throwsArgumentError);
-    expect(() => encodeDayThemes(['x' * 41]), throwsArgumentError);
-    expect(encodeDayThemes([' rest ', 'Rest', '']), '["rest"]');
-  });
+  test(
+    'themes travel in sync documents and older documents stay unchanged',
+    () {
+      final plain = DiaryDayEntity(dateString: day);
+      expect(plain.toSyncJson('phone').containsKey('day_themes'), false);
+      final themed = DiaryDayEntity(
+        dateString: day,
+        dayThemes: encodeDayThemes(['rest', 'family']),
+      );
+      final remote = DiaryDayEntity.fromSyncJson(themed.toSyncJson('phone'));
+      expect(remote.themes, ['rest', 'family']);
+      expect(
+        DiaryDayEntity(dateString: day, dayThemes: '{bad').themes,
+        isEmpty,
+      );
+      expect(() => encodeDayThemes(['a', 'b', 'c', 'd']), throwsArgumentError);
+      expect(() => encodeDayThemes(['x' * 41]), throwsArgumentError);
+      expect(encodeDayThemes([' rest ', 'Rest', '']), '["rest"]');
+    },
+  );
 
   test('end to end: only the day is sent, stale results cannot save, accepted title persists', () async {
     final app = await SyncFixture.create(MemoryDrive(), 'phone');
@@ -395,170 +404,186 @@ void main() {
     final suggestions = controller.diarySuggestions()!;
     // The model's mood evidence no longer appears in the rewritten entry.
     expect(suggestions.mood.mood, null);
-    expect(
-      await controller.acceptDiarySuggestion(title: 'Edited by me'),
-      true,
-    );
+    expect(await controller.acceptDiarySuggestion(title: 'Edited by me'), true);
     final saved = app.diary.getDay(day)!;
     expect(saved.dayTitle, 'Edited by me');
     expect(saved.dayMood, null);
     expect(saved.dayThemes, null);
-    expect(store.value, null, reason: 'accepted result is cleared and acknowledged');
+    expect(
+      store.value,
+      null,
+      reason: 'accepted result is cleared and acknowledged',
+    );
   });
 
-  test('unavailable model, old companion and secondary device send nothing', () async {
-    final app = await SyncFixture.create(MemoryDrive(), 'phone');
-    app.diary.addTimelineItem(dateString: day, content: 'A quiet day.');
-    for (final connection in [
-      () => DiaryConnection(modelStatus: 'needs_download'),
-      () => DiaryConnection(contract: 0),
-    ]) {
+  test(
+    'unavailable model, old companion and secondary device send nothing',
+    () async {
+      final app = await SyncFixture.create(MemoryDrive(), 'phone');
+      app.diary.addTimelineItem(dateString: day, content: 'A quiet day.');
+      for (final connection in [
+        () => DiaryConnection(modelStatus: 'needs_download'),
+        () => DiaryConnection(contract: 0),
+      ]) {
+        final store = summary.MemorySummaries();
+        final wire = summary.SummaryTransport(store);
+        final container = diaryContainer(
+          app,
+          store,
+          wire,
+          connection: connection,
+        );
+        final controller = container.read(noteSummaryProvider.notifier);
+        await restored(container);
+        await controller.startDiarySuggestion(day);
+        expect(wire.submitted, isEmpty);
+        expect(store.value, null);
+        expect(container.read(noteSummaryProvider).message, isNotNull);
+        container.dispose();
+      }
+      makeSecondary(app);
       final store = summary.MemorySummaries();
       final wire = summary.SummaryTransport(store);
-      final container = diaryContainer(
-        app,
-        store,
-        wire,
-        connection: connection,
-      );
-      final controller = container.read(noteSummaryProvider.notifier);
+      final container = diaryContainer(app, store, wire);
+      addTearDown(container.dispose);
       await restored(container);
-      await controller.startDiarySuggestion(day);
+      await container
+          .read(noteSummaryProvider.notifier)
+          .startDiarySuggestion(day);
       expect(wire.submitted, isEmpty);
-      expect(store.value, null);
-      expect(container.read(noteSummaryProvider).message, isNotNull);
-      container.dispose();
-    }
-    makeSecondary(app);
-    final store = summary.MemorySummaries();
-    final wire = summary.SummaryTransport(store);
-    final container = diaryContainer(app, store, wire);
-    addTearDown(container.dispose);
-    await restored(container);
-    await container
-        .read(noteSummaryProvider.notifier)
-        .startDiarySuggestion(day);
-    expect(wire.submitted, isEmpty);
-    expect(
-      container.read(noteSummaryProvider).message,
-      contains('primary device'),
-    );
-  });
-
-  testWidgets('review: mood disclaimer, edit then accept, reject, save; secondary is read-only', (
-    tester,
-  ) async {
-    final app = (await tester.runAsync(
-      () => SyncFixture.create(MemoryDrive(), 'phone'),
-    ))!;
-    app.diary.addTimelineItem(
-      dateString: day,
-      content: 'I felt calm after the walk by the river. Work was busy.',
-    );
-    final store = summary.MemorySummaries();
-    final wire = summary.SummaryTransport(store)
-      ..output = output(
-        title: 'Walk by the river',
-        mood: 'calm',
-        moodEvidence: 'I felt calm',
-        themes: [
-          ['busy work', 'Work was busy'],
-        ],
+      expect(
+        container.read(noteSummaryProvider).message,
+        contains('primary device'),
       );
-    final container = diaryContainer(app, store, wire);
-    addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: DiaryDetailsPage(dateString: day)),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('diary-suggest')));
-    for (
-      var i = 0;
-      i < 40 && container.read(noteSummaryProvider).phase != 'completed';
-      i++
-    ) {
+    },
+  );
+
+  testWidgets(
+    'review: mood disclaimer, edit then accept, reject, save; secondary is read-only',
+    (tester) async {
+      final app = (await tester.runAsync(
+        () => SyncFixture.create(MemoryDrive(), 'phone'),
+      ))!;
+      app.diary.addTimelineItem(
+        dateString: day,
+        content: 'I felt calm after the walk by the river. Work was busy.',
+      );
+      final store = summary.MemorySummaries();
+      final wire = summary.SummaryTransport(store)
+        ..output = output(
+          title: 'Walk by the river',
+          mood: 'calm',
+          moodEvidence: 'I felt calm',
+          themes: [
+            ['busy work', 'Work was busy'],
+          ],
+        );
+      final container = diaryContainer(app, store, wire);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: DiaryDetailsPage(dateString: day)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('diary-suggest')));
+      for (
+        var i = 0;
+        i < 40 && container.read(noteSummaryProvider).phase != 'completed';
+        i++
+      ) {
+        await tester.runAsync(settle);
+        await tester.pump();
+      }
       await tester.runAsync(settle);
-      await tester.pump();
-    }
-    await tester.runAsync(settle);
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('diary-mood-disclaimer')), findsOneWidget);
-    // Nothing is written before an explicit save.
-    expect(app.diary.getDay(day)!.dayTitle, null);
-    // Title: edit, which also accepts the edited value.
-    final title = find.byKey(const ValueKey('diary-review-title'));
-    await tester.ensureVisible(title);
-    await tester.tap(
-      find.descendant(of: title, matching: find.text('Edit')),
-    );
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, 'River, then work');
-    await tester.tap(find.text('Use'));
-    await tester.pumpAndSettle();
-    // Mood: accept. Themes: reject.
-    final mood = find.byKey(const ValueKey('diary-review-mood'));
-    await tester.ensureVisible(mood);
-    await tester.tap(find.descendant(of: mood, matching: find.text('Accept')));
-    final rejectThemes = find.descendant(
-      of: find.byKey(const ValueKey('diary-review-themes')),
-      matching: find.text('Reject'),
-    );
-    await tester.ensureVisible(rejectThemes);
-    await tester.pumpAndSettle();
-    await tester.tap(rejectThemes);
-    await tester.pumpAndSettle();
-    final save = find.byKey(const ValueKey('diary-suggest-save'));
-    await tester.ensureVisible(save);
-    await tester.tap(save);
-    await tester.runAsync(settle);
-    await tester.pumpAndSettle();
-    final saved = app.diary.getDay(day)!;
-    expect(saved.dayTitle, 'River, then work');
-    expect(decodeDayMood(saved.dayMood), DiaryCalendarMood.calm);
-    expect(saved.dayThemes, null);
-    expect(find.byKey(const ValueKey('diary-details-current')), findsOneWidget);
-    expect(find.text('Title: River, then work'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('diary-mood-disclaimer')),
+        findsOneWidget,
+      );
+      // Nothing is written before an explicit save.
+      expect(app.diary.getDay(day)!.dayTitle, null);
+      // Title: edit, which also accepts the edited value.
+      final title = find.byKey(const ValueKey('diary-review-title'));
+      await tester.ensureVisible(title);
+      await tester.tap(find.descendant(of: title, matching: find.text('Edit')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'River, then work');
+      await tester.tap(find.text('Use'));
+      await tester.pumpAndSettle();
+      // Mood: accept. Themes: reject.
+      final mood = find.byKey(const ValueKey('diary-review-mood'));
+      await tester.ensureVisible(mood);
+      await tester.tap(
+        find.descendant(of: mood, matching: find.text('Accept')),
+      );
+      final rejectThemes = find.descendant(
+        of: find.byKey(const ValueKey('diary-review-themes')),
+        matching: find.text('Reject'),
+      );
+      await tester.ensureVisible(rejectThemes);
+      await tester.pumpAndSettle();
+      await tester.tap(rejectThemes);
+      await tester.pumpAndSettle();
+      final save = find.byKey(const ValueKey('diary-suggest-save'));
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.runAsync(settle);
+      await tester.pumpAndSettle();
+      final saved = app.diary.getDay(day)!;
+      expect(saved.dayTitle, 'River, then work');
+      expect(decodeDayMood(saved.dayMood), DiaryCalendarMood.calm);
+      expect(saved.dayThemes, null);
+      expect(
+        find.byKey(const ValueKey('diary-details-current')),
+        findsOneWidget,
+      );
+      expect(find.text('Title: River, then work'), findsOneWidget);
 
-    // Manual override replaces the AI-chosen mood and adds a theme.
-    await tester.tap(find.byKey(const ValueKey('diary-details-edit')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('diary-manual-mood-tired')));
-    await tester.enterText(
-      find.byKey(const ValueKey('diary-manual-themes')),
-      'rest',
-    );
-    await tester.tap(find.byKey(const ValueKey('diary-manual-save')));
-    await tester.pumpAndSettle();
-    expect(
-      decodeDayMood(app.diary.getDay(day)!.dayMood),
-      DiaryCalendarMood.tired,
-    );
-    expect(app.diary.getDay(day)!.themes, ['rest']);
+      // Manual override replaces the AI-chosen mood and adds a theme.
+      await tester.tap(find.byKey(const ValueKey('diary-details-edit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('diary-manual-mood-tired')));
+      await tester.enterText(
+        find.byKey(const ValueKey('diary-manual-themes')),
+        'rest',
+      );
+      await tester.tap(find.byKey(const ValueKey('diary-manual-save')));
+      await tester.pumpAndSettle();
+      expect(
+        decodeDayMood(app.diary.getDay(day)!.dayMood),
+        DiaryCalendarMood.tired,
+      );
+      expect(app.diary.getDay(day)!.themes, ['rest']);
 
-    // Secondary devices can read details but cannot request or save.
-    makeSecondary(app);
-    final secondary = diaryContainer(app, summary.MemorySummaries(), wire);
-    addTearDown(secondary.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: secondary,
-        child: const MaterialApp(home: DiaryDetailsPage(dateString: day)),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('diary-details-read-only')), findsOneWidget);
-    expect(find.byKey(const ValueKey('diary-details-edit')), findsNothing);
-    expect(
-      tester
-          .widget<ButtonStyleButton>(find.byKey(const ValueKey('diary-suggest')))
-          .onPressed,
-      null,
-    );
-    await tester.pumpWidget(const SizedBox());
-    // Cancels the debounced sync scheduled by the saves.
-    app.container.dispose();
-  });
+      // Secondary devices can read details but cannot request or save.
+      makeSecondary(app);
+      final secondary = diaryContainer(app, summary.MemorySummaries(), wire);
+      addTearDown(secondary.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: secondary,
+          child: const MaterialApp(home: DiaryDetailsPage(dateString: day)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('diary-details-read-only')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('diary-details-edit')), findsNothing);
+      expect(
+        tester
+            .widget<ButtonStyleButton>(
+              find.byKey(const ValueKey('diary-suggest')),
+            )
+            .onPressed,
+        null,
+      );
+      await tester.pumpWidget(const SizedBox());
+      // Cancels the debounced sync scheduled by the saves.
+      app.container.dispose();
+    },
+  );
 }

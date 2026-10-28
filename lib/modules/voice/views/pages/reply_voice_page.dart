@@ -69,7 +69,9 @@ class _ReplyVoicePageState extends State<ReplyVoicePage> {
       // Offline voices first, then by accent and name.
       voices.sort(
         (a, b) => [
-          (a['network_required'] ?? '0').compareTo(b['network_required'] ?? '0'),
+          (a['network_required'] ?? '0').compareTo(
+            b['network_required'] ?? '0',
+          ),
           a['locale']!.compareTo(b['locale']!),
           a['name']!.compareTo(b['name']!),
         ].firstWhere((c) => c != 0, orElse: () => 0),

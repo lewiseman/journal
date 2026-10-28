@@ -339,3 +339,51 @@ List<String> parseNoteIdeas(String text) {
         _collapse(value),
   ];
 }
+
+/// A starting skeleton for a new, unsaved note. Only [topic] is sent.
+const noteTemplateOperation = 'suggest-note-template';
+const noteTemplateOutputBytes = 1800;
+const noteTemplateBodyBytes = 1200;
+const noteTemplateLines = 30;
+
+class NoteTemplateSource {
+  const NoteTemplateSource(this.topic);
+  final String topic;
+
+  /// Throws [FormatException] for an empty, long or multi-line purpose.
+  String request() {
+    final clean = _collapse(topic);
+    if (!_plain(clean, noteIdeaTopicChars)) {
+      throw const FormatException(
+        'Describe what the note is for in one line of at most 120 characters.',
+      );
+    }
+    return jsonEncode({'topic': clean});
+  }
+}
+
+/// The model's template, re-checked here: an exact envelope, a plain title
+/// and a short body of ordinary lines.
+class NoteTemplate {
+  const NoteTemplate({required this.title, required this.body});
+  final String title, body;
+
+  /// Throws [FormatException] for anything outside the contract.
+  factory NoteTemplate.parse(String text) {
+    final json = jsonDecode(text);
+    if (json is! Map ||
+        json.keys.length != 2 ||
+        !_plain(json['title'], noteTitleChars) ||
+        json['body'] is! String) {
+      throw const FormatException('Invalid template');
+    }
+    final body = (json['body'] as String).trimRight();
+    if (body.trim().isEmpty ||
+        utf8.encode(body).length > noteTemplateBodyBytes ||
+        body.split('\n').length > noteTemplateLines ||
+        RegExp(r'[\x00-\x09\x0b-\x1f\x7f]').hasMatch(body)) {
+      throw const FormatException('Invalid template body');
+    }
+    return NoteTemplate(title: _collapse(json['title'] as String), body: body);
+  }
+}

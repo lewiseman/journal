@@ -895,7 +895,12 @@ void main() {
       );
       await tester.timedDragFrom(
         tester.getRect(_paper).center,
-        const Offset(0, 2400),
+        Offset(
+          0,
+          inner.position.maxScrollExtent +
+              _scroll(tester).outerController.offset +
+              320,
+        ),
         const Duration(seconds: 2),
       );
       await tester.pumpAndSettle();
@@ -958,10 +963,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find
-            .descendant(
-              of: live,
-              matching: find.byTooltip('More diary actions'),
-            )
+            .descendant(of: live, matching: find.byTooltip('Add images'))
             .hitTestable(),
         findsOneWidget,
       );

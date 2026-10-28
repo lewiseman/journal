@@ -6,13 +6,19 @@ import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
 
 void main() {
-  test('diaryTerms: shared normalization for S01 matching and J02 repetition', () {
-    expect(diaryTerms("What's on your mind?"), {'mind'});
-    expect(diaryTerms('noticed'), diaryTerms('notice'));
-    expect(diaryTerms('Pottery classes'), diaryTerms('pottery class'));
-    expect(diaryTerms('Clase de cerámica'), containsAll(['clas', 'cerámica']));
-    expect(diaryTerms('陶芸教室に行った'), {'陶芸教室に行った'});
-  });
+  test(
+    'diaryTerms: shared normalization for S01 matching and J02 repetition',
+    () {
+      expect(diaryTerms("What's on your mind?"), {'mind'});
+      expect(diaryTerms('noticed'), diaryTerms('notice'));
+      expect(diaryTerms('Pottery classes'), diaryTerms('pottery class'));
+      expect(
+        diaryTerms('Clase de cerámica'),
+        containsAll(['clas', 'cerámica']),
+      );
+      expect(diaryTerms('陶芸教室に行った'), {'陶芸教室に行った'});
+    },
+  );
 
   test('previousDays crosses month and year ends and lists newest first', () {
     final scope = DiaryDateScope.previousDays(DateTime(2027, 1, 2, 23, 30), 4);

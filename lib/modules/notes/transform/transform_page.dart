@@ -16,7 +16,7 @@ import '../metadata/note_help_pages.dart';
 import '../images/note_image_page.dart';
 import '../images/note_scan_page.dart';
 import '../images/note_background_page.dart';
-import '../../presentation/presentation_page.dart';
+import '../../presentation/note_presentation_page.dart';
 import '../../diary/suggestions/diary_details_page.dart';
 
 class NoteTransformPage extends ConsumerStatefulWidget {
@@ -58,7 +58,9 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
       );
     }
     final state = ref.watch(noteSummaryProvider);
-    if (state.handle?.isPresentation == true) return const PresentationPage();
+    if (state.handle case final handle? when handle.isNoteWebsite) {
+      return NotePresentationPage(noteId: handle.noteId);
+    }
     if (state.handle?.isDiaryAnswer == true) return const DiaryAnswerPage();
     if (state.handle?.isDailyQuestion == true) {
       return const DailyQuestionTaskPage();

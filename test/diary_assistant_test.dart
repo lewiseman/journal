@@ -16,7 +16,9 @@ import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/diary/questions/daily_question_store.dart';
 import 'package:journal/modules/diary/suggestions/diary_details_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
+import 'package:journal/modules/diary/views/widgets/diary_assistant.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
+import 'package:journal/modules/diary/views/widgets/diary_ink_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_store.dart';
@@ -30,8 +32,10 @@ import 'note_summary_test.dart' show TestReset;
 import 'support/sync_fixture.dart';
 
 class _Connection extends CompanionController {
+  _Connection([this.phase = CompanionPhase.connected]);
+  final CompanionPhase phase;
   @override
-  CompanionState build() => const CompanionState(phase: CompanionPhase.idle);
+  CompanionState build() => CompanionState(phase: phase);
 }
 
 class _Summary extends NoteSummaryController {
@@ -58,6 +62,7 @@ List<Override> _questions({bool enabled = true}) => [
 final _card = find.byKey(const ValueKey('diary-assistant-question'));
 
 final _button = find.byKey(const ValueKey('qvac-assistant-button'));
+final _microphone = find.byKey(const ValueKey('diary-assistant-microphone'));
 final _settings = find.byKey(const ValueKey('qvac-local-ai-settings'));
 final _captureKey = GlobalKey();
 
@@ -69,6 +74,7 @@ Future<SyncFixture> _mount(
   Size size = const Size(390, 844),
   List<Override> overrides = const [],
   NoteSummaryState summary = const NoteSummaryState(),
+  CompanionPhase phase = CompanionPhase.connected,
 }) async {
   final app = (await tester.runAsync(
     () => SyncFixture.create(MemoryDrive(), 'phone'),
@@ -93,7 +99,7 @@ Future<SyncFixture> _mount(
       objectBoxProvider.overrideWithValue(app.db),
       syncStateStoreProvider.overrideWithValue(app.storage),
       diaryRepositoryProvider.overrideWithValue(app.diary),
-      companionControllerProvider.overrideWith(_Connection.new),
+      companionControllerProvider.overrideWith(() => _Connection(phase)),
       noteSummaryProvider.overrideWith(() => _Summary(summary)),
       accountResetProvider.overrideWith(TestReset.new),
       syncDeviceRoleProvider.overrideWithValue(
@@ -201,10 +207,8 @@ void main() {
       await tester.tap(_button);
       await tester.pumpAndSettle();
       expect(
-        tester
-            .widget<Text>(find.byKey(const ValueKey('diary-assistant-date')))
-            .data,
-        'Sat, 24 Oct 2026',
+        tester.widget<DiaryAssistant>(find.byType(DiaryAssistant)).date,
+        DateTime(2026, 10, 24),
       );
       expect(_settings, findsOneWidget);
       expect(
@@ -254,7 +258,7 @@ void main() {
       expect(find.byType(QvacAssistantSheet), findsOneWidget);
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
-      expect(find.text('Microphone'), findsOneWidget);
+      expect(_microphone, findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       app.container.dispose();
@@ -279,14 +283,17 @@ void main() {
         await tester.tap(_button);
         await tester.pumpAndSettle();
         await tester.scrollUntilVisible(
-          find.text('Microphone'),
+          _microphone,
           150,
           scrollable: find.descendant(
             of: find.byKey(const ValueKey('diary-assistant-actions')),
             matching: find.byType(Scrollable),
           ),
         );
-        await tester.tap(find.text('Microphone'));
+        await tester.ensureVisible(_microphone);
+        await tester.pumpAndSettle();
+        await _capture(tester, 'diary-menu-${layout.name}');
+        await tester.tap(_microphone);
         await tester.pumpAndSettle();
         final voice = tester.widget<VoiceSessionPage>(
           find.byType(VoiceSessionPage),
@@ -312,10 +319,8 @@ void main() {
         await tester.tap(_button);
         await tester.pumpAndSettle();
         expect(
-          tester
-              .widget<Text>(find.byKey(const ValueKey('diary-assistant-date')))
-              .data,
-          'Sat, 24 Oct 2026',
+          tester.widget<DiaryAssistant>(find.byType(DiaryAssistant)).date,
+          DateTime(2026, 10, 24),
         );
         expect(tester.takeException(), isNull);
       },
@@ -325,7 +330,11 @@ void main() {
   testWidgets(
     'today shows its question with another-question; other days do not',
     (tester) async {
-      final app = await _mount(tester, overrides: _questions());
+      final app = await _mount(
+        tester,
+        overrides: _questions(),
+        phase: CompanionPhase.idle,
+      );
       DailyQuestionStore(app.db.store).add(
         '2026-10-26',
         const DailyQuestion(
@@ -346,14 +355,12 @@ void main() {
         findsOneWidget,
       );
       final another = find.byKey(const ValueKey('daily-question-another'));
+      expect(tester.widget<DiaryInkAction>(another).label, 'Another question');
+      // Not connected: every action rests and the page offers to connect.
+      expect(tester.widget<DiaryInkAction>(another).onPressed, isNull);
+      expect(tester.widget<DiaryInkAction>(_microphone).onPressed, isNull);
       expect(
-        find.descendant(of: another, matching: find.text('Another question')),
-        findsOneWidget,
-      );
-      // Not connected: asking is unavailable and says why.
-      expect(tester.widget<FilledButton>(another).onPressed, isNull);
-      expect(
-        find.text('Connect your computer to get a question.'),
+        find.byKey(const ValueKey('diary-assistant-connect')),
         findsOneWidget,
       );
       expect(
@@ -395,21 +402,21 @@ void main() {
       find.byKey(const ValueKey('daily-question-loading')),
       findsOneWidget,
     );
-    expect(find.text('Asking your computer for a question…'), findsOneWidget);
     expect(find.byKey(const ValueKey('daily-question-another')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     app.container.dispose();
   });
 
-  testWidgets('with daily questions off the card points to settings', (
+  testWidgets('with daily questions off the page leaves the question out', (
     tester,
   ) async {
     final app = await _mount(tester, overrides: _questions(enabled: false));
     await tester.tap(_button);
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('daily-question-off')), findsOneWidget);
+    expect(_card, findsNothing);
     expect(find.byKey(const ValueKey('daily-question-another')), findsNothing);
+    expect(find.byKey(const ValueKey('diary-assistant-offline')), findsNothing);
     app.container.dispose();
   });
 
@@ -438,11 +445,8 @@ void main() {
       await _select(tester, 24);
       await tester.tap(_button);
       await tester.pumpAndSettle();
-      final microphone = find.descendant(
-        of: find.byKey(const ValueKey('diary-assistant-microphone')),
-        matching: find.byType(ListTile),
-      );
-      expect(tester.widget<ListTile>(microphone).enabled, false);
+      final microphone = _microphone;
+      expect(tester.widget<DiaryInkAction>(microphone).onPressed, isNull);
       await tester.tap(find.text('Day details'));
       await tester.pumpAndSettle();
       expect(
@@ -454,7 +458,7 @@ void main() {
       await _select(tester, 26);
       await tester.tap(_button);
       await tester.pumpAndSettle();
-      expect(tester.widget<ListTile>(microphone).enabled, true);
+      expect(tester.widget<DiaryInkAction>(microphone).onPressed, isNotNull);
       await tester.tap(microphone);
       await tester.pumpAndSettle();
       expect(

@@ -4,15 +4,20 @@ import 'package:google_fonts/google_fonts_lite.dart';
 class LocalSettings {
   const LocalSettings({
     this.fontFamily = defaultFontFamily,
+    this.diaryTitleFontFamily = defaultDiaryTitleFontFamily,
+    this.diaryBodyFontFamily = defaultDiaryBodyFontFamily,
     this.themeMode = ThemeMode.system,
     this.accent = AppAccent.indigo,
   });
 
   final String fontFamily;
+  final String diaryTitleFontFamily, diaryBodyFontFamily;
   final ThemeMode themeMode;
   final AppAccent accent;
 
   static const defaultFontFamily = 'Poppins';
+  static const defaultDiaryTitleFontFamily = 'Caveat';
+  static const defaultDiaryBodyFontFamily = 'Lora';
   static final fontFamilies = List<String>.unmodifiable(
     GoogleFontsLite.fontsMap.keys.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase())),
@@ -23,7 +28,20 @@ class LocalSettings {
 
   factory LocalSettings.fromMap(Map<String, dynamic>? data) {
     final family = data?['font_family'];
+    String diaryFont(String key, String fallback) {
+      final value = data?[key];
+      return value is String && supportsFont(value) ? value : fallback;
+    }
+
     return LocalSettings(
+      diaryTitleFontFamily: diaryFont(
+        'diary_title_font_family',
+        defaultDiaryTitleFontFamily,
+      ),
+      diaryBodyFontFamily: diaryFont(
+        'diary_body_font_family',
+        defaultDiaryBodyFontFamily,
+      ),
       fontFamily: family is String && supportsFont(family)
           ? family
           : defaultFontFamily,
@@ -37,16 +55,22 @@ class LocalSettings {
 
   Map<String, dynamic> toMap() => {
     'font_family': fontFamily,
+    'diary_title_font_family': diaryTitleFontFamily,
+    'diary_body_font_family': diaryBodyFontFamily,
     'theme_mode': themeMode.name,
     'accent_color': accent.name,
   };
 
   LocalSettings copyWith({
     String? fontFamily,
+    String? diaryTitleFontFamily,
+    String? diaryBodyFontFamily,
     ThemeMode? themeMode,
     AppAccent? accent,
   }) => LocalSettings(
     fontFamily: fontFamily ?? this.fontFamily,
+    diaryTitleFontFamily: diaryTitleFontFamily ?? this.diaryTitleFontFamily,
+    diaryBodyFontFamily: diaryBodyFontFamily ?? this.diaryBodyFontFamily,
     themeMode: themeMode ?? this.themeMode,
     accent: accent ?? this.accent,
   );

@@ -43,6 +43,7 @@ dependencies:
   mobile_scanner: 7.4.2
   bonsoir: 7.1.6
   flutter_tts: ^4.2.5
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   integration_test:
@@ -64,9 +65,19 @@ flutter:
     - assets/images/
     - assets/images/navigation/
     - assets/images/onboarding/
+    - assets/fonts/caveat-OFL.txt
+    - assets/fonts/lora-OFL.txt
   shaders:
     - shaders/wabi_sabi.frag
     - shaders/stacked_alpha.frag
+  fonts:
+    - family: Caveat
+      fonts:
+        - asset: assets/fonts/Caveat-Medium.ttf
+          weight: 500
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/Lora-Regular.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -14,8 +14,10 @@ import 'package:journal/modules/recall/recall_indexer.dart';
 import 'package:journal/modules/settings/companion/companion_protocol.dart';
 import 'package:journal/objectbox/objectbox.g.dart';
 
-const qwen = 'qwen3-embedding-0.6b-q8_0@370f27d7550e0def9b39c1f16d3fbaa13aa67728';
-const qwenF16 = 'qwen3-embedding-0.6b-f16@370f27d7550e0def9b39c1f16d3fbaa13aa67728';
+const qwen =
+    'qwen3-embedding-0.6b-q8_0@370f27d7550e0def9b39c1f16d3fbaa13aa67728';
+const qwenF16 =
+    'qwen3-embedding-0.6b-f16@370f27d7550e0def9b39c1f16d3fbaa13aa67728';
 
 /// Synthetic embedding: texts about the same topic share a direction, so
 /// "anxious" and "on edge" are neighbours while keywords never overlap.
@@ -88,7 +90,8 @@ void main() {
   });
 
   test('vectors decode from little-endian base64 and reject wrong sizes', () {
-    final data = ByteData(recallDimensions * 4)..setFloat32(4, .5, Endian.little);
+    final data = ByteData(recallDimensions * 4)
+      ..setFloat32(4, .5, Endian.little);
     final b64 = base64Encode(data.buffer.asUint8List());
     expect(decodeVector(b64, recallDimensions)[1], .5);
     expect(() => decodeVector(b64, 8), throwsFormatException);
@@ -193,24 +196,27 @@ void main() {
       expect(english.hits.first.keyword, 0);
     });
 
-    test('falls back to labelled keyword ranking without the computer', () async {
-      final r = retriever();
-      final result = await r.search(
-        'interview',
-        sources: sources,
-        kinds: {RecallKind.diary},
-      );
-      expect(result.semantic, isFalse);
-      expect(result.fallback, startsWith('Keyword results'));
-      expect(result.hits.single.source.id, 'edge');
-      expect(embedder.calls, isEmpty);
-      embedder.failAfter = 0;
-      final failed = await retriever(
-        capability: const EmbeddingCapability(qwen, 1024),
-      ).search('anxious nobody', sources: sources, kinds: {RecallKind.diary});
-      expect(failed.semantic, isFalse);
-      expect(failed.fallback, contains('could not'));
-    });
+    test(
+      'falls back to labelled keyword ranking without the computer',
+      () async {
+        final r = retriever();
+        final result = await r.search(
+          'interview',
+          sources: sources,
+          kinds: {RecallKind.diary},
+        );
+        expect(result.semantic, isFalse);
+        expect(result.fallback, startsWith('Keyword results'));
+        expect(result.hits.single.source.id, 'edge');
+        expect(embedder.calls, isEmpty);
+        embedder.failAfter = 0;
+        final failed = await retriever(
+          capability: const EmbeddingCapability(qwen, 1024),
+        ).search('anxious nobody', sources: sources, kinds: {RecallKind.diary});
+        expect(failed.semantic, isFalse);
+        expect(failed.fallback, contains('could not'));
+      },
+    );
 
     test('the last typed word matches as a prefix; scopes filter', () async {
       final r = retriever();
@@ -255,7 +261,8 @@ void main() {
       preference = MemoryPreference({RecallKind.diary});
       capability = const EmbeddingCapability(qwen, 1024);
       diarySources = [
-        for (var i = 0; i < 11; i++) diary('d$i', '2026-10-0${i % 9 + 1}', 'entry $i'),
+        for (var i = 0; i < 11; i++)
+          diary('d$i', '2026-10-0${i % 9 + 1}', 'entry $i'),
       ];
       container = build();
     });

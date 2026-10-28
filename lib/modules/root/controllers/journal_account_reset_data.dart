@@ -12,7 +12,6 @@ import 'journal_sync_store.dart';
 import 'package:journal/modules/notes/transform/note_recovery_entity.dart';
 
 import 'package:journal/modules/notes/summary/summary_task_entity.dart';
-import 'package:journal/modules/presentation/presentation_entity.dart';
 import 'package:journal/modules/diary/questions/daily_question_entity.dart';
 import 'package:journal/modules/diary/controllers/diary_photo_store.dart';
 import 'package:journal/modules/flow/reflection/thought_reflection_entity.dart';
@@ -71,7 +70,6 @@ class JournalAccountResetData implements AccountResetLocalData {
       db.thoughtBox.removeAll();
       db.store.box<SummaryTaskEntity>().removeAll();
       db.store.box<NoteRecoveryEntity>().removeAll();
-      db.store.box<PresentationEntity>().removeAll();
       db.store.box<DailyQuestionEntity>().removeAll();
       db.store.box<ThoughtReflectionEntity>().removeAll();
       db.store.box<RecallVectorEntity>().removeAll();

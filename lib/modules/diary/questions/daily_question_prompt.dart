@@ -11,11 +11,15 @@ class DailyQuestionPrompt extends ConsumerWidget {
     super.key,
     required this.day,
     required this.onWrite,
+    this.ensureQuestion = true,
   });
 
   /// Civil date key ("YYYY-MM-DD") of today.
   final String day;
   final VoidCallback onWrite;
+
+  /// Static paper faces mirror the current question without asking for one.
+  final bool ensureQuestion;
 
   static String sourceLabel(DailyQuestion question) => !question.grounded
       ? 'A general question to help you start.'
@@ -43,7 +47,7 @@ class DailyQuestionPrompt extends ConsumerWidget {
     final controller = ref.read(dailyQuestionProvider.notifier);
     final view = controller.current(day);
     // Also covers a new civil day starting while the app stays open.
-    if (view == null) controller.ensure();
+    if (view == null && ensureQuestion) controller.ensure();
     return DiaryWritingPrompt(onTap: onWrite, text: view?.question.text);
   }
 

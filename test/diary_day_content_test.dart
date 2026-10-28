@@ -130,34 +130,29 @@ void main() {
     expect(find.text('No diary entries for this day.'), findsNothing);
     expect(_prompt, findsOneWidget);
     expect(_question, findsNothing);
-    for (final tooltip in ['Add image entry', 'More diary actions']) {
-      final button = find.byTooltip(tooltip);
-      expect(button, findsOneWidget);
-      expect(
-        tester.getTopLeft(button).dy,
-        lessThan(tester.getTopLeft(first).dy),
-      );
-    }
+    final button = find.byTooltip('Add images');
+    expect(button, findsOneWidget);
+    expect(tester.getTopLeft(button).dy, lessThan(tester.getTopLeft(first).dy));
     expect(find.byType(Checkbox), findsNothing);
     expect(find.textContaining('08:00'), findsNothing);
     expect(find.text('A day, held here.'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('missing titles are omitted and empty/deleted days stay dated', (
+  testWidgets('missing titles and dates stay off empty and deleted paper', (
     tester,
   ) async {
     final day = DiaryDayEntity(dateString: '2026-10-26');
     await _mount(tester, day);
-    expect(find.text('Mon, 26 Oct 2026'), findsOneWidget);
+    expect(find.text('Mon, 26 Oct 2026'), findsNothing);
     expect(find.textContaining('SAMPLE DAY'), findsNothing);
     expect(find.text('No diary entries for this day.'), findsNothing);
     expect(_prompt, findsOneWidget);
     expect(find.text('A day, held here.'), findsNothing);
     expect(find.text(''), findsNothing);
-    for (final tooltip in ['Add image entry', 'More diary actions']) {
-      expect(find.byTooltip(tooltip), findsOneWidget);
-    }
+    expect(find.byTooltip('Add images'), findsOneWidget);
+    expect(find.text('0 images'), findsNothing);
+    expect(find.byKey(const ValueKey('diary-image-count')), findsNothing);
 
     day.dayTitle = '  ';
     day.items = [_item('first', 'Visible prose.')];
@@ -270,26 +265,29 @@ void main() {
         hasTapAction: true,
       ),
     );
-    for (final tooltip in ['Add image entry', 'More diary actions']) {
-      final button = find.byTooltip(tooltip);
-      expect(tester.getSize(button), const Size(48, 48));
-      final description = tester.getSemantics(button).getSemanticsData();
-      expect('${description.label} ${description.tooltip}', contains(tooltip));
-      await tester.tap(button);
-      if (tooltip == 'Add image entry') {
-        await tester.pumpAndSettle();
-        expect(
-          tester
-              .widget<AddDiaryPhotosPage>(find.byType(AddDiaryPhotosPage))
-              .date,
-          DateTime(2026, 10, 26),
-        );
-        await tester.tap(find.byTooltip('Close without saving'));
-      }
-      await tester.pumpAndSettle();
-      expect(_prompt, findsOneWidget);
-      expect(day.toSyncJson('test'), before);
-    }
+    expect(find.byTooltip('More diary actions'), findsNothing);
+    expect(find.byTooltip('Add image entry'), findsNothing);
+    expect(find.text('0 images'), findsNothing);
+    expect(find.byKey(const ValueKey('diary-image-count')), findsNothing);
+    final button = find.byTooltip('Add images');
+    expect(tester.getSize(button).width, greaterThanOrEqualTo(48));
+    expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
+    final description = tester.getSemantics(button).getSemanticsData();
+    expect(description.value, '0 photos');
+    expect(
+      '${description.label} ${description.tooltip}',
+      contains('Add images'),
+    );
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<AddDiaryPhotosPage>(find.byType(AddDiaryPhotosPage)).date,
+      DateTime(2026, 10, 26),
+    );
+    await tester.tap(find.byTooltip('Close without saving'));
+    await tester.pumpAndSettle();
+    expect(_prompt, findsOneWidget);
+    expect(day.toSyncJson('test'), before);
     expect(tester.takeException(), isNull);
   });
 
@@ -387,7 +385,7 @@ void main() {
     );
   }
 
-  testWidgets('a conversation entry shows its chip and stays curl-safe', (
+  testWidgets('a conversation entry shows its excerpt and stays curl-safe', (
     tester,
   ) async {
     final day = DiaryDayEntity(dateString: '2026-10-26')
@@ -408,7 +406,8 @@ void main() {
         _item('words', 'A written entry.'),
       ];
     await _mount(tester, day);
-    expect(find.text('Conversation · no entry yet'), findsOneWidget);
+    expect(find.text('Calm.'), findsOneWidget);
+    expect(find.text('Open conversation'), findsOneWidget);
     // The page curl snapshots this content and refuses composited layers.
     expect(
       tester

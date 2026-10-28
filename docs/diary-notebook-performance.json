@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-28",
+  "device": "Samsung SM-S928B",
+  "mode": "profile",
+  "fixture": "Synthetic diary with text, mounted photos, saved conversations, 24 measured alternating swipes, and long-page scrolling; no account or real journal store.",
+  "runs": {
+    "before": {
+      "phase": "before",
+      "frames": 622,
+      "build_p95_ms": 7.876,
+      "raster_p95_ms": 62.687,
+      "platform": "CP2A.260605.016.S928BXXU6EZIF"
+    },
+    "after": {
+      "phase": "after",
+      "frames": 613,
+      "build_p95_ms": 10.044,
+      "raster_p95_ms": 63.221,
+      "platform": "CP2A.260605.016.S928BXXU6EZIF"
+    },
+    "after-sized-thumbnails": {
+      "phase": "after-sized-thumbnails",
+      "frames": 602,
+      "build_p95_ms": 10.336,
+      "raster_p95_ms": 67.085,
+      "platform": "CP2A.260605.016.S928BXXU6EZIF"
+    },
+    "before-repeat": {
+      "phase": "before-repeat",
+      "frames": 627,
+      "build_p95_ms": 10.054,
+      "raster_p95_ms": 64.118,
+      "platform": "CP2A.260605.016.S928BXXU6EZIF"
+    }
+  },
+  "warm_comparison_percent_change": {
+    "build_p95_ms": 2.8,
+    "raster_p95_ms": 4.63
+  },
+  "thumbnail_decode_sizes": [
+    576,
+    384
+  ],
+  "max_prints_per_story": 2
+}

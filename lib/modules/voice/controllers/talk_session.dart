@@ -13,7 +13,14 @@ import 'reply_voice.dart';
 import 'voice_connection.dart';
 import 'voice_store.dart';
 
-enum TalkPhase { connecting, thinking, speaking, listening, transcribing, paused }
+enum TalkPhase {
+  connecting,
+  thinking,
+  speaking,
+  listening,
+  transcribing,
+  paused,
+}
 
 /// The microphone during the person's turn only, so the companion's own
 /// voice is never sent back to the computer.
@@ -86,8 +93,7 @@ class TalkSession extends ChangeNotifier {
     required this.voice,
     Future<WebSocket> Function(TrustedComputer computer)? connect,
     TalkMic? mic,
-  }) : connect =
-           connect ?? ((c) => connectCompanionSocket(c, '/v1/talk/live')),
+  }) : connect = connect ?? ((c) => connectCompanionSocket(c, '/v1/talk/live')),
        mic = mic ?? PcmTalkMic();
   final DiaryConversation conversation;
   final ReplyVoice voice;
@@ -190,9 +196,7 @@ class TalkSession extends ChangeNotifier {
     } catch (e) {
       await _close();
       _pause(
-        e is CompanionFailure
-            ? e.message
-            : 'Could not reach your computer. Check it is on and the companion is open, then continue.',
+        e is CompanionFailure ? e.message : 'Could not reach your computer. Check it is on and the companion is open, then continue.',
       );
     }
   }
@@ -393,8 +397,7 @@ class TalkSession extends ChangeNotifier {
     if (disposed || _socket == null) return;
     await _close();
     _pause(
-      message ??
-          'The connection to your computer closed. Your turns are kept; continue to reconnect.',
+      message ?? 'The connection to your computer closed. Your turns are kept; continue to reconnect.',
     );
   }
 

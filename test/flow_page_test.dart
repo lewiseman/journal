@@ -458,50 +458,51 @@ void main() {
     },
   );
 
-  testWidgets('cards reveal full text and voice opens real recording controls', (
-    tester,
-  ) async {
-    await _mount(tester);
-    // The frontmost card is fully tappable even in the scattered arrangement.
-    final text = tester.widget<FlowThoughtCard>(_card(3)).thought.content;
-    await tester.tap(_card(3));
-    await tester.pumpAndSettle();
-    expect(find.widgetWithText(SelectableText, text), findsOneWidget);
-    expect(find.text('YOUR THOUGHT'), findsOneWidget);
-    await _capture(tester, 'detail');
-    Navigator.of(tester.element(find.byType(SelectableText))).pop();
-    await tester.pumpAndSettle();
-    final thoughtsBefore = tester
-        .widgetList<FlowThoughtCard>(find.byType(FlowThoughtCard))
-        .map((card) => card.thought.content)
-        .toList();
-    await tester.tap(find.byTooltip('Voice capture'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(
-      tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
-      VoiceSessionMode.transcription,
-    );
-    expect(find.byTooltip('Record'), findsOneWidget);
-    expect(find.text('Preview · sample text'), findsNothing);
-    // A live status can animate while protected storage is being restored.
-    await tester.pump(const Duration(milliseconds: 300));
-    await _capture(tester, 'voice');
-    await tester.tap(find.byTooltip('Close'));
-    await tester.pumpAndSettle();
-    expect(find.byType(VoiceSessionPage), findsNothing);
-    expect(
-      tester
+  testWidgets(
+    'cards reveal full text and voice opens real recording controls',
+    (tester) async {
+      await _mount(tester);
+      // The frontmost card is fully tappable even in the scattered arrangement.
+      final text = tester.widget<FlowThoughtCard>(_card(3)).thought.content;
+      await tester.tap(_card(3));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(SelectableText, text), findsOneWidget);
+      expect(find.text('YOUR THOUGHT'), findsOneWidget);
+      await _capture(tester, 'detail');
+      Navigator.of(tester.element(find.byType(SelectableText))).pop();
+      await tester.pumpAndSettle();
+      final thoughtsBefore = tester
           .widgetList<FlowThoughtCard>(find.byType(FlowThoughtCard))
-          .map((card) => card.thought.content),
-      thoughtsBefore,
-    );
-    expect(
-      tester.widget<TextField>(find.byType(TextField)).controller!.text,
-      '',
-    );
-    expect(tester.takeException(), isNull);
-  });
+          .map((card) => card.thought.content)
+          .toList();
+      await tester.tap(find.byTooltip('Voice capture'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
+        VoiceSessionMode.transcription,
+      );
+      expect(find.byTooltip('Record'), findsOneWidget);
+      expect(find.text('Preview · sample text'), findsNothing);
+      // A live status can animate while protected storage is being restored.
+      await tester.pump(const Duration(milliseconds: 300));
+      await _capture(tester, 'voice');
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(VoiceSessionPage), findsNothing);
+      expect(
+        tester
+            .widgetList<FlowThoughtCard>(find.byType(FlowThoughtCard))
+            .map((card) => card.thought.content),
+        thoughtsBefore,
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('focused multiline input stays usable above the keyboard', (
     tester,

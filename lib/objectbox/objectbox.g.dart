@@ -21,7 +21,6 @@ import '../modules/flow/reflection/thought_reflection_entity.dart';
 import '../modules/notes/models/note_entity.dart';
 import '../modules/notes/summary/summary_task_entity.dart';
 import '../modules/notes/transform/note_recovery_entity.dart';
-import '../modules/presentation/presentation_entity.dart';
 import '../modules/recall/recall_vector_entity.dart';
 import '../modules/root/controllers/journal_sync_store.dart';
 
@@ -31,7 +30,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(1, 2813851369649388054),
     name: 'NoteEntity',
-    lastPropertyId: const obx_int.IdUid(18, 6767032873498264914),
+    lastPropertyId: const obx_int.IdUid(21, 1590178056721556746),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -141,6 +140,24 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(18, 6767032873498264914),
         name: 'isPinned',
         type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(19, 7324049614890551308),
+        name: 'presentationMode',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(20, 7806611058386502934),
+        name: 'website',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(21, 1590178056721556746),
+        name: 'websiteSourceHash',
+        type: 9,
         flags: 0,
       ),
     ],
@@ -437,65 +454,6 @@ final _entities = <obx_int.ModelEntity>[
     backlinks: <obx_int.ModelBacklink>[],
   ),
   obx_int.ModelEntity(
-    id: const obx_int.IdUid(7, 8632987772535014618),
-    name: 'PresentationEntity',
-    lastPropertyId: const obx_int.IdUid(8, 2082740345693382024),
-    flags: 0,
-    properties: <obx_int.ModelProperty>[
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(1, 8311469091311983583),
-        name: 'id',
-        type: 6,
-        flags: 1,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(2, 6907951170184909512),
-        name: 'sourceKey',
-        type: 9,
-        flags: 2080,
-        indexId: const obx_int.IdUid(7, 4059988838941878495),
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(3, 1887138309386242050),
-        name: 'snapshot',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(4, 548624359035382779),
-        name: 'document',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(5, 5116074273557097887),
-        name: 'taskId',
-        type: 9,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(6, 8338728506673919612),
-        name: 'policy',
-        type: 6,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(7, 3071076729503788028),
-        name: 'created',
-        type: 6,
-        flags: 0,
-      ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(8, 2082740345693382024),
-        name: 'enabled',
-        type: 1,
-        flags: 0,
-      ),
-    ],
-    relations: <obx_int.ModelRelation>[],
-    backlinks: <obx_int.ModelBacklink>[],
-  ),
-  obx_int.ModelEntity(
     id: const obx_int.IdUid(8, 8694165784092694088),
     name: 'DailyQuestionEntity',
     lastPropertyId: const obx_int.IdUid(10, 6154174911036584977),
@@ -734,9 +692,18 @@ obx_int.ModelDefinition getObjectBoxModel() {
     lastIndexId: const obx_int.IdUid(14, 9072880904700263024),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
-    retiredEntityUids: const [],
-    retiredIndexUids: const [],
-    retiredPropertyUids: const [],
+    retiredEntityUids: const [8632987772535014618],
+    retiredIndexUids: const [4059988838941878495],
+    retiredPropertyUids: const [
+      8311469091311983583,
+      6907951170184909512,
+      1887138309386242050,
+      548624359035382779,
+      5116074273557097887,
+      8338728506673919612,
+      3071076729503788028,
+      2082740345693382024,
+    ],
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
@@ -774,7 +741,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final backgroundOffset = fbb.writeListInt8(
           obx_int.toFlexBuffer(object.background),
         );
-        fbb.startTable(19);
+        final presentationModeOffset = fbb.writeString(object.presentationMode);
+        final websiteOffset = fbb.writeString(object.website);
+        final websiteSourceHashOffset = fbb.writeString(
+          object.websiteSourceHash,
+        );
+        fbb.startTable(22);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, uuidOffset);
         fbb.addInt64(2, object.createdAt.millisecondsSinceEpoch);
@@ -793,6 +765,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(15, attachmentsOffset);
         fbb.addOffset(16, backgroundOffset);
         fbb.addBool(17, object.isPinned);
+        fbb.addOffset(18, presentationModeOffset);
+        fbb.addOffset(19, websiteOffset);
+        fbb.addOffset(20, websiteSourceHashOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -844,6 +819,14 @@ obx_int.ModelDefinition getObjectBoxModel() {
           38,
           false,
         );
+        final presentationModeParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 40, '');
+        final websiteParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 42, '');
+        final websiteSourceHashParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 44, '');
         final isPermanentlyDeletedParam = const fb.BoolReader().vTableGet(
           buffer,
           rootOffset,
@@ -886,6 +869,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
           updatedAt: updatedAtParam,
           isDeleted: isDeletedParam,
           isPinned: isPinnedParam,
+          presentationMode: presentationModeParam,
+          website: websiteParam,
+          websiteSourceHash: websiteSourceHashParam,
           isPermanentlyDeleted: isPermanentlyDeletedParam,
           deletedAt: deletedAtParam,
           lastEditedByDeviceId: lastEditedByDeviceIdParam,
@@ -1259,82 +1245,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
-    PresentationEntity: obx_int.EntityDefinition<PresentationEntity>(
-      model: _entities[6],
-      toOneRelations: (PresentationEntity object) => [],
-      toManyRelations: (PresentationEntity object) => {},
-      getId: (PresentationEntity object) => object.id,
-      setId: (PresentationEntity object, int id) {
-        object.id = id;
-      },
-      objectToFB: (PresentationEntity object, fb.Builder fbb) {
-        final sourceKeyOffset = fbb.writeString(object.sourceKey);
-        final snapshotOffset = fbb.writeString(object.snapshot);
-        final documentOffset = fbb.writeString(object.document);
-        final taskIdOffset = fbb.writeString(object.taskId);
-        fbb.startTable(9);
-        fbb.addInt64(0, object.id);
-        fbb.addOffset(1, sourceKeyOffset);
-        fbb.addOffset(2, snapshotOffset);
-        fbb.addOffset(3, documentOffset);
-        fbb.addOffset(4, taskIdOffset);
-        fbb.addInt64(5, object.policy);
-        fbb.addInt64(6, object.created);
-        fbb.addBool(7, object.enabled);
-        fbb.finish(fbb.endTable());
-        return object.id;
-      },
-      objectFromFB: (obx.Store store, ByteData fbData) {
-        final buffer = fb.BufferContext(fbData);
-        final rootOffset = buffer.derefObject(0);
-        final idParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          4,
-          0,
-        );
-        final sourceKeyParam = const fb.StringReader(asciiOptimization: true)
-            .vTableGet(buffer, rootOffset, 6, '');
-        final snapshotParam = const fb.StringReader(asciiOptimization: true)
-            .vTableGet(buffer, rootOffset, 8, '');
-        final documentParam = const fb.StringReader(asciiOptimization: true)
-            .vTableGet(buffer, rootOffset, 10, '');
-        final taskIdParam = const fb.StringReader(asciiOptimization: true)
-            .vTableGet(buffer, rootOffset, 12, '');
-        final policyParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          14,
-          0,
-        );
-        final createdParam = const fb.Int64Reader().vTableGet(
-          buffer,
-          rootOffset,
-          16,
-          0,
-        );
-        final enabledParam = const fb.BoolReader().vTableGet(
-          buffer,
-          rootOffset,
-          18,
-          false,
-        );
-        final object = PresentationEntity(
-          id: idParam,
-          sourceKey: sourceKeyParam,
-          snapshot: snapshotParam,
-          document: documentParam,
-          taskId: taskIdParam,
-          policy: policyParam,
-          created: createdParam,
-          enabled: enabledParam,
-        );
-
-        return object;
-      },
-    ),
     DailyQuestionEntity: obx_int.EntityDefinition<DailyQuestionEntity>(
-      model: _entities[7],
+      model: _entities[6],
       toOneRelations: (DailyQuestionEntity object) => [],
       toManyRelations: (DailyQuestionEntity object) => {},
       getId: (DailyQuestionEntity object) => object.id,
@@ -1419,7 +1331,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
       },
     ),
     ThoughtReflectionEntity: obx_int.EntityDefinition<ThoughtReflectionEntity>(
-      model: _entities[8],
+      model: _entities[7],
       toOneRelations: (ThoughtReflectionEntity object) => [],
       toManyRelations: (ThoughtReflectionEntity object) => {},
       getId: (ThoughtReflectionEntity object) => object.id,
@@ -1482,7 +1394,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
       },
     ),
     RecallVectorEntity: obx_int.EntityDefinition<RecallVectorEntity>(
-      model: _entities[9],
+      model: _entities[8],
       toOneRelations: (RecallVectorEntity object) => [],
       toManyRelations: (RecallVectorEntity object) => {},
       getId: (RecallVectorEntity object) => object.id,
@@ -1643,6 +1555,21 @@ class NoteEntity_ {
   /// See [NoteEntity.isPinned].
   static final isPinned = obx.QueryBooleanProperty<NoteEntity>(
     _entities[0].properties[17],
+  );
+
+  /// See [NoteEntity.presentationMode].
+  static final presentationMode = obx.QueryStringProperty<NoteEntity>(
+    _entities[0].properties[18],
+  );
+
+  /// See [NoteEntity.website].
+  static final website = obx.QueryStringProperty<NoteEntity>(
+    _entities[0].properties[19],
+  );
+
+  /// See [NoteEntity.websiteSourceHash].
+  static final websiteSourceHash = obx.QueryStringProperty<NoteEntity>(
+    _entities[0].properties[20],
   );
 }
 
@@ -1856,99 +1783,56 @@ class NoteRecoveryEntity_ {
   );
 }
 
-/// [PresentationEntity] entity fields to define ObjectBox queries.
-class PresentationEntity_ {
-  /// See [PresentationEntity.id].
-  static final id = obx.QueryIntegerProperty<PresentationEntity>(
-    _entities[6].properties[0],
-  );
-
-  /// See [PresentationEntity.sourceKey].
-  static final sourceKey = obx.QueryStringProperty<PresentationEntity>(
-    _entities[6].properties[1],
-  );
-
-  /// See [PresentationEntity.snapshot].
-  static final snapshot = obx.QueryStringProperty<PresentationEntity>(
-    _entities[6].properties[2],
-  );
-
-  /// See [PresentationEntity.document].
-  static final document = obx.QueryStringProperty<PresentationEntity>(
-    _entities[6].properties[3],
-  );
-
-  /// See [PresentationEntity.taskId].
-  static final taskId = obx.QueryStringProperty<PresentationEntity>(
-    _entities[6].properties[4],
-  );
-
-  /// See [PresentationEntity.policy].
-  static final policy = obx.QueryIntegerProperty<PresentationEntity>(
-    _entities[6].properties[5],
-  );
-
-  /// See [PresentationEntity.created].
-  static final created = obx.QueryIntegerProperty<PresentationEntity>(
-    _entities[6].properties[6],
-  );
-
-  /// See [PresentationEntity.enabled].
-  static final enabled = obx.QueryBooleanProperty<PresentationEntity>(
-    _entities[6].properties[7],
-  );
-}
-
 /// [DailyQuestionEntity] entity fields to define ObjectBox queries.
 class DailyQuestionEntity_ {
   /// See [DailyQuestionEntity.id].
   static final id = obx.QueryIntegerProperty<DailyQuestionEntity>(
-    _entities[7].properties[0],
+    _entities[6].properties[0],
   );
 
   /// See [DailyQuestionEntity.day].
   static final day = obx.QueryStringProperty<DailyQuestionEntity>(
-    _entities[7].properties[1],
+    _entities[6].properties[1],
   );
 
   /// See [DailyQuestionEntity.question].
   static final question = obx.QueryStringProperty<DailyQuestionEntity>(
-    _entities[7].properties[2],
+    _entities[6].properties[2],
   );
 
   /// See [DailyQuestionEntity.sourceDate].
   static final sourceDate = obx.QueryStringProperty<DailyQuestionEntity>(
-    _entities[7].properties[3],
+    _entities[6].properties[3],
   );
 
   /// See [DailyQuestionEntity.sourceItem].
   static final sourceItem = obx.QueryStringProperty<DailyQuestionEntity>(
-    _entities[7].properties[4],
+    _entities[6].properties[4],
   );
 
   /// See [DailyQuestionEntity.evidence].
   static final evidence = obx.QueryStringProperty<DailyQuestionEntity>(
-    _entities[7].properties[5],
+    _entities[6].properties[5],
   );
 
   /// See [DailyQuestionEntity.ago].
   static final ago = obx.QueryIntegerProperty<DailyQuestionEntity>(
-    _entities[7].properties[6],
+    _entities[6].properties[6],
   );
 
   /// See [DailyQuestionEntity.status].
   static final status = obx.QueryStringProperty<DailyQuestionEntity>(
-    _entities[7].properties[7],
+    _entities[6].properties[7],
   );
 
   /// See [DailyQuestionEntity.created].
   static final created = obx.QueryIntegerProperty<DailyQuestionEntity>(
-    _entities[7].properties[8],
+    _entities[6].properties[8],
   );
 
   /// See [DailyQuestionEntity.basis].
   static final basis = obx.QueryStringProperty<DailyQuestionEntity>(
-    _entities[7].properties[9],
+    _entities[6].properties[9],
   );
 }
 
@@ -1956,37 +1840,37 @@ class DailyQuestionEntity_ {
 class ThoughtReflectionEntity_ {
   /// See [ThoughtReflectionEntity.id].
   static final id = obx.QueryIntegerProperty<ThoughtReflectionEntity>(
-    _entities[8].properties[0],
+    _entities[7].properties[0],
   );
 
   /// See [ThoughtReflectionEntity.thoughtUuid].
   static final thoughtUuid = obx.QueryStringProperty<ThoughtReflectionEntity>(
-    _entities[8].properties[1],
+    _entities[7].properties[1],
   );
 
   /// See [ThoughtReflectionEntity.revision].
   static final revision = obx.QueryStringProperty<ThoughtReflectionEntity>(
-    _entities[8].properties[2],
+    _entities[7].properties[2],
   );
 
   /// See [ThoughtReflectionEntity.text].
   static final text = obx.QueryStringProperty<ThoughtReflectionEntity>(
-    _entities[8].properties[3],
+    _entities[7].properties[3],
   );
 
   /// See [ThoughtReflectionEntity.taskId].
   static final taskId = obx.QueryStringProperty<ThoughtReflectionEntity>(
-    _entities[8].properties[4],
+    _entities[7].properties[4],
   );
 
   /// See [ThoughtReflectionEntity.status].
   static final status = obx.QueryStringProperty<ThoughtReflectionEntity>(
-    _entities[8].properties[5],
+    _entities[7].properties[5],
   );
 
   /// See [ThoughtReflectionEntity.created].
   static final created = obx.QueryIntegerProperty<ThoughtReflectionEntity>(
-    _entities[8].properties[6],
+    _entities[7].properties[6],
   );
 }
 
@@ -1994,46 +1878,46 @@ class ThoughtReflectionEntity_ {
 class RecallVectorEntity_ {
   /// See [RecallVectorEntity.id].
   static final id = obx.QueryIntegerProperty<RecallVectorEntity>(
-    _entities[9].properties[0],
+    _entities[8].properties[0],
   );
 
   /// See [RecallVectorEntity.key].
   static final key = obx.QueryStringProperty<RecallVectorEntity>(
-    _entities[9].properties[1],
+    _entities[8].properties[1],
   );
 
   /// See [RecallVectorEntity.kind].
   static final kind = obx.QueryStringProperty<RecallVectorEntity>(
-    _entities[9].properties[2],
+    _entities[8].properties[2],
   );
 
   /// See [RecallVectorEntity.sourceId].
   static final sourceId = obx.QueryStringProperty<RecallVectorEntity>(
-    _entities[9].properties[3],
+    _entities[8].properties[3],
   );
 
   /// See [RecallVectorEntity.date].
   static final date = obx.QueryStringProperty<RecallVectorEntity>(
-    _entities[9].properties[4],
+    _entities[8].properties[4],
   );
 
   /// See [RecallVectorEntity.hash].
   static final hash = obx.QueryStringProperty<RecallVectorEntity>(
-    _entities[9].properties[5],
+    _entities[8].properties[5],
   );
 
   /// See [RecallVectorEntity.model].
   static final model = obx.QueryStringProperty<RecallVectorEntity>(
-    _entities[9].properties[6],
+    _entities[8].properties[6],
   );
 
   /// See [RecallVectorEntity.dimensions].
   static final dimensions = obx.QueryIntegerProperty<RecallVectorEntity>(
-    _entities[9].properties[7],
+    _entities[8].properties[7],
   );
 
   /// See [RecallVectorEntity.vector].
   static final vector = obx.QueryHnswProperty<RecallVectorEntity>(
-    _entities[9].properties[8],
+    _entities[8].properties[8],
   );
 }
