@@ -19,6 +19,8 @@ import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/history/diary_history_contract.dart';
 import 'package:journal/modules/diary/questions/daily_question_contract.dart';
 import 'package:journal/modules/diary/suggestions/diary_suggestion_contract.dart';
+import 'package:journal/modules/flow/controllers/thoughts_providers.dart';
+import 'package:journal/modules/flow/reflection/thought_reflection_contract.dart';
 
 const summaryInputBytes = 2000;
 const summaryOutputBytes = 2048;
@@ -257,6 +259,9 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
   void _watchSource(SummaryHandle? handle) {
     final key =
         handle?.presentationSource?.key ??
+        (handle?.isThoughtReflection == true
+            ? 'thought:${handle!.noteId}'
+            : null) ??
         (handle?.isDiaryDay == true
             ? '${handle!.operation}:${handle.noteId}'
             : handle?.noteId);
@@ -265,8 +270,9 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     _source = null;
     _watchedNote = key;
     if (handle != null) {
-      final stream =
-          handle.presentationSource?.kind == 'diary' || handle.isDiaryDay
+      final Stream<Object?> stream = handle.isThoughtReflection
+          ? ref.read(thoughtsRepositoryProvider).watchThoughts()
+          : handle.presentationSource?.kind == 'diary' || handle.isDiaryDay
           ? ref.read(diaryRepositoryProvider).watchAllDays()
           : ref.read(notesRepositoryProvider).watchNoteByUuid(handle.noteId);
       _source = stream.listen((_) {
@@ -338,6 +344,12 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
                     ?.content ==
                 e.text,
           );
+    }
+    if (handle.isThoughtReflection) {
+      final thought = ref
+          .read(thoughtsRepositoryProvider)
+          .getThoughtByUuid(handle.noteId);
+      return thought != null && thoughtRevision(thought) == handle.revision;
     }
     if (handle.isDiarySuggestion) {
       final source = DiarySuggestionSource.fromDay(
@@ -621,6 +633,61 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         pendingText: input,
         operation: dailyQuestionOperation,
         localSource: local,
+      );
+      if (!_alive(generation)) return;
+      await _save(handle);
+      if (!_alive(generation)) return;
+      _show('submitting', handle: handle, busy: true);
+      await retry();
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  /// L01: one reflection on the saved thought [uuid]. Sends exactly its
+  /// text. It writes no synced data, so secondary devices may ask too.
+  Future<void> startThoughtReflection(String uuid) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final thought = ref
+          .read(thoughtsRepositoryProvider)
+          .getThoughtByUuid(uuid);
+      if (thought == null) {
+        throw const CompanionFailure(
+          'SOURCE_MISSING',
+          'This thought is no longer saved. Nothing was sent.',
+        );
+      }
+      final input = thought.content;
+      if (!validSummaryText(input, thoughtReflectionInputBytes)) {
+        throw const FormatException(
+          'This thought is longer than 2,000 UTF-8 bytes. Nothing was sent or shortened.',
+        );
+      }
+      final computer = _capableComputer(
+        contractKey: 'reflectionContract',
+        contract: thoughtReflectionContract,
+        operation: thoughtReflectionOperation,
+        fallback: 'Your thought is saved either way.',
+        update: 'Update the companion to reflect on thoughts.',
+      );
+      final handle = SummaryHandle(
+        id: const Uuid().v4(),
+        noteId: uuid,
+        revision: thoughtRevision(thought),
+        computerId: computer.id,
+        deviceId: computer.deviceId,
+        created: DateTime.now().millisecondsSinceEpoch,
+        pendingText: input,
+        operation: thoughtReflectionOperation,
       );
       if (!_alive(generation)) return;
       await _save(handle);
@@ -1175,9 +1242,12 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             ? dailyQuestionOutputBytes
             : handle.isDiaryAnswer
             ? historyOutputBytes
+            : handle.isThoughtReflection
+            ? thoughtReflectionOutputBytes
             : summaryOutputBytes,
       ) &&
-      (!handle.isTransformation || validTransformOutput(text));
+      (!handle.isTransformation || validTransformOutput(text)) &&
+      (!handle.isThoughtReflection || validThoughtReflectionLine(text));
 
   Future<bool> acceptPresentation() async {
     final handle = state.handle, text = state.text, generation = _generation;
@@ -1314,7 +1384,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (handle == null ||
         (handle.isTransformation ||
             handle.isPresentation ||
-            handle.isDiaryDay) ||
+            handle.isDiaryDay ||
+            handle.isThoughtReflection) ||
         !state.terminal ||
         state.phase == 'completed' ||
         state.busy ||

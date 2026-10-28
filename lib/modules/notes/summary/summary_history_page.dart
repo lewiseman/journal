@@ -109,6 +109,8 @@ class SummaryHistoryPage extends ConsumerWidget {
                                   ? 'Daily question'
                                   : task.isDiaryAnswer
                                   ? 'Diary question'
+                                  : task.isThoughtReflection
+                                  ? 'Flow reflection'
                                   : task.isPresentation
                                   ? 'Presentation'
                                   : transformOperations[task.operation] ?? 'Note summary'} · ${summaryPhaseLabel(phase)}',

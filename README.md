@@ -135,3 +135,5 @@ N01 adds [reviewable note writing and local prior-content recovery](docs/note-wr
 H01 adds [safe optional presentation](docs/safe-presentation.md) for saved notes and individual diary entries: source-preserving native styling, explicit review/accept/revert and local offline recovery.
 
 J01 adds [diary title, mood and theme suggestions](docs/diary-suggestions.md): manual day details plus optional grounded suggestions from the local computer, accepted field by field.
+
+L01 adds [optional one-line Flow reflections](docs/flow-reflections.md): ask for a reflection on one saved thought, then keep or dismiss it. The thought is never changed.

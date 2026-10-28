@@ -4,7 +4,9 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/flow/views/widgets/flow_composer.dart';
+import 'package:journal/modules/flow/reflection/thought_reflection_controller.dart';
 import 'package:journal/modules/flow/views/widgets/flow_opening.dart';
+import 'package:journal/modules/flow/views/widgets/flow_reflection.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
 
 class FlowPage extends ConsumerStatefulWidget {
@@ -117,6 +119,7 @@ class _FlowPageState extends ConsumerState<FlowPage> {
             ),
           ),
           const SizedBox(height: 24),
+          FlowReflection(thought: thought, paper: paper),
         ],
       ),
     );
@@ -177,6 +180,11 @@ class _FlowPageState extends ConsumerState<FlowPage> {
   @override
   Widget build(BuildContext context) {
     final thoughts = ref.watch(thoughtsStreamProvider);
+    // Keeps reflection results moving to their thoughts while Flow is open.
+    // Capture itself never reads or waits for this.
+    if (ref.watch(thoughtReflectionAvailableProvider)) {
+      ref.listen(thoughtReflectionProvider, (_, _) {});
+    }
     final saved = thoughts.asData?.value ?? const <ThoughtEntity>[];
     final reduced = MediaQuery.disableAnimationsOf(context);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
