@@ -3,6 +3,7 @@ import 'package:sync_wise/sync_wise.dart';
 import 'package:journal/modules/root/views/widgets/account_reset_gate.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
+import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/recall/recall_indexer.dart';
 import 'package:journal/modules/assistant/qvac_assistant.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
@@ -28,6 +29,10 @@ class Journal extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(companionControllerProvider.select((_) => null));
     ref.watch(noteSummaryProvider.select((_) => null));
+    // Opted in: keeps today's diary question requested while connected.
+    if (ref.watch(dailyQuestionEnabledProvider)) {
+      ref.watch(dailyQuestionProvider.select((_) => null));
+    }
     // Keeps opted-in search-by-meaning vectors current while the app is open.
     ref.watch(recallIndexerProvider.select((_) => null));
     final themeMode = ref.watch(

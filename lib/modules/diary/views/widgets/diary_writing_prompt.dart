@@ -2,27 +2,28 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// A writing invitation whose ruled lines follow the user's actual typography.
+/// Ruled writing lines that open the editor. With a J02 daily question the
+/// lines follow its typography; otherwise they are blank.
 class DiaryWritingPrompt extends StatefulWidget {
-  const DiaryWritingPrompt({
-    super.key,
-    required this.onTap,
-    this.text = question,
-  });
+  const DiaryWritingPrompt({super.key, required this.onTap, this.text});
 
   final VoidCallback onTap;
 
-  /// The invitation shown; a J02 daily question replaces the default.
-  final String text;
+  /// Today's daily question, or null for blank lines.
+  final String? text;
 
-  static const question = 'What would you like to remember about today?';
+  /// Read by screen readers for blank lines.
+  static const label = 'Write a diary entry';
+
+  /// Ruled lines drawn when there is no question.
+  static const blankLines = 3;
 
   @override
   State<DiaryWritingPrompt> createState() => _DiaryWritingPromptState();
 }
 
 class _DiaryWritingPromptState extends State<DiaryWritingPrompt> {
-  (String, double, TextStyle, TextScaler, TextDirection, Locale?)? _layoutKey;
+  (String?, double, TextStyle, TextScaler, TextDirection, Locale?)? _layoutKey;
   List<Path> _lines = const [];
   double _blankHeight = 0;
 
@@ -35,8 +36,31 @@ class _DiaryWritingPromptState extends State<DiaryWritingPrompt> {
   ) {
     final key = (widget.text, width, style, scaler, direction, locale);
     if (_layoutKey == key) return;
+    final question = widget.text;
+    if (question == null) {
+      final probe = TextPainter(
+        text: TextSpan(text: ' ', style: style),
+        textDirection: direction,
+        textScaler: scaler,
+        locale: locale,
+      )..layout();
+      final lineHeight = probe.preferredLineHeight;
+      probe.dispose();
+      _lines = [
+        for (var index = 0; index < DiaryWritingPrompt.blankLines; index++)
+          _stroke(
+            1 + index % 2,
+            width - 1 - (index.isOdd ? 3 : 0),
+            lineHeight * (index + 1) - 2,
+            index,
+          ),
+      ];
+      _blankHeight = lineHeight * DiaryWritingPrompt.blankLines + 4;
+      _layoutKey = key;
+      return;
+    }
     final text = TextPainter(
-      text: TextSpan(text: widget.text, style: style),
+      text: TextSpan(text: question, style: style),
       textDirection: direction,
       textScaler: scaler,
       locale: locale,
@@ -132,8 +156,8 @@ class _DiaryWritingPromptState extends State<DiaryWritingPrompt> {
         _layout(constraints.maxWidth, style, scaler, direction, locale);
         return Semantics(
           button: true,
-          label: widget.text,
-          hint: 'Write a diary entry',
+          label: widget.text ?? DiaryWritingPrompt.label,
+          hint: widget.text == null ? null : DiaryWritingPrompt.label,
           onTap: widget.onTap,
           excludeSemantics: true,
           child: Material(
@@ -157,16 +181,17 @@ class _DiaryWritingPromptState extends State<DiaryWritingPrompt> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      widget.text,
-                      key: const ValueKey('diary-prompt-question'),
-                      style: style,
-                      textAlign: TextAlign.start,
-                      textDirection: direction,
-                      textScaler: scaler,
-                      locale: locale,
-                      textHeightBehavior: const TextHeightBehavior(),
-                    ),
+                    if (widget.text case final question?)
+                      Text(
+                        question,
+                        key: const ValueKey('diary-prompt-question'),
+                        style: style,
+                        textAlign: TextAlign.start,
+                        textDirection: direction,
+                        textScaler: scaler,
+                        locale: locale,
+                        textHeightBehavior: const TextHeightBehavior(),
+                      ),
                     SizedBox(height: _blankHeight),
                   ],
                 ),

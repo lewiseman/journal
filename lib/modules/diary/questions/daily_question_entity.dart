@@ -19,6 +19,9 @@ class DailyQuestionEntity {
   String evidence;
   int ago;
 
+  /// Today's entries it was asked against; see `dailyQuestionBasis`.
+  String basis;
+
   /// 'shown' or 'skipped'.
   String status;
   int created;
@@ -31,6 +34,7 @@ class DailyQuestionEntity {
     this.sourceItem,
     this.evidence = '',
     this.ago = 0,
+    this.basis = '',
     this.status = 'shown',
     required this.created,
   });

@@ -53,15 +53,29 @@ class DailyQuestionEntry {
   }
 }
 
+/// Today's text entries a question was asked against. Adding, removing or
+/// clearing an entry changes it, which retires the question.
+String dailyQuestionBasis(DiaryDayEntity? day) =>
+    ([for (final item in diaryTextItems(day)) item.itemUuid]..sort()).join(',');
+
 /// The exact selection sent for one request. It stays in protected task
 /// storage on the phone; only temporary IDs, text and day offsets are sent.
 class DailyQuestionSource {
-  const DailyQuestionSource(this.date, this.today, this.prior, this.avoid);
+  const DailyQuestionSource(
+    this.date,
+    this.today,
+    this.prior,
+    this.avoid, [
+    this.basis = '',
+  ]);
 
   /// The civil day the question is for.
   final String date;
   final List<DailyQuestionEntry> today, prior;
   final List<String> avoid;
+
+  /// [dailyQuestionBasis] when selected. Kept on the phone, never sent.
+  final String basis;
 
   static DailyQuestionSource select({
     required String today,
@@ -72,7 +86,6 @@ class DailyQuestionSource {
       for (final q in avoid.take(dailyQuestionAvoid))
         if (!_control.hasMatch(q) && q.runes.length <= dailyQuestionChars) q,
     ];
-    var source = DailyQuestionSource(today, const [], const [], recent);
     bool fits(DailyQuestionSource next) =>
         utf8.encode(next.request()).length <= dailyQuestionInputBytes;
     final todays = <DailyQuestionEntry>[];
@@ -89,10 +102,7 @@ class DailyQuestionSource {
         const [],
         recent,
       );
-      if (fits(next)) {
-        todays.add(entry);
-        source = next;
-      }
+      if (fits(next)) todays.add(entry);
     }
     final prior = <DailyQuestionEntry>[];
     final lookback = DiaryDateScope.previousDays(
@@ -111,19 +121,17 @@ class DailyQuestionSource {
           ...prior,
           entry,
         ], recent);
-        if (fits(next)) {
-          prior.add(entry);
-          source = next;
-        }
+        if (fits(next)) prior.add(entry);
       }
     }
     // With no entries nothing personal is sent, not even earlier questions,
     // which a model could otherwise mistake for something to follow up on.
     // Repetition is still checked on the phone against local history.
+    final basis = dailyQuestionBasis(day(today));
     if (todays.isEmpty && prior.isEmpty) {
-      return DailyQuestionSource(today, const [], const [], const []);
+      return DailyQuestionSource(today, const [], const [], const [], basis);
     }
-    return source;
+    return DailyQuestionSource(today, todays, prior, recent, basis);
   }
 
   int ago(DailyQuestionEntry entry) =>
@@ -137,6 +145,7 @@ class DailyQuestionSource {
     'today': [for (final e in today) e.toJson()],
     'prior': [for (final e in prior) e.toJson()],
     'avoid': avoid,
+    'basis': basis,
   });
 
   factory DailyQuestionSource.decode(String raw) {
@@ -153,7 +162,8 @@ class DailyQuestionSource {
         (value['today'] as List).length > dailyQuestionTodayEntries ||
         (value['prior'] as List).length > dailyQuestionPriorEntries ||
         (value['avoid'] as List).length > dailyQuestionAvoid ||
-        (value['avoid'] as List).any((q) => q is! String)) {
+        (value['avoid'] as List).any((q) => q is! String) ||
+        (value['basis'] != null && value['basis'] is! String)) {
       throw const FormatException('Invalid question snapshot');
     }
     List<DailyQuestionEntry> entries(Object? list) => [
@@ -165,6 +175,7 @@ class DailyQuestionSource {
       entries(value['today']),
       entries(value['prior']),
       List<String>.from(value['avoid'] as List),
+      value['basis'] as String? ?? '',
     );
   }
 

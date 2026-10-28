@@ -886,7 +886,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find
-            .byKey(ValueKey('diary-end-${_selected(tester).toIso8601String()}'))
+            .descendant(
+              of: find.byKey(const PageStorageKey('diary-content')),
+              matching: find.byKey(const ValueKey('diary-add-actions')),
+            )
             .hitTestable(),
         findsOneWidget,
       );

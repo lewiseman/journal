@@ -5,16 +5,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/assistant/qvac_assistant.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
+import 'package:journal/modules/diary/questions/daily_question_contract.dart';
+import 'package:journal/modules/diary/questions/daily_question_controller.dart';
+import 'package:journal/modules/diary/questions/daily_question_store.dart';
 import 'package:journal/modules/diary/suggestions/diary_details_page.dart';
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
+import 'package:journal/modules/notes/summary/summary_store.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/voice/views/pages/diary_talk_page.dart';
@@ -30,9 +35,27 @@ class _Connection extends CompanionController {
 }
 
 class _Summary extends NoteSummaryController {
+  _Summary([this.initial = const NoteSummaryState()]);
+  final NoteSummaryState initial;
   @override
-  NoteSummaryState build() => const NoteSummaryState();
+  NoteSummaryState build() => initial;
 }
+
+class _Questions implements DailyQuestionPreference {
+  _Questions(this.enabled);
+  @override
+  bool enabled;
+  @override
+  Future<void> setEnabled(bool value) async => enabled = value;
+}
+
+/// Daily questions on, with today matching the diary page's clock.
+List<Override> _questions({bool enabled = true}) => [
+  dailyQuestionPreferenceProvider.overrideWithValue(_Questions(enabled)),
+  dailyQuestionClockProvider.overrideWithValue(() => DateTime(2026, 10, 26, 9)),
+];
+
+final _card = find.byKey(const ValueKey('diary-assistant-question'));
 
 final _button = find.byKey(const ValueKey('qvac-assistant-button'));
 final _settings = find.byKey(const ValueKey('qvac-local-ai-settings'));
@@ -44,6 +67,8 @@ Future<SyncFixture> _mount(
   bool dark = false,
   double scale = 1,
   Size size = const Size(390, 844),
+  List<Override> overrides = const [],
+  NoteSummaryState summary = const NoteSummaryState(),
 }) async {
   final app = (await tester.runAsync(
     () => SyncFixture.create(MemoryDrive(), 'phone'),
@@ -69,11 +94,12 @@ Future<SyncFixture> _mount(
       syncStateStoreProvider.overrideWithValue(app.storage),
       diaryRepositoryProvider.overrideWithValue(app.diary),
       companionControllerProvider.overrideWith(_Connection.new),
-      noteSummaryProvider.overrideWith(_Summary.new),
+      noteSummaryProvider.overrideWith(() => _Summary(summary)),
       accountResetProvider.overrideWith(TestReset.new),
       syncDeviceRoleProvider.overrideWithValue(
         secondary ? SyncDeviceRole.secondary : SyncDeviceRole.primary,
       ),
+      ...overrides,
     ],
   );
   final assistant = scope.read(qvacAssistantProvider);
@@ -295,6 +321,97 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'today shows its question with another-question; other days do not',
+    (tester) async {
+      final app = await _mount(tester, overrides: _questions());
+      DailyQuestionStore(app.db.store).add(
+        '2026-10-26',
+        const DailyQuestion(
+          text: 'What made you smile today?',
+          evidence: '',
+          ago: 0,
+        ),
+        basis: dailyQuestionBasis(app.diary.getDay('2026-10-26')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: _card,
+          matching: find.text('What made you smile today?'),
+        ),
+        findsOneWidget,
+      );
+      final another = find.byKey(const ValueKey('daily-question-another'));
+      expect(
+        find.descendant(of: another, matching: find.text('Another question')),
+        findsOneWidget,
+      );
+      // Not connected: asking is unavailable and says why.
+      expect(tester.widget<FilledButton>(another).onPressed, isNull);
+      expect(
+        find.text('Connect your computer to get a question.'),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('daily-question-loading')),
+        findsNothing,
+      );
+      Navigator.of(tester.element(find.byType(QvacAssistantSheet))).pop();
+      await tester.pumpAndSettle();
+      await _select(tester, 24);
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      expect(_card, findsNothing);
+      expect(tester.takeException(), isNull);
+      app.container.dispose();
+    },
+  );
+
+  testWidgets('a question already requested shows loading instead of asking', (
+    tester,
+  ) async {
+    final app = await _mount(
+      tester,
+      overrides: _questions(),
+      summary: NoteSummaryState(
+        phase: 'running',
+        handle: SummaryHandle(
+          id: 'asking-question',
+          noteId: '2026-10-26',
+          revision: 'r',
+          computerId: 'c',
+          created: 0,
+          operation: dailyQuestionOperation,
+        ),
+      ),
+    );
+    await tester.tap(_button);
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('daily-question-loading')),
+      findsOneWidget,
+    );
+    expect(find.text('Asking your computer for a question…'), findsOneWidget);
+    expect(find.byKey(const ValueKey('daily-question-another')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    app.container.dispose();
+  });
+
+  testWidgets('with daily questions off the card points to settings', (
+    tester,
+  ) async {
+    final app = await _mount(tester, overrides: _questions(enabled: false));
+    await tester.tap(_button);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('daily-question-off')), findsOneWidget);
+    expect(find.byKey(const ValueKey('daily-question-another')), findsNothing);
+    app.container.dispose();
+  });
 
   testWidgets('the diary menu offers no presentation styling', (tester) async {
     final app = await _mount(tester);

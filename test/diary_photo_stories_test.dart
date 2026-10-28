@@ -256,7 +256,7 @@ void main() {
         find.byKey(const ValueKey('diary-photo-story-story')),
         findsOneWidget,
       );
-      expect(find.text('A day, held here.'), findsOneWidget);
+      expect(find.text('A day, held here.'), findsNothing);
       expect(find.text('Day details'), findsNothing);
       expect(tester.takeException(), isNull);
     },

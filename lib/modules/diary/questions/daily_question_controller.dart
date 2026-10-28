@@ -5,6 +5,7 @@ import 'package:journal/modules/diary/controllers/diary_repository.dart';
 import 'package:journal/modules/diary/questions/daily_question_contract.dart';
 import 'package:journal/modules/diary/questions/daily_question_store.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
+import 'package:journal/modules/settings/companion/companion_controller.dart';
 
 /// Device-local opt-in. Not synced: each phone decides for itself.
 const dailyQuestionsKey = CacheKey<bool>(CacheNamespace.app, 'dailyQuestions');
@@ -78,24 +79,70 @@ class DailyQuestionState {
   final int revision;
 }
 
-/// J02: an optional question for today, requested only by the user. It
-/// never runs in the background and never writes diary data.
+/// J02: an optional question for today. Once opted in, one is requested
+/// automatically while the computer is connected and today has no current
+/// question, and again after today's entries change. It never writes diary
+/// data; the user can also ask for another one from the diary helper.
 class DailyQuestionController extends Notifier<DailyQuestionState> {
   DailyQuestionStore get _store => ref.read(dailyQuestionStoreProvider);
   DiaryRepository get _diary => ref.read(diaryRepositoryProvider);
   String get _today =>
       DiaryRepository.formatDateKey(ref.read(dailyQuestionClockProvider)());
 
+  /// Day and entries already asked about automatically on this connection,
+  /// so a rejected or failed answer is not requested again in a loop.
+  final _attempted = <String>{};
+
+  /// Whether a daily question is being asked in the shared task slot.
+  static bool asking(NoteSummaryState summary) =>
+      summary.handle?.isDailyQuestion == true &&
+      (!summary.terminal || summary.busy);
+
   @override
   DailyQuestionState build() {
     ref.listen(
       noteSummaryProvider,
       (_, next) => scheduleMicrotask(() {
-        if (ref.mounted) unawaited(_consume(next));
+        if (!ref.mounted) return;
+        unawaited(_consume(next));
+        ensure();
       }),
       fireImmediately: true,
     );
+    ref.listen(companionControllerProvider.select((state) => state.phase), (
+      previous,
+      next,
+    ) {
+      if (next == CompanionPhase.connected && previous != next) {
+        _attempted.clear();
+      }
+      ensure();
+    });
+    ref.listen(diaryDaysProvider, (_, _) => ensure());
     return DailyQuestionState(enabled: ref.watch(dailyQuestionEnabledProvider));
+  }
+
+  /// Requests today's question when none is current. Safe to call often:
+  /// it does nothing while offline, while any task holds the slot, or when
+  /// today's entries were already asked about on this connection.
+  void ensure() => scheduleMicrotask(() {
+    if (ref.mounted) unawaited(_auto());
+  });
+
+  Future<void> _auto() async {
+    if (!state.enabled ||
+        ref.read(companionControllerProvider).phase !=
+            CompanionPhase.connected) {
+      return;
+    }
+    final summary = ref.read(noteSummaryProvider);
+    if (summary.handle != null || summary.busy) return;
+    final day = _today;
+    if (current(day) != null) return;
+    if (!_attempted.add('$day|${dailyQuestionBasis(_diary.getDay(day))}')) {
+      return;
+    }
+    await request(day);
   }
 
   void _set({String? message, bool clearMessage = false}) {
@@ -107,13 +154,15 @@ class DailyQuestionController extends Notifier<DailyQuestionState> {
   }
 
   /// Today's question, or null when none is cached, it belongs to another
-  /// civil day, or its source entry was edited or deleted since.
+  /// civil day, today's entries changed since it was asked, or its source
+  /// entry was edited or deleted since.
   DailyQuestionView? current(String day) {
     if (!state.enabled) return null;
     final row = _store.current(day);
     final question = _store.question(row);
     if (row == null || question == null) return null;
-    return question.stillGrounded(_diary.getDay)
+    return row.basis == dailyQuestionBasis(_diary.getDay(day)) &&
+            question.stillGrounded(_diary.getDay)
         ? DailyQuestionView(row.id, question)
         : null;
   }
@@ -178,6 +227,11 @@ class DailyQuestionController extends Notifier<DailyQuestionState> {
             'The date changed while your computer was thinking. Ask again for today.',
           );
         }
+        if (source.basis != dailyQuestionBasis(_diary.getDay(source.date))) {
+          throw const DailyQuestionRejected(
+            'Today’s entries changed while your computer was thinking, so a new question is needed.',
+          );
+        }
         final question = DailyQuestion.parse(
           summary.text!,
           source,
@@ -188,7 +242,7 @@ class DailyQuestionController extends Notifier<DailyQuestionState> {
             'The entry this question followed up on changed, so it was not shown.',
           );
         }
-        _store.add(handle.noteId, question);
+        _store.add(handle.noteId, question, basis: source.basis);
       } on DailyQuestionRejected catch (error) {
         message = error.message;
       } catch (_) {

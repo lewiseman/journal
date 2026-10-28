@@ -407,7 +407,7 @@
     },
     {
       "id": "8:8694165784092694088",
-      "lastPropertyId": "9:5248481639841431040",
+      "lastPropertyId": "10:6154174911036584977",
       "name": "DailyQuestionEntity",
       "properties": [
         {
@@ -457,6 +457,11 @@
           "id": "9:5248481639841431040",
           "name": "created",
           "type": 6
+        },
+        {
+          "id": "10:6154174911036584977",
+          "name": "basis",
+          "type": 9
         }
       ],
       "relations": []

@@ -15,8 +15,7 @@ import 'package:journal/modules/diary/suggestions/diary_suggestion_contract.dart
 class DiaryLiveScope extends InheritedWidget {
   const DiaryLiveScope({super.key, required super.child});
   static bool enabled(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<DiaryLiveScope>() !=
-      null;
+      context.dependOnInheritedWidgetOfExactType<DiaryLiveScope>() != null;
   @override
   bool updateShouldNotify(DiaryLiveScope oldWidget) => false;
 }
@@ -177,6 +176,22 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
     // text tools in QVAC keep to entries with words.
     final items = day.displayItems.toList();
     final live = widget.interactive && DiaryLiveScope.enabled(context);
+    final access = context.dependOnInheritedWidgetOfExactType<DiaryAccess>();
+    final actionsAtTop =
+        items.isNotEmpty &&
+        day.calendarDate ==
+            (access?.today ?? TimeHelper.dateOnly(DateTime.now()));
+    final actions = Padding(
+      padding: EdgeInsets.only(
+        top: actionsAtTop ? 0 : 20,
+        bottom: items.isEmpty ? 20 : (actionsAtTop ? 26 : 0),
+      ),
+      child: _DiaryAddActions(
+        date: day.calendarDate,
+        dateString: day.dateString,
+        live: live,
+      ),
+    );
     final title = day.isDeleted ? '' : day.dayTitle?.trim() ?? '';
     final mood = day.isDeleted ? null : decodeDayMood(day.dayMood);
     final themes = day.isDeleted ? const <String>[] : day.themes;
@@ -242,6 +257,7 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                 ],
               ],
             ),
+            if (actionsAtTop) actions,
             if (items.isNotEmpty) ...[
               for (final item in items) ...[
                 if (item.photos.isNotEmpty)
@@ -264,28 +280,8 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                   Text(item.content.trim(), key: ValueKey(item.itemUuid)),
                 const SizedBox(height: 26),
               ],
-              Text(
-                'A day, held here.',
-                key: ValueKey(
-                  'diary-end-${day.calendarDate.toIso8601String()}',
-                ),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: paper.secondary,
-                ),
-              ),
             ],
-            Padding(
-              padding: EdgeInsets.only(top: 20, bottom: items.isEmpty ? 20 : 0),
-              child: _DiaryAddActions(
-                date: day.calendarDate,
-                dateString: day.dateString,
-                live:
-                    widget.interactive &&
-                    DiaryLiveScope.enabled(context),
-              ),
-            ),
+            if (!actionsAtTop) actions,
             // A zero-height footer balances the space around the invitation.
             if (items.isEmpty) const SizedBox.shrink(),
           ],

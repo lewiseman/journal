@@ -16,6 +16,37 @@ import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
 final _prompt = find.byKey(const ValueKey('diary-writing-prompt'));
 final _actions = find.byKey(const ValueKey('diary-add-actions'));
 final _lines = find.byKey(const ValueKey('diary-prompt-lines'));
+final _question = find.byKey(const ValueKey('diary-prompt-question'));
+const _sample = 'What would you like to remember about today?';
+
+/// A daily question written on the lines, outside the diary card.
+Future<void> _mountPrompt(
+  WidgetTester tester, {
+  required double width,
+  required double scale,
+  required bool dark,
+  required TextDirection direction,
+}) => tester.pumpWidget(
+  MaterialApp(
+    theme: dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: TextScaler.linear(scale)),
+      child: Directionality(textDirection: direction, child: child!),
+    ),
+    home: Scaffold(
+      body: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: width,
+          child: SingleChildScrollView(
+            child: DiaryWritingPrompt(onTap: () {}, text: _sample),
+          ),
+        ),
+      ),
+    ),
+  ),
+);
 
 /// Voice only keeps a repository; nothing is saved without spoken words.
 class _Diary extends Fake implements DiaryRepository {}
@@ -97,17 +128,19 @@ void main() {
     expect(find.text('Deleted prose.'), findsNothing);
     expect(find.text('Presentation'), findsNothing);
     expect(find.text('No diary entries for this day.'), findsNothing);
-    expect(find.text(DiaryWritingPrompt.question), findsOneWidget);
+    expect(_prompt, findsOneWidget);
+    expect(_question, findsNothing);
     for (final tooltip in ['Add image entry', 'More diary actions']) {
       final button = find.byTooltip(tooltip);
       expect(button, findsOneWidget);
       expect(
         tester.getTopLeft(button).dy,
-        greaterThan(tester.getBottomLeft(last).dy),
+        lessThan(tester.getTopLeft(first).dy),
       );
     }
     expect(find.byType(Checkbox), findsNothing);
     expect(find.textContaining('08:00'), findsNothing);
+    expect(find.text('A day, held here.'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -184,16 +217,9 @@ void main() {
     }
 
     final previousPainter = tester.widget<CustomPaint>(_lines).painter!;
-    final previousQuestion = tester.widget(
-      find.byKey(const ValueKey('diary-prompt-question')),
-    );
     await _mount(tester, day, minimumHeight: 760);
     final painter = tester.widget<CustomPaint>(_lines).painter!;
     expect(painter.shouldRepaint(previousPainter), isFalse);
-    expect(
-      tester.widget(find.byKey(const ValueKey('diary-prompt-question'))),
-      same(previousQuestion),
-    );
     expect(tester.takeException(), isNull);
   });
 
@@ -237,10 +263,9 @@ void main() {
       expect(find.text(label), findsNothing);
     }
     expect(
-      tester.getSemantics(find.bySemanticsLabel(DiaryWritingPrompt.question)),
+      tester.getSemantics(find.bySemanticsLabel(DiaryWritingPrompt.label)),
       matchesSemantics(
-        label: DiaryWritingPrompt.question,
-        hint: 'Write a diary entry',
+        label: DiaryWritingPrompt.label,
         isButton: true,
         hasTapAction: true,
       ),
@@ -268,11 +293,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the question opens text entry for the selected day', (
+  testWidgets('the blank lines open text entry for the selected day', (
     tester,
   ) async {
     await _mount(tester, DiaryDayEntity(dateString: '2026-10-24'));
-    await tester.tap(find.text(DiaryWritingPrompt.question));
+    expect(_question, findsNothing);
+    final painter = tester.widget<CustomPaint>(_lines).painter!;
+    final size = tester.getSize(_lines);
+    expect(
+      (Canvas canvas) => painter.paint(canvas, size),
+      paintsExactlyCountTimes(#drawPath, DiaryWritingPrompt.blankLines),
+    );
+    await tester.tap(_prompt);
     await tester.pumpAndSettle();
     expect(
       tester.widget<AddDiaryTextPage>(find.byType(AddDiaryTextPage)).date,
@@ -288,9 +320,8 @@ void main() {
     testWidgets(
       'every wrapped question line has a rule plus two blank rules: $config',
       (tester) async {
-        await _mount(
+        await _mountPrompt(
           tester,
-          DiaryDayEntity(dateString: '2026-10-26'),
           width: config.width,
           scale: config.scale,
           dark: config.dark,
@@ -305,12 +336,8 @@ void main() {
         // Union actual glyph boxes per line, excluding trailing whitespace and
         // combining separate bidi runs on the same visual line.
         final byBottom = <double, Rect>{};
-        for (
-          var index = 0;
-          index < DiaryWritingPrompt.question.length;
-          index++
-        ) {
-          if (DiaryWritingPrompt.question[index] == ' ') continue;
+        for (var index = 0; index < _sample.length; index++) {
+          if (_sample[index] == ' ') continue;
           for (final box in paragraph.getBoxesForSelection(
             TextSelection(baseOffset: index, extentOffset: index + 1),
           )) {
@@ -355,12 +382,6 @@ void main() {
           expect(bounds.left, greaterThanOrEqualTo(0));
           expect(bounds.right, lessThanOrEqualTo(size.width));
         }
-        await tester.ensureVisible(find.byTooltip('More diary actions'));
-        await tester.pumpAndSettle();
-        expect(
-          find.byTooltip('More diary actions').hitTestable(),
-          findsOneWidget,
-        );
         expect(tester.takeException(), isNull);
       },
     );

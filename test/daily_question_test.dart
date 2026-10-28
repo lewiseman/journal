@@ -12,7 +12,6 @@ import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/diary/questions/daily_question_entity.dart';
 import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
 import 'package:journal/modules/diary/questions/daily_question_store.dart';
-import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_store.dart';
@@ -130,6 +129,18 @@ Future<void> restored(ProviderContainer container) async {
   container.read(dailyQuestionProvider);
   for (var i = 0; i < 60; i++) {
     if (container.read(noteSummaryProvider).phase != 'restoring') return;
+    await settle();
+  }
+}
+
+/// Waits until today's question is current and the task slot is free.
+Future<void> answered(ProviderContainer container) async {
+  final controller = container.read(dailyQuestionProvider.notifier);
+  for (var i = 0; i < 60; i++) {
+    final s = container.read(noteSummaryProvider);
+    if (controller.current(today) != null && s.handle == null && !s.busy) {
+      return;
+    }
     await settle();
   }
 }
@@ -378,8 +389,8 @@ void main() {
     addTearDown(container.dispose);
     await restored(container);
     final controller = container.read(dailyQuestionProvider.notifier);
-    await controller.request(today);
-    await consumed(container);
+    // Connected and opted in: today's question is asked without a tap.
+    await answered(container);
     final sent = wire.submitted.single;
     expect(sent['operation'], dailyQuestionOperation);
     final prompt = sent['prompt'] as String;
@@ -438,20 +449,71 @@ void main() {
     );
     expect(controller.current(today)!.question.grounded, false);
 
-    // The civil day changes while the computer works: the result is dropped.
+    // The civil day changes while the computer works: the result is dropped
+    // and the new day asks for its own question.
     wire.phase = 'running';
     wire.output = output('How did the evening go?');
     controller.skip(controller.current(today)!);
     await controller.request(today);
+    final asked = wire.submitted.length;
     now = DateTime(2026, 10, 28, 0, 5);
     wire.phase = 'completed';
     await container.read(noteSummaryProvider.notifier).retry();
     await consumed(container);
     expect(controller.current(today), null);
-    expect(controller.current('2026-10-28'), null);
+    for (var i = 0; i < 60 && controller.current('2026-10-28') == null; i++) {
+      await settle();
+    }
+    expect(wire.submitted, hasLength(asked + 1));
+    expect(controller.current('2026-10-28'), isNotNull);
+  });
+
+  test('automatic questions: once per entries and connection, refreshed by new entries', () async {
+    final app = await SyncFixture.create(MemoryDrive(), 'phone');
+    app.diary.addTimelineItem(dateString: today, content: 'Coffee with Sam.');
+    final store = summary.MemorySummaries();
+    // An unusable answer is not retried in a loop.
+    final wire = summary.SummaryTransport(store)..output = 'not a question';
+    final container = questionContainer(app, store, wire);
+    addTearDown(container.dispose);
+    // Kept listened, as the app root does while questions are on.
+    container.listen(dailyQuestionProvider, (_, _) {});
+    await restored(container);
+    final controller = container.read(dailyQuestionProvider.notifier);
+    for (var i = 0; i < 20; i++) {
+      await settle();
+    }
+    expect(wire.submitted, hasLength(1));
+    expect(controller.current(today), null);
+    controller.ensure();
+    await settle();
+    expect(wire.submitted, hasLength(1));
+
+    // A new entry asks again.
+    wire.output = output('What did you and Sam talk about?');
+    app.diary.addTimelineItem(dateString: today, content: 'Sam called.');
+    await answered(container);
+    expect(wire.submitted, hasLength(2));
+    final first = controller.current(today)!;
+    expect(first.question.text, 'What did you and Sam talk about?');
+
+    // An entry added while the computer works retires that answer too.
+    wire.phase = 'running';
+    wire.output = output('What made the afternoon feel calm?');
+    app.diary.addTimelineItem(dateString: today, content: 'A calm afternoon.');
+    for (var i = 0; i < 60 && wire.submitted.length < 3; i++) {
+      await settle();
+    }
+    expect(controller.current(today), null);
+    app.diary.addTimelineItem(dateString: today, content: 'Then rain.');
+    wire.phase = 'completed';
+    await container.read(noteSummaryProvider.notifier).retry();
+    wire.output = output('How did the rain change your plans?');
+    await answered(container);
+    expect(wire.submitted, hasLength(4));
     expect(
-      container.read(dailyQuestionProvider).message,
-      contains('date changed'),
+      controller.current(today)!.question.text,
+      'How did the rain change your plans?',
     );
   });
 
@@ -588,84 +650,82 @@ void main() {
     },
   );
 
-  testWidgets('prompt: off is the plain prompt; on asks, shows source, skips', (
-    tester,
-  ) async {
-    final app = (await tester.runAsync(
-      () => SyncFixture.create(MemoryDrive(), 'phone'),
-    ))!;
-    app.diary.addTimelineItem(
-      dateString: '2026-10-26',
-      content: 'Booked tickets for the concert.',
-    );
-    final store = summary.MemorySummaries();
-    final wire = summary.SummaryTransport(store)
-      ..output = output(
-        'What are you most looking forward to at the concert?',
-        source: 'p0',
-        evidence: 'tickets for the concert',
+  testWidgets(
+    'prompt: blank lines until a question arrives automatically; a new entry replaces it',
+    (tester) async {
+      final app = (await tester.runAsync(
+        () => SyncFixture.create(MemoryDrive(), 'phone'),
+      ))!;
+      app.diary.addTimelineItem(
+        dateString: '2026-10-26',
+        content: 'Booked tickets for the concert.',
       );
-    final preference = MemoryPreference(false);
-    final container = questionContainer(
-      app,
-      store,
-      wire,
-      preference: preference,
-    );
-    addTearDown(container.dispose);
-    Future<void> show() => tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: DailyQuestionPrompt(day: today, onWrite: () {}),
+      final store = summary.MemorySummaries();
+      final wire = summary.SummaryTransport(store)
+        ..output = output(
+          'What are you most looking forward to at the concert?',
+          source: 'p0',
+          evidence: 'tickets for the concert',
+        );
+      final preference = MemoryPreference(false);
+      final container = questionContainer(
+        app,
+        store,
+        wire,
+        preference: preference,
+      );
+      addTearDown(container.dispose);
+      final question = find.byKey(const ValueKey('diary-prompt-question'));
+      Future<void> waitFor(bool Function() done) async {
+        for (var i = 0; i < 40 && !done(); i++) {
+          await tester.runAsync(settle);
+          await tester.pump();
+        }
+        await tester.pumpAndSettle();
+      }
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: DailyQuestionPrompt(day: today, onWrite: () {}),
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await show();
-    await tester.runAsync(() => restored(container));
-    await tester.pumpAndSettle();
-    expect(find.text(DiaryWritingPrompt.question), findsOneWidget);
-    expect(find.byKey(const ValueKey('daily-question-ask')), findsNothing);
-    await tester.runAsync(
-      () => container.read(dailyQuestionProvider.notifier).setEnabled(true),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('daily-question-disclosure')),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('1 entry (1 earlier day from the past week)'),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const ValueKey('daily-question-ask')));
-    for (
-      var i = 0;
-      i < 20 &&
-          container.read(dailyQuestionProvider.notifier).current(today) == null;
-      i++
-    ) {
-      await tester.runAsync(settle);
+      );
+      await tester.runAsync(() => restored(container));
+      await tester.pumpAndSettle();
+      expect(question, findsNothing);
+      expect(wire.submitted, isEmpty);
+      await tester.runAsync(
+        () => container.read(dailyQuestionProvider.notifier).setEnabled(true),
+      );
+      final controller = container.read(dailyQuestionProvider.notifier);
+      await waitFor(() => controller.current(today) != null);
+      expect(
+        find.text('What are you most looking forward to at the concert?'),
+        findsOneWidget,
+      );
+      expect(wire.submitted, hasLength(1));
+      // The page itself has no buttons or captions.
+      expect(find.byType(TextButton), findsNothing);
+
+      wire.output = output('What did you notice on your walk?');
+      app.diary.addTimelineItem(dateString: today, content: 'A long walk.');
       await tester.pump();
-    }
-    await tester.pumpAndSettle();
-    expect(
-      find.text('What are you most looking forward to at the concert?'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Following up on your entry from yesterday.'),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const ValueKey('daily-question-skip')));
-    await tester.pumpAndSettle();
-    expect(find.text(DiaryWritingPrompt.question), findsOneWidget);
-    expect(find.byKey(const ValueKey('daily-question-ask')), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
-    app.container.dispose();
-  });
+      expect(controller.current(today), null);
+      await waitFor(
+        () =>
+            controller.current(today)?.question.text ==
+            'What did you notice on your walk?',
+      );
+      expect(find.text('What did you notice on your walk?'), findsOneWidget);
+      expect(wire.submitted, hasLength(2));
+      await tester.pumpWidget(const SizedBox());
+      app.container.dispose();
+    },
+  );
 }

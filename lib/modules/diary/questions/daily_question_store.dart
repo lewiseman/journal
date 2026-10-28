@@ -45,7 +45,12 @@ class DailyQuestionStore {
     for (final row in _newest().take(limit)) row.question,
   ];
 
-  DailyQuestionEntity add(String day, DailyQuestion question, {int? now}) {
+  DailyQuestionEntity add(
+    String day,
+    DailyQuestion question, {
+    String basis = '',
+    int? now,
+  }) {
     final created = now ?? DateTime.now().millisecondsSinceEpoch;
     final row = DailyQuestionEntity(
       day: day,
@@ -54,6 +59,7 @@ class DailyQuestionStore {
       sourceItem: question.sourceItem,
       evidence: question.evidence,
       ago: question.ago,
+      basis: basis,
       created: created,
     );
     _store.runInTransaction(TxMode.write, () {

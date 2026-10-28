@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:journal/modules/diary/controllers/diary_providers.dart';
+import 'package:journal/modules/diary/controllers/diary_repository.dart';
+import 'package:journal/modules/diary/questions/daily_question_controller.dart';
+import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
 import 'package:journal/modules/diary/suggestions/diary_details_page.dart';
+import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/settings/companion/companion_page.dart';
 import 'package:journal/modules/voice/voice.dart';
@@ -72,6 +77,10 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
     final phase = ref.watch(
       companionControllerProvider.select((state) => state.phase),
     );
+    final day = DiaryRepository.formatDateKey(widget.date);
+    final today =
+        day ==
+        DiaryRepository.formatDateKey(ref.watch(dailyQuestionClockProvider)());
     return ListView(
       key: const ValueKey('diary-assistant-actions'),
       controller: widget.scrollController,
@@ -112,6 +121,10 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
           ),
         ),
         const SizedBox(height: 24),
+        if (today) ...[
+          _DailyQuestionCard(day: day),
+          const SizedBox(height: 12),
+        ],
         _ToolTile(
           key: const ValueKey('diary-assistant-details'),
           icon: Icons.auto_awesome_outlined,
@@ -130,6 +143,123 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
           onTap: widget.canAddVoice ? _openVoice : null,
         ),
       ],
+    );
+  }
+}
+
+/// Today's question: the current one with a way to ask for another, or
+/// progress while one is being asked. The diary page shows only its text.
+class _DailyQuestionCard extends ConsumerWidget {
+  const _DailyQuestionCard({required this.day});
+  final String day;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final caption = theme.textTheme.bodySmall?.copyWith(
+      color: colors.onSurfaceVariant,
+    );
+    final enabled = ref.watch(dailyQuestionEnabledProvider);
+    final List<Widget> children;
+    if (!enabled) {
+      children = [
+        Text(
+          'Daily questions are off. Turn them on in More → Local QVAC.',
+          key: const ValueKey('daily-question-off'),
+          style: caption,
+        ),
+      ];
+    } else {
+      final state = ref.watch(dailyQuestionProvider);
+      ref.watch(diaryDaysProvider);
+      final summary = ref.watch(noteSummaryProvider);
+      final connected =
+          ref.watch(companionControllerProvider.select((s) => s.phase)) ==
+          CompanionPhase.connected;
+      final controller = ref.read(dailyQuestionProvider.notifier);
+      final view = controller.current(day);
+      final asking = DailyQuestionController.asking(summary);
+      final occupied = summary.handle != null && !asking;
+      final status = asking
+          ? 'Asking your computer for a question…'
+          : occupied
+          ? 'Another AI task is in progress. Finish it to ask a question.'
+          : !connected
+          ? 'Connect your computer to get a question.'
+          : state.message;
+      children = [
+        if (view != null) ...[
+          Text(
+            view.question.text,
+            key: const ValueKey('daily-question-text'),
+            style: theme.textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            DailyQuestionPrompt.sourceLabel(view.question),
+            key: const ValueKey('daily-question-source'),
+            style: caption,
+          ),
+        ] else if (!asking)
+          Text(
+            'No question yet. Your diary page shows blank lines until one arrives.',
+            style: caption,
+          ),
+        if (asking)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: LinearProgressIndicator(
+              key: ValueKey('daily-question-loading'),
+            ),
+          ),
+        if (status != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            status,
+            key: const ValueKey('daily-question-status'),
+            style: caption,
+          ),
+        ],
+        if (!asking) ...[
+          const SizedBox(height: 12),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FilledButton.tonal(
+              key: const ValueKey('daily-question-another'),
+              onPressed: connected && !occupied
+                  ? () => view == null
+                        ? controller.request(day)
+                        : controller.regenerate(day, view)
+                  : null,
+              child: Text(view == null ? 'Get a question' : 'Another question'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            DailyQuestionPrompt.disclosure(controller.selection(day)),
+            key: const ValueKey('daily-question-disclosure'),
+            style: caption,
+          ),
+        ],
+      ];
+    }
+    return Container(
+      key: const ValueKey('diary-assistant-question'),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Today’s question', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
     );
   }
 }

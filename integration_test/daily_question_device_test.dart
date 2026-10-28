@@ -13,7 +13,6 @@ import 'package:journal/modules/diary/controllers/diary_repository.dart';
 import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/diary/questions/daily_question_entity.dart';
 import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
-import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/notes/controllers/notes_repository.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
@@ -184,18 +183,12 @@ void main() {
       }
     }
 
-    Future<void> tapKey(String key) async {
-      final target = find.byKey(ValueKey(key));
-      await tester.ensureVisible(target);
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(target);
-      await tester.pump(const Duration(milliseconds: 300));
-    }
-
-    /// Asks through the real page and waits for the slot to be released.
-    Future<Map<String, dynamic>> ask(String key) async {
+    /// Waits for the next request to finish and the slot to be released.
+    /// With [start] it asks as the diary helper does; without, it waits for
+    /// the automatic request.
+    Future<Map<String, dynamic>> ask([Future<void> Function()? start]) async {
       final posts = wire.submitted.length;
-      await tapKey(key);
+      await start?.call();
       await waitFor(
         () =>
             wire.submitted.length > posts &&
@@ -233,7 +226,7 @@ void main() {
       await waitFor(() => !task().busy, 30);
       expect(find.text(cached!.question.text), findsOneWidget);
       report['cachedQuestionShownAfterRestart'] = cached.question.text;
-      await tapKey('daily-question-another');
+      await controller.regenerate(today, cached);
       await waitFor(
         () =>
             !task().busy &&
@@ -275,22 +268,21 @@ void main() {
                 CompanionPhase.connected &&
             !task().busy,
       );
-      await tester.pump(const Duration(seconds: 1));
-      expect(
-        find.byKey(const ValueKey('daily-question-disclosure')),
-        findsOneWidget,
+      report['disclosure'] = DailyQuestionPrompt.disclosure(
+        controller.selection(today),
       );
-      report['disclosure'] =
-          (tester
-                  .widget<Text>(
-                    find.byKey(const ValueKey('daily-question-disclosure')),
-                  )
-                  .data)
-              .toString();
 
-      // Grounded follow-up on yesterday's entry.
-      final first = await ask('daily-question-ask');
+      // Connected and opted in: a grounded follow-up on yesterday's entry is
+      // asked without a tap, and written on today's lines.
+      final first = controller.current(today) != null
+          ? {'question': controller.current(today)!.question.text}
+          : await ask();
       report['groundedAsk'] = first;
+      report['askedAutomatically'] = wire.submitted.length == 1;
+      if (controller.current(today) case final view?) {
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.text(view.question.text), findsOneWidget);
+      }
       final prompt = wire.submitted.last['prompt'] as String;
       expect(prompt, isNot(contains(source.itemUuid)));
       expect(prompt, isNot(contains(yesterday)));
@@ -300,7 +292,7 @@ void main() {
       // Another: the previous question goes to the avoid list.
       final view = controller.current(today);
       if (view != null) {
-        final second = await ask('daily-question-another');
+        final second = await ask(() => controller.regenerate(today, view));
         expect((second['sent'] as Map)['avoid'], contains(view.question.text));
         report['anotherQuestion'] = second;
       }
@@ -314,7 +306,10 @@ void main() {
         );
         await tester.pump(const Duration(seconds: 1));
         expect(controller.current(today), null);
-        expect(find.text(DiaryWritingPrompt.question), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('diary-prompt-question')),
+          findsNothing,
+        );
         report['sourceDeletionHidQuestion'] = true;
       }
 
@@ -322,21 +317,22 @@ void main() {
       db.diaryBox.removeAll();
       await show(today);
       await tester.pump(const Duration(seconds: 1));
-      if (controller.current(today) != null) {
-        await tapKey('daily-question-skip');
-      }
-      final general = await ask('daily-question-ask');
+      if (controller.current(today) case final view?) controller.skip(view);
+      final general = await ask(() => controller.request(today));
       expect((general['sent'] as Map)['prior'], isEmpty);
       report['noHistoryAsk'] = general;
 
-      // A later civil day (for example after travelling) shows no stale question.
+      // A later civil day (for example after travelling) shows no stale
+      // question and asks for its own.
+      final stale = controller.current(today)?.question.text;
       now = now.add(const Duration(days: 1));
       final tomorrow = DiaryRepository.formatDateKey(now);
       await show(tomorrow);
-      await tester.pump(const Duration(seconds: 1));
-      expect(controller.current(tomorrow), null);
-      expect(find.text(DiaryWritingPrompt.question), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+      if (stale != null) expect(find.text(stale), findsNothing);
       report['dateChangeShowsNoStaleQuestion'] = true;
+      await waitFor(() => task().handle == null && !task().busy);
+      report['newDayAskedAutomatically'] = controller.current(tomorrow) != null;
       now = now.subtract(const Duration(days: 1));
 
       // Opt-out deletes history and returns to the plain prompt only.
@@ -344,7 +340,7 @@ void main() {
       await show(today);
       await tester.pump(const Duration(seconds: 1));
       expect(db.store.box<DailyQuestionEntity>().count(), 0);
-      expect(find.byKey(const ValueKey('daily-question-ask')), findsNothing);
+      expect(find.byKey(const ValueKey('diary-prompt-question')), findsNothing);
       final before = wire.submitted.length;
       await controller.request(today);
       expect(wire.submitted.length, before);
@@ -358,12 +354,12 @@ void main() {
       );
       await show(today);
       await tester.pump(const Duration(seconds: 1));
-      var last = await ask('daily-question-ask');
-      for (var i = 0; i < 2 && last['question'] == null; i++) {
-        last = await ask('daily-question-ask');
+      await waitFor(() => task().handle == null && !task().busy);
+      for (var i = 0; i < 3 && controller.current(today) == null; i++) {
+        await ask(() => controller.request(today));
       }
       expect(controller.current(today), isNotNull);
-      report['cachedForRestart'] = last['question'];
+      report['cachedForRestart'] = controller.current(today)!.question.text;
       report['realPinnedTlsAndQvacRequests'] = wire.submitted.length;
       await tester.pumpWidget(const SizedBox.shrink());
     }

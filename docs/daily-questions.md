@@ -1,8 +1,9 @@
 # J02 — Daily reflection questions
 
-J02 lets you ask your paired computer for one optional question on today's diary
-page. It can follow up on something you wrote recently or simply help you start.
-It is off by default, only runs when you tap, and writing never waits for it.
+J02 gives today's diary page one optional question from your paired computer.
+It can follow up on something you wrote recently or simply help you start. It is
+off by default. Once on, it is fetched automatically while the computer is
+connected, and writing never waits for it.
 
 ## Prerequisite note
 
@@ -17,23 +18,34 @@ sends whole recent entries rather than query-matched excerpts.
 ## Use
 
 1. More → Local QVAC → **Daily diary questions** (off by default).
-2. On today's page in the diary reader, under the writing invitation, tap
-   **Ask me a question**. The invitation text becomes the question, with a line
-   saying where it came from: "Following up on your entry from yesterday",
+2. While the computer is connected and today has no current question, the app
+   asks for one automatically: when it starts, when the connection comes back,
+   and when today's page is shown on a new civil day. The question is cached
+   locally (`DailyQuestionEntity`) and written on today's ruled lines.
+3. Adding or deleting one of today's text entries retires the question, and a
+   new one is asked for. The question records which of today's entries it was
+   asked against (its *basis*, kept on the phone and never sent). An entry
+   added while the computer is still thinking also retires that answer.
+4. With no current question, while one is being asked, on other days, in
+   page-curl previews and with the setting off, the page shows blank ruled
+   lines only. Tapping the lines always opens the normal writing page.
+5. On today, the QVAC diary helper shows **Today's question** with the
+   question, where it came from ("Following up on your entry from yesterday",
    "…from N days ago", "…something you wrote earlier today" or "A general
-   question to help you start".
-3. **Skip** hides it for today. **Another question** asks again; the current
-   question stays until a replacement passes the checks.
-4. Tapping the invitation always opens the normal writing page, whether or not a
-   question is showing, loading or failed.
+   question to help you start") and **Another question**. With no question it
+   offers **Get a question**. While a question is being asked it shows
+   progress instead. The current question stays until a replacement passes the
+   checks.
 
-With the setting off, today's page is exactly the original prompt and no AI code
-is built or watched. Older days and page-curl previews always show the plain
-prompt.
+An automatic request is made at most once for each day and set of today's
+entries per connection, so a refused or failed answer is not retried in a loop.
+A new entry, a reconnection or the helper's button asks again. Automatic
+requests never take the shared AI task slot from another task. They wait until
+it is free.
 
 ## What is sent
 
-A line under the button says what will be sent, for example: "Sends 3 entries
+The diary helper says what will be sent, for example: "Sends 3 entries
 (today and 2 earlier days from the past week) and your last few questions to
 your paired computer only."
 
@@ -66,7 +78,7 @@ the sent IDs or empty, `evidence`). The phone, which holds the text, decides:
 - **Still relevant:** the question is re-checked each time it's shown. If its
   source entry is edited or deleted, or the civil day changes, it's hidden.
 
-A refusal shows a plain reason with the usual prompt, and nothing is saved. All
+A refusal leaves the lines blank and shows a plain reason in the diary helper. Nothing is saved. All
 of these checks are English-only safety nets and can miss paraphrases.
 
 Questions are sampled with temperature 0.7 and a random seed, so asking again
@@ -170,4 +182,4 @@ flutter build apk --debug && adb install -r build/app/outputs/flutter-apk/app-de
     change.
   - Trust used the test-only fixture, not the pairing UI.
   - The secondary-device case is a unit test.
-- **Not included:** notifications and background generation (T01).
+- **Not included:** notifications and generation while the app is closed (T01).

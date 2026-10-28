@@ -498,7 +498,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(8, 8694165784092694088),
     name: 'DailyQuestionEntity',
-    lastPropertyId: const obx_int.IdUid(9, 5248481639841431040),
+    lastPropertyId: const obx_int.IdUid(10, 6154174911036584977),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -554,6 +554,12 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(9, 5248481639841431040),
         name: 'created',
         type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(10, 6154174911036584977),
+        name: 'basis',
+        type: 9,
         flags: 0,
       ),
     ],
@@ -1346,7 +1352,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
             : fbb.writeString(object.sourceItem!);
         final evidenceOffset = fbb.writeString(object.evidence);
         final statusOffset = fbb.writeString(object.status);
-        fbb.startTable(10);
+        final basisOffset = fbb.writeString(object.basis);
+        fbb.startTable(11);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, dayOffset);
         fbb.addOffset(2, questionOffset);
@@ -1356,6 +1363,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addInt64(6, object.ago);
         fbb.addOffset(7, statusOffset);
         fbb.addInt64(8, object.created);
+        fbb.addOffset(9, basisOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -1384,6 +1392,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
           16,
           0,
         );
+        final basisParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 22, '');
         final statusParam = const fb.StringReader(asciiOptimization: true)
             .vTableGet(buffer, rootOffset, 18, '');
         final createdParam = const fb.Int64Reader().vTableGet(
@@ -1400,6 +1410,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           sourceItem: sourceItemParam,
           evidence: evidenceParam,
           ago: agoParam,
+          basis: basisParam,
           status: statusParam,
           created: createdParam,
         );
@@ -1933,6 +1944,11 @@ class DailyQuestionEntity_ {
   /// See [DailyQuestionEntity.created].
   static final created = obx.QueryIntegerProperty<DailyQuestionEntity>(
     _entities[7].properties[8],
+  );
+
+  /// See [DailyQuestionEntity.basis].
+  static final basis = obx.QueryStringProperty<DailyQuestionEntity>(
+    _entities[7].properties[9],
   );
 }
 
