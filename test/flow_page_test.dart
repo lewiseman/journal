@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/modules/flow/controllers/thoughts_providers.dart';
+import 'package:journal/modules/flow/reflection/thought_reflection_controller.dart';
 import 'package:journal/components/transparent_video_player.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/flow/views/pages/flow_page.dart';
@@ -51,7 +52,10 @@ Future<void> _mount(
   final base = dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme;
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [thoughtsRepositoryProvider.overrideWithValue(thoughts)],
+      overrides: [
+        thoughtsRepositoryProvider.overrideWithValue(thoughts),
+        thoughtReflectionAvailableProvider.overrideWithValue(false),
+      ],
       child: RepaintBoundary(
         key: _captureKey,
         child: MaterialApp(

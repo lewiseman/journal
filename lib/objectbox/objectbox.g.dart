@@ -17,6 +17,7 @@ import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 import '../modules/diary/models/diary_day_entity.dart';
 import '../modules/diary/questions/daily_question_entity.dart';
 import '../modules/flow/models/thought_entity.dart';
+import '../modules/flow/reflection/thought_reflection_entity.dart';
 import '../modules/notes/models/note_entity.dart';
 import '../modules/notes/summary/summary_task_entity.dart';
 import '../modules/notes/transform/note_recovery_entity.dart';
@@ -558,6 +559,59 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(9, 4338801291709126047),
+    name: 'ThoughtReflectionEntity',
+    lastPropertyId: const obx_int.IdUid(7, 7978136620927170792),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 5633627331030654739),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 4788922969064448871),
+        name: 'thoughtUuid',
+        type: 9,
+        flags: 2048,
+        indexId: const obx_int.IdUid(9, 1231400627939627977),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 5187072622008305343),
+        name: 'revision',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 1486779180849427759),
+        name: 'text',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 7064184889825569290),
+        name: 'taskId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 6759143483410279261),
+        name: 'status',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 7978136620927170792),
+        name: 'created',
+        type: 6,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -599,8 +653,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(8, 8694165784092694088),
-    lastIndexId: const obx_int.IdUid(8, 6622688242667964480),
+    lastEntityId: const obx_int.IdUid(9, 4338801291709126047),
+    lastIndexId: const obx_int.IdUid(9, 1231400627939627977),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -1282,6 +1336,69 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    ThoughtReflectionEntity: obx_int.EntityDefinition<ThoughtReflectionEntity>(
+      model: _entities[8],
+      toOneRelations: (ThoughtReflectionEntity object) => [],
+      toManyRelations: (ThoughtReflectionEntity object) => {},
+      getId: (ThoughtReflectionEntity object) => object.id,
+      setId: (ThoughtReflectionEntity object, int id) {
+        object.id = id;
+      },
+      objectToFB: (ThoughtReflectionEntity object, fb.Builder fbb) {
+        final thoughtUuidOffset = fbb.writeString(object.thoughtUuid);
+        final revisionOffset = fbb.writeString(object.revision);
+        final textOffset = fbb.writeString(object.text);
+        final taskIdOffset = fbb.writeString(object.taskId);
+        final statusOffset = fbb.writeString(object.status);
+        fbb.startTable(8);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, thoughtUuidOffset);
+        fbb.addOffset(2, revisionOffset);
+        fbb.addOffset(3, textOffset);
+        fbb.addOffset(4, taskIdOffset);
+        fbb.addOffset(5, statusOffset);
+        fbb.addInt64(6, object.created);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final thoughtUuidParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 6, '');
+        final revisionParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 8, '');
+        final textParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 10, '');
+        final taskIdParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 12, '');
+        final statusParam = const fb.StringReader(asciiOptimization: true)
+            .vTableGet(buffer, rootOffset, 14, '');
+        final createdParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          16,
+          0,
+        );
+        final object = ThoughtReflectionEntity(
+          id: idParam,
+          thoughtUuid: thoughtUuidParam,
+          revision: revisionParam,
+          text: textParam,
+          taskId: taskIdParam,
+          status: statusParam,
+          created: createdParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -1668,5 +1785,43 @@ class DailyQuestionEntity_ {
   /// See [DailyQuestionEntity.created].
   static final created = obx.QueryIntegerProperty<DailyQuestionEntity>(
     _entities[7].properties[8],
+  );
+}
+
+/// [ThoughtReflectionEntity] entity fields to define ObjectBox queries.
+class ThoughtReflectionEntity_ {
+  /// See [ThoughtReflectionEntity.id].
+  static final id = obx.QueryIntegerProperty<ThoughtReflectionEntity>(
+    _entities[8].properties[0],
+  );
+
+  /// See [ThoughtReflectionEntity.thoughtUuid].
+  static final thoughtUuid = obx.QueryStringProperty<ThoughtReflectionEntity>(
+    _entities[8].properties[1],
+  );
+
+  /// See [ThoughtReflectionEntity.revision].
+  static final revision = obx.QueryStringProperty<ThoughtReflectionEntity>(
+    _entities[8].properties[2],
+  );
+
+  /// See [ThoughtReflectionEntity.text].
+  static final text = obx.QueryStringProperty<ThoughtReflectionEntity>(
+    _entities[8].properties[3],
+  );
+
+  /// See [ThoughtReflectionEntity.taskId].
+  static final taskId = obx.QueryStringProperty<ThoughtReflectionEntity>(
+    _entities[8].properties[4],
+  );
+
+  /// See [ThoughtReflectionEntity.status].
+  static final status = obx.QueryStringProperty<ThoughtReflectionEntity>(
+    _entities[8].properties[5],
+  );
+
+  /// See [ThoughtReflectionEntity.created].
+  static final created = obx.QueryIntegerProperty<ThoughtReflectionEntity>(
+    _entities[8].properties[6],
   );
 }

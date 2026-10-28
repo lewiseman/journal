@@ -11,6 +11,7 @@ import '../../presentation/presentation_contract.dart';
 import '../../diary/history/diary_history_contract.dart';
 import '../../diary/questions/daily_question_contract.dart';
 import '../../diary/suggestions/diary_suggestion_contract.dart';
+import '../../flow/reflection/thought_reflection_contract.dart';
 
 // Shared saved-note AI slot, separate from trust and sync. One recoverable preview per phone.
 class SummaryHandle {
@@ -51,6 +52,9 @@ class SummaryHandle {
 
   /// S01 historical answers. [noteId] holds the civil date asked on.
   bool get isDiaryAnswer => operation == historyOperation;
+
+  /// L01 Flow reflections. [noteId] holds the thought UUID.
+  bool get isThoughtReflection => operation == thoughtReflectionOperation;
 
   /// Diary tasks keyed by a civil date rather than a note UUID.
   bool get isDiaryDay => isDiarySuggestion || isDailyQuestion || isDiaryAnswer;
@@ -128,6 +132,7 @@ class SummaryHandle {
     if ((!handle.isTransformation &&
             !handle.isPresentation &&
             !handle.isDiaryDay &&
+            !handle.isThoughtReflection &&
             handle.operation != 'summarize-note') ||
         (handle.isDiaryDay &&
             !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(handle.noteId)) ||
@@ -162,6 +167,8 @@ class SummaryHandle {
             handle.noteId) {
           throw const FormatException('Mismatched source');
         }
+      } else if (handle.isThoughtReflection) {
+        throw const FormatException('Unexpected reflection source');
       } else {
         TransformSource.decode(handle.localSource!);
       }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:journal/modules/diary/history/diary_answer_page.dart';
 import 'package:journal/modules/diary/questions/daily_question_task_page.dart';
+import 'package:journal/modules/flow/reflection/thought_reflection_task_page.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/modules/settings/companion/companion_page.dart';
@@ -20,6 +21,9 @@ class NoteSummaryPage extends ConsumerWidget {
     if (state.handle?.isDiaryAnswer == true) return const DiaryAnswerPage();
     if (state.handle?.isDailyQuestion == true) {
       return const DailyQuestionTaskPage();
+    }
+    if (state.handle?.isThoughtReflection == true) {
+      return const ThoughtReflectionTaskPage();
     }
     if (state.handle?.isDiarySuggestion == true) {
       return DiaryDetailsPage(dateString: state.handle!.noteId);

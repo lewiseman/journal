@@ -460,10 +460,56 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "9:4338801291709126047",
+      "lastPropertyId": "7:7978136620927170792",
+      "name": "ThoughtReflectionEntity",
+      "properties": [
+        {
+          "id": "1:5633627331030654739",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4788922969064448871",
+          "name": "thoughtUuid",
+          "indexId": "9:1231400627939627977",
+          "type": 9,
+          "flags": 2048
+        },
+        {
+          "id": "3:5187072622008305343",
+          "name": "revision",
+          "type": 9
+        },
+        {
+          "id": "4:1486779180849427759",
+          "name": "text",
+          "type": 9
+        },
+        {
+          "id": "5:7064184889825569290",
+          "name": "taskId",
+          "type": 9
+        },
+        {
+          "id": "6:6759143483410279261",
+          "name": "status",
+          "type": 9
+        },
+        {
+          "id": "7:7978136620927170792",
+          "name": "created",
+          "type": 6
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "8:8694165784092694088",
-  "lastIndexId": "8:6622688242667964480",
+  "lastEntityId": "9:4338801291709126047",
+  "lastIndexId": "9:1231400627939627977",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,
