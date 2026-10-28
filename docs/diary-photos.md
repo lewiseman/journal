@@ -113,9 +113,50 @@ flutter test test/diary_photos_page_test.dart test/diary_photo_stories_test.dart
   `onboarding_test` large-text layouts. `diary_day_content_test` was updated
   for the renamed close tooltip.
 
-All of this evidence comes from tests. **No real phone run has been done.**
-Picker behaviour on Android and iOS, and how long copies survive app updates,
-have not been checked on a device.
+### On a real phone
+
+The device test is
+[`integration_test/diary_photos_device_test.dart`](../integration_test/diary_photos_device_test.dart).
+It ran in two separate app processes on a Samsung SM-S928B (Android 17, USB).
+The results are in [diary-photos-evidence.json](diary-photos-evidence.json).
+
+```sh
+flutter test integration_test/diary_photos_device_test.dart -d SERIAL \
+  --no-uninstall --dart-define=I01_PHASE=save
+flutter test integration_test/diary_photos_device_test.dart -d SERIAL \
+  --no-uninstall --dart-define=I01_PHASE=reopen
+```
+
+The test uses its own ObjectBox and its own `diary_photos` folder under
+`<support>/i01-synthetic`. It never opens the real journal, and the reopen
+phase deletes the folder.
+
+**Save phase.** The real page saved 3 photos. The test entered a caption and
+an answer, and checked that nothing was written before **Save to diary**. On
+disk, the three copies matched the source bytes (222,646, 335,014 and 229,842
+bytes). There was one outbox creation.
+
+**Reopen phase** (a fresh process):
+
+- All three copies decoded: 1448×1086, 1122×1402 and 1448×1086.
+- The entry showed the caption and the answer.
+- A cancelled edit left the record unchanged.
+- **Save changes** after removing photo 1 kept 2 photos and deleted the removed
+  copy.
+- A deleted copy showed as **Not on this device** together with the
+  local-only notice.
+- Account reset removed `diary_photos` and every diary record.
+
+**Not covered on the device:**
+
+- The system photo picker UI. The test injected bundled images in its place.
+- iOS.
+- A real secondary device receiving a story through Drive sync.
+- The diary page's print strip loading from disk. That is covered only by
+  widget tests.
+
+After the run, the phone keeps this branch's debug build, and its existing
+journal data was left in place.
 
 ## Limitations
 
