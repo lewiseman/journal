@@ -263,7 +263,7 @@ void main() {
       await tester.tap(find.text('Local QVAC'));
       await tester.pumpAndSettle();
       expect(find.byType(CompanionPage), findsOneWidget);
-      expect(find.text('Connect to your own computer'), findsOneWidget);
+      expect(find.text('Let’s connect your computer'), findsOneWidget);
       await _capture(tester, 'companion');
       final history = find.byKey(const ValueKey('companion-ai-task-history'));
       await tester.scrollUntilVisible(history, 250);

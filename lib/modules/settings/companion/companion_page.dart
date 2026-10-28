@@ -4,12 +4,13 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 
-import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
-import 'package:journal/modules/recall/recall_settings.dart';
 import 'package:journal/modules/voice/views/pages/reply_voice_page.dart';
 
+import 'companion_connection_guide.dart';
 import 'companion_controller.dart';
+import 'companion_detail_pages.dart';
+import 'companion_hub_widgets.dart';
 import 'companion_protocol.dart';
 
 String companionPhaseLabel(CompanionPhase phase) => switch (phase) {
@@ -70,11 +71,17 @@ class CompanionPage extends ConsumerWidget {
     bool paste = false,
     String? expectedId,
   }) async {
-    final raw = paste
-        ? await _paste(context)
-        : await Navigator.of(context).push<String>(
-            MaterialPageRoute(builder: (_) => const CompanionScannerPage()),
-          );
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    String? raw;
+    if (paste) {
+      raw = await _paste(context);
+    } else {
+      final scan = await Navigator.of(context).push<_ScanResult>(
+        MaterialPageRoute(builder: (_) => const CompanionScannerPage()),
+      );
+      if (!context.mounted) return;
+      raw = scan?.useCode == true ? await _paste(context) : scan?.raw;
+    }
     if (raw == null || !context.mounted) return;
     try {
       final code = PairingCode.parse(raw);
@@ -105,260 +112,187 @@ class CompanionPage extends ConsumerWidget {
   Widget _buildPage(BuildContext context, WidgetRef ref) {
     final state = ref.watch(companionControllerProvider);
     final controller = ref.read(companionControllerProvider.notifier);
-    final selected = state.selected;
     return Scaffold(
       appBar: AppBar(title: const Text('Local QVAC')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const Text(
-            'Connect to your own computer',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Open Journal Companion → Connect a phone on your computer. Keep both devices on the same Wi-Fi. After setup this connection works without internet or Google sign-in. No journal content is sent by this screen.',
-          ),
-          const SizedBox(height: 20),
-          Semantics(
-            liveRegion: true,
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      companionPhaseLabel(state.phase),
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    if (state.message != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(state.message!),
-                      ),
-                    if (state.verification != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        'Phone verification code: ${state.verification}',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const Text(
-                        'Compare this code on the desktop before approving.',
-                      ),
-                    ],
-                    if (state.phase == CompanionPhase.connected) ...[
-                      const SizedBox(height: 12),
-                      for (final capability
-                          in (state.status?['capabilities'] as List? ??
-                              const []))
-                        Text(
-                          '${capability['id'] == 'text' ? 'Writing model' : capability['id']}: ${capability['status']}\n${capability['reason']}',
-                        ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Transport and model readiness are separate. A connected computer may still need a model download or load.',
-                      ),
-                    ],
-                    if (state.busy && state.phase == CompanionPhase.pairing)
-                      TextButton(
-                        onPressed: controller.cancelPairing,
-                        child: const Text('Cancel pairing'),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton.icon(
-                onPressed: state.busy ? null : () => _pair(context, ref),
-                icon: const Icon(Icons.qr_code_scanner),
-                label: const Text('Scan desktop QR'),
-              ),
-              OutlinedButton(
-                onPressed: state.busy
-                    ? null
-                    : () => _pair(context, ref, paste: true),
-                child: const Text('Paste pairing code'),
-              ),
-              OutlinedButton(
-                onPressed: state.busy || state.scanning
-                    ? null
-                    : controller.discover,
-                child: Text(
-                  state.scanning
-                      ? 'Finding computers…'
-                      : 'Find nearby computers',
-                ),
-              ),
-              if (state.phase == CompanionPhase.unavailable &&
-                  state.computers.isEmpty)
-                TextButton(
-                  onPressed: controller.restore,
-                  child: const Text('Reload saved trust'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ListTile(
-            key: const ValueKey('companion-ai-task-history'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.history),
-            title: const Text('AI task history'),
-            subtitle: const Text('Recover summaries and review recent results'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const SummaryHistoryPage(),
-              ),
-            ),
-          ),
-          ListTile(
-            key: const ValueKey('companion-reply-voice'),
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.record_voice_over_outlined),
-            title: const Text('Reply voice'),
-            subtitle: const Text('Choose how your companion sounds'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const ReplyVoicePage()),
-            ),
-          ),
-          if (state.discovered.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            Text(
-              'Nearby · names are unverified',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            for (final computer in state.discovered)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.computer),
-                title: Text(computer.name),
-                subtitle: Text(
-                  computer.version == '1'
-                      ? 'Scan this computer’s QR to verify its identity'
-                      : 'Incompatible protocol · update both apps',
-                ),
-                onTap: state.busy || computer.version != '1'
-                    ? null
-                    : () => _pair(context, ref, expectedId: computer.id),
-              ),
-          ],
-          if (state.computers.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            Text(
-              'Trusted computers',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            RadioGroup<String>(
-              groupValue: state.selectedId,
-              onChanged: (id) {
-                if (!state.busy && id != null) controller.select(id);
-              },
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 580),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final computer in state.computers)
-                    RadioListTile<String>(
-                      value: computer.id,
-                      enabled: !state.busy,
-                      title: Text(computer.name),
-                      subtitle: Text(
-                        computer.enabled
-                            ? 'Trust remembered on this phone'
-                            : 'Automatic connection paused',
+                  CompanionConnectionGuide(
+                    connection: state,
+                    onScan: () => _pair(context, ref),
+                    onReconnect: () => state.selected?.enabled == false
+                        ? controller.disconnect(resume: true)
+                        : controller.reconnect(),
+                    onCancel: controller.cancelPairing,
+                  ),
+                  if (state.message != null &&
+                      state.phase != CompanionPhase.pairing) ...[
+                    const SizedBox(height: 16),
+                    _connectionMessage(context, state),
+                  ],
+                  if (state.phase == CompanionPhase.connected) ...[
+                    const SizedBox(height: 24),
+                    CompanionReadinessStrip(state: state),
+                  ],
+                  if (state.computers.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      'Your computers',
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(color: context.colors.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 10),
+                    CompanionComputerCard(
+                      state: state,
+                      onTap: () => _openDevices(context, ref),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    _fallbackControls(context, ref, state),
+                  ],
+                  const SizedBox(height: 24),
+                  CompanionShortcuts(
+                    onVoice: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ReplyVoicePage(),
                       ),
                     ),
+                    onHistory: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SummaryHistoryPage(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  CompanionPreferenceCard(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const CompanionPreferencesPage(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      TextButton.icon(
+                        key: const ValueKey('companion-help'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const CompanionHelpPage(),
+                          ),
+                        ),
+                        icon: const Icon(Icons.help_outline_rounded, size: 19),
+                        label: const Text('Need help?'),
+                      ),
+                      TextButton.icon(
+                        key: const ValueKey('companion-connection-details'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const CompanionPrivacyPage(),
+                          ),
+                        ),
+                        icon: const Icon(Icons.shield_outlined, size: 19),
+                        label: const Text('Connection details'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-          ],
-          if (selected != null) ...[
-            const SizedBox(height: 12),
-            SelectableText('Verified identity\n${selected.pin}'),
-            Wrap(
-              spacing: 8,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openDevices(BuildContext context, WidgetRef ref) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => CompanionDevicesPage(
+            onPair: (pageContext, {bool paste = false, String? expectedId}) =>
+                _pair(pageContext, ref, paste: paste, expectedId: expectedId),
+          ),
+        ),
+      );
+
+  Widget _fallbackControls(
+    BuildContext context,
+    WidgetRef ref,
+    CompanionState state,
+  ) => Wrap(
+    alignment: WrapAlignment.center,
+    spacing: 8,
+    runSpacing: 4,
+    children: [
+      TextButton.icon(
+        key: const ValueKey('companion-paste'),
+        onPressed: state.busy ? null : () => _pair(context, ref, paste: true),
+        icon: const Icon(Icons.content_paste_rounded),
+        label: const Text('Use a code'),
+      ),
+      TextButton.icon(
+        key: const ValueKey('companion-discover'),
+        onPressed: state.busy || state.scanning
+            ? null
+            : () {
+                ref.read(companionControllerProvider.notifier).discover();
+                _openDevices(context, ref);
+              },
+        icon: const Icon(Icons.radar_rounded),
+        label: Text(state.scanning ? 'Looking…' : 'Find computer'),
+      ),
+    ],
+  );
+
+  Widget _connectionMessage(BuildContext context, CompanionState state) {
+    final colors = context.colors;
+    final problem = const {
+      CompanionPhase.unavailable,
+      CompanionPhase.permissionDenied,
+      CompanionPhase.incompatible,
+      CompanionPhase.identityChanged,
+      CompanionPhase.revoked,
+    }.contains(state.phase);
+    final ink = problem ? colors.onErrorContainer : colors.onSurface;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: problem
+              ? colors.errorContainer.withValues(alpha: .45)
+              : colors.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                OutlinedButton(
-                  onPressed: state.busy
-                      ? null
-                      : () => selected.enabled
-                            ? controller.reconnect()
-                            : controller.disconnect(resume: true),
+                Icon(Icons.info_outline_rounded, color: ink),
+                const SizedBox(width: 10),
+                Expanded(
                   child: Text(
-                    selected.enabled ? 'Retry connection' : 'Reconnect',
+                    companionPhaseLabel(state.phase),
+                    style: TextStyle(fontWeight: FontWeight.w600, color: ink),
                   ),
-                ),
-                if (selected.enabled)
-                  TextButton(
-                    onPressed: state.busy ? null : controller.disconnect,
-                    child: const Text('Disconnect'),
-                  ),
-                TextButton(
-                  onPressed: state.busy
-                      ? null
-                      : () async {
-                          final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: Text('Forget ${selected.name}?'),
-                              content: const Text(
-                                'Remove this phone’s trust. If reachable, the computer will also revoke this phone and delete its retained work. If offline, revoke it later on the desktop. You will need a fresh QR to pair again.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  child: const Text('Keep'),
-                                ),
-                                FilledButton(
-                                  onPressed: () => Navigator.pop(context, true),
-                                  child: const Text('Forget'),
-                                ),
-                              ],
-                            ),
-                          );
-                          if (confirmed == true) {
-                            await controller.forget(selected.id);
-                          }
-                        },
-                  child: const Text('Forget computer'),
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Text(state.message!),
           ],
-          const SizedBox(height: 24),
-          SwitchListTile(
-            key: const ValueKey('daily-questions-toggle'),
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Daily diary questions'),
-            subtitle: const Text(
-              'Lets you ask for one optional question on today’s diary page. It uses up to 8 text entries from the past week and today, sent only to your paired computer, and never runs in the background. Turning this off deletes this phone’s question history.',
-            ),
-            value: ref.watch(dailyQuestionEnabledProvider),
-            onChanged: (value) =>
-                ref.read(dailyQuestionProvider.notifier).setEnabled(value),
-          ),
-          const SizedBox(height: 24),
-          const RecallSettings(),
-          const SizedBox(height: 24),
-          const Text(
-            'If discovery fails',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const Text(
-            'Scan a fresh QR or paste its full code; a short numeric code alone cannot locate a computer. Allow Local Network access for Journal in iPhone Settings. On Android, allow Camera when scanning. A denied camera can be bypassed with Paste pairing code. Guest Wi-Fi, client isolation, VPNs and some phone hotspots block direct connections; try an ordinary private Wi-Fi network. This preview needs IPv4.',
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Disconnect keeps trust and accepted work. Desktop revocation removes access and retained work. Trust stays out of Google Drive and journal sync. Readiness is checked again after a restart or network change; no scans run while the app is in the background.',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -381,18 +315,34 @@ class _VerifyComputerDialogState extends State<_VerifyComputerDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Verify your computer'),
+    icon: const Icon(Icons.verified_user_outlined, size: 32),
+    title: const Text('Is this your computer?'),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.code.name),
+          Row(
+            children: [
+              const Icon(Icons.computer_rounded),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.code.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           const Text(
-            'Compare this identity with the companion before continuing:',
+            'Check this identity in Journal Companion. Continue only if it matches.',
           ),
-          SelectableText(widget.code.pin),
+          const SizedBox(height: 8),
+          SelectableText(
+            widget.code.pin,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: name,
@@ -408,8 +358,9 @@ class _VerifyComputerDialogState extends State<_VerifyComputerDialog> {
         child: const Text('Cancel'),
       ),
       FilledButton(
+        key: const ValueKey('companion-confirm-identity'),
         onPressed: () => Navigator.pop(context, name.text),
-        child: const Text('Verify & request trust'),
+        child: const Text('It matches · continue'),
       ),
     ],
   );
@@ -431,14 +382,17 @@ class _PasteCodeDialogState extends State<_PasteCodeDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Paste full desktop code'),
+    icon: const Icon(Icons.content_paste_rounded, size: 32),
+    title: const Text('Use a code'),
     content: TextField(
       controller: code,
       maxLines: 6,
       maxLength: 8192,
       autocorrect: false,
       enableSuggestions: false,
+      textCapitalization: TextCapitalization.none,
       decoration: const InputDecoration(
+        labelText: 'Full computer code',
         hintText:
             'Copy the full pairing code shown below the QR on your computer.',
       ),
@@ -462,6 +416,12 @@ class CompanionScannerPage extends StatefulWidget {
   State<CompanionScannerPage> createState() => _CompanionScannerPageState();
 }
 
+class _ScanResult {
+  const _ScanResult({this.raw, this.useCode = false});
+  final String? raw;
+  final bool useCode;
+}
+
 class _CompanionScannerPageState extends State<CompanionScannerPage> {
   final controller = MobileScannerController(formats: [BarcodeFormat.qrCode]);
   bool captured = false;
@@ -473,32 +433,82 @@ class _CompanionScannerPageState extends State<CompanionScannerPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Scan the desktop QR')),
-    body: MobileScanner(
-      controller: controller,
-      onDetect: (capture) {
-        final raw = capture.barcodes.firstOrNull?.rawValue;
-        if (captured || raw == null) return;
-        captured = true;
-        Navigator.pop(context, raw);
-      },
-      errorBuilder: (context, error) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    appBar: AppBar(title: const Text('Scan QR')),
+    body: Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(24, 8, 24, 20),
+          child: Row(
             children: [
-              const Text(
-                'Camera unavailable or permission denied. Allow Camera in system Settings, or go back and paste the desktop pairing code.',
+              Icon(Icons.laptop_mac_rounded, size: 32),
+              SizedBox(width: 16),
+              Expanded(child: Text('Point at the QR on your computer.')),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              MobileScanner(
+                controller: controller,
+                onDetect: (capture) {
+                  final raw = capture.barcodes.firstOrNull?.rawValue;
+                  if (captured || raw == null) return;
+                  captured = true;
+                  Navigator.pop(context, _ScanResult(raw: raw));
+                },
+                errorBuilder: (context, error) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.no_photography_outlined, size: 56),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Camera unavailable. Allow Camera in Settings, or use the computer’s code.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Use pairing code instead'),
+              const IgnorePointer(
+                child: Center(
+                  child: FractionallySizedBox(
+                    widthFactor: .72,
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border.fromBorderSide(
+                            BorderSide(color: Colors.white70, width: 3),
+                          ),
+                          borderRadius: BorderRadius.all(Radius.circular(24)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ),
-      ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextButton.icon(
+              onPressed: () =>
+                  Navigator.pop(context, const _ScanResult(useCode: true)),
+              icon: const Icon(Icons.content_paste_rounded),
+              label: const Text('Use a code instead'),
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }

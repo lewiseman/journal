@@ -90,12 +90,14 @@ void main() {
                 .pair(raw, 'My Journal phone'),
           );
         } else {
-          await tester.tap(find.text('Paste pairing code'));
+          await tester.tap(find.byKey(const ValueKey('companion-paste')));
           await tester.pumpAndSettle();
           await tester.enterText(find.byType(TextField), raw);
           await tester.tap(find.text('Continue'));
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Verify & request trust'));
+          await tester.tap(
+            find.byKey(const ValueKey('companion-confirm-identity')),
+          );
           await tester.pump();
         }
         // The desktop must explicitly approve the displayed phone verification code.

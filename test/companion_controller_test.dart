@@ -71,10 +71,11 @@ class FakeTransport implements CompanionTransport {
     Map<String, String> headers = const {},
   }) async {
     routes.add(route);
-    if (failure != null || endpoint.host == unavailableHost)
+    if (failure != null || endpoint.host == unavailableHost) {
       throw CompanionFailure(failure ?? 'UNAVAILABLE', 'Synthetic failure');
+    }
     if (route == '/v1/challenge') return {'nonce': 'a' * 43};
-    if (route == '/v1/status')
+    if (route == '/v1/status') {
       return {
         'v': 1,
         'id': 'desktop-1',
@@ -88,6 +89,7 @@ class FakeTransport implements CompanionTransport {
           },
         ],
       };
+    }
     return {'ok': true};
   }
 
@@ -257,8 +259,8 @@ void main() {
       );
       await settle(tester);
       expect(find.text('Connected · identity verified'), findsOneWidget);
-      expect(find.textContaining('Writing model: unloaded'), findsOneWidget);
-      expect(find.text('Scan desktop QR'), findsOneWidget);
+      expect(find.text('Load model'), findsOneWidget);
+      expect(find.byKey(const ValueKey('companion-computers')), findsOneWidget);
       expect(find.text('Sign in'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     },
