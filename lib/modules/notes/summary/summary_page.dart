@@ -10,6 +10,7 @@ import '../transform/transform_page.dart';
 import '../metadata/note_help_pages.dart';
 import '../images/note_image_page.dart';
 import '../images/note_scan_page.dart';
+import '../images/note_background_page.dart';
 import '../../presentation/presentation_page.dart';
 import '../../diary/suggestions/diary_details_page.dart';
 
@@ -39,6 +40,9 @@ class NoteSummaryPage extends ConsumerWidget {
     }
     if (state.handle?.isNoteScan == true) {
       return NoteScanPage(noteId: state.handle!.noteId);
+    }
+    if (state.handle?.isNoteBackground == true) {
+      return NoteBackgroundPage(noteId: state.handle!.noteId);
     }
     final controller = ref.read(noteSummaryProvider.notifier);
     final otherNote =

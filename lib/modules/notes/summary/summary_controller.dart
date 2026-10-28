@@ -17,6 +17,7 @@ import '../transform/transform_contract.dart';
 import '../metadata/note_help_contract.dart';
 import '../images/note_image_contract.dart';
 import '../images/note_scan.dart';
+import '../images/note_background_gen.dart';
 
 import 'package:journal/modules/notes/models/note_attachment.dart';
 
@@ -357,6 +358,20 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           await hexHash(utf8.encode(source.encode())) == handle.revision;
     }
     if (handle.isNoteIdeas) return true;
+    if (handle.isNoteBackground) {
+      final request = handle.localSource == null
+          ? null
+          : NoteBackgroundRequest.decode(handle.localSource!);
+      final note = ref
+          .read(notesRepositoryProvider)
+          .getNoteByUuid(handle.noteId);
+      return request != null &&
+          note != null &&
+          !note.isDeleted &&
+          !note.isPermanentlyDeleted &&
+          canonicalBackground(note.background) ==
+              canonicalBackground(request.background);
+    }
     if (handle.isNoteScan) {
       final source = handle.localSource == null
           ? null
@@ -821,6 +836,171 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         );
       }
     }
+  }
+
+  /// I06: generate a background from the user's own description and tone.
+  /// No note text is sent; nothing changes until the preview is accepted.
+  Future<void> startNoteBackground(
+    String noteId, {
+    required String prompt,
+    required String tone,
+  }) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final repository = ref.read(notesRepositoryProvider);
+      if (!repository.sync.canEdit) {
+        throw const CompanionFailure(
+          'READ_ONLY',
+          'Existing notes are read-only on this device, so their background cannot change. Nothing was sent.',
+        );
+      }
+      final note = repository.getNoteByUuid(noteId);
+      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
+        throw const CompanionFailure(
+          'SOURCE_MISSING',
+          'This note is no longer available.',
+        );
+      }
+      final request = NoteBackgroundRequest(
+        noteId: noteId,
+        prompt: prompt.trim(),
+        tone: tone,
+        background: Map.of(note.background),
+      );
+      final input = request.request();
+      final computer = _capableComputer(
+        capabilityId: 'image',
+        contractKey: 'backgroundContract',
+        contract: noteBackgroundContract,
+        operation: noteBackgroundOperation,
+        fallback: 'You can still choose a color or photo background.',
+        update: 'Update the companion to generate backgrounds.',
+        notReady: 'Download, assign and test an image model on your computer.',
+        notReadyCode: 'IMAGE_NOT_READY',
+      );
+      await _submitNew(
+        generation,
+        noteId: noteId,
+        local: request.encode(),
+        input: input,
+        operation: noteBackgroundOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  /// Collects the finished image into a local preview, verifying its digest.
+  Future<void> _collectBackground(
+    SummaryHandle handle,
+    String text,
+    TrustedComputer computer,
+  ) async {
+    final store = ref.read(noteBackgroundStoreProvider);
+    if (await (await store.preview(handle.id)).exists()) return;
+    final result = NoteBackgroundResult.parse(text);
+    final response = await _client.authenticated(
+      computer,
+      'GET',
+      '/v1/image-jobs/${handle.id}/result',
+    );
+    final image = response['image'];
+    final bytes = image is String ? base64Decode(image) : Uint8List(0);
+    if (response['id'] != handle.id ||
+        !result.matches(bytes, await hexHash(bytes))) {
+      throw const CompanionFailure(
+        'INVALID_OUTPUT',
+        'The computer returned a different image than it described. Nothing was saved.',
+      );
+    }
+    await store.savePreview(handle.id, bytes);
+  }
+
+  /// The local preview of the current background task, once collected.
+  Future<File?> noteBackgroundPreview() async {
+    final handle = state.handle;
+    if (handle == null || !handle.isNoteBackground) return null;
+    final file = await ref.read(noteBackgroundStoreProvider).preview(handle.id);
+    return await file.exists() ? file : null;
+  }
+
+  /// Applies the previewed image as the note's background, keeping what it
+  /// replaced for [revertNoteBackground].
+  Future<bool> acceptNoteBackground() async {
+    final handle = state.handle, generation = _generation;
+    if (handle == null ||
+        !handle.isNoteBackground ||
+        handle.localSource == null ||
+        state.phase != 'completed' ||
+        state.busy ||
+        _working ||
+        _blocked) {
+      return false;
+    }
+    try {
+      if (await noteBackgroundPreview() == null) return false;
+      if (!await _matches(handle)) {
+        if (_alive(generation)) await refreshSource();
+        return false;
+      }
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      final request = NoteBackgroundRequest.decode(handle.localSource!);
+      final store = ref.read(noteBackgroundStoreProvider);
+      final accepted = await store.accept(
+        handle.id,
+        handle.noteId,
+        request.background,
+      );
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      ref
+          .read(notesRepositoryProvider)
+          .setNoteBackground(
+            uuid: handle.noteId,
+            expected: request.background,
+            background: accepted,
+          );
+      await clear();
+      await store.deletePreview(handle.id);
+      return true;
+    } catch (error) {
+      if (_alive(generation)) {
+        _show(
+          'completed',
+          text: state.text,
+          message: error is StateError
+              ? error.message.toString()
+              : 'Could not apply this background. Your note is unchanged.',
+        );
+      }
+      return false;
+    }
+  }
+
+  /// Restores the background a generated one replaced, if it is still current.
+  Future<void> revertNoteBackground(String noteId) async {
+    final repository = ref.read(notesRepositoryProvider);
+    final note = repository.getNoteByUuid(noteId);
+    if (note == null) throw StateError('This note is no longer available.');
+    final recovery = await ref
+        .read(noteBackgroundStoreProvider)
+        .recovery(noteId, note.background);
+    if (recovery == null) {
+      throw StateError('There is no earlier background to restore.');
+    }
+    repository.setNoteBackground(
+      uuid: noteId,
+      expected: recovery.accepted,
+      background: recovery.previous,
+    );
   }
 
   /// I04: transcribe an app-owned scan copy for the saved note [noteId].
@@ -1580,9 +1760,12 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         (handle.isNoteMetadata ||
             handle.isNoteIdeas ||
             handle.isNoteImage ||
-            handle.isNoteScan)) {
+            handle.isNoteScan ||
+            handle.isNoteBackground)) {
       try {
-        if (handle.isNoteScan) {
+        if (handle.isNoteBackground) {
+          NoteBackgroundResult.parse(job['text'] as String);
+        } else if (handle.isNoteScan) {
           NoteScanResult.parse(job['text'] as String);
         } else if (handle.isNoteImage) {
           NoteImageAnswer.parse(job['text'] as String);
@@ -1670,8 +1853,19 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       }
       text = output.trim();
     }
+    if (text != null && handle.isNoteBackground) {
+      await _collectBackground(accepted, text, computer);
+      if (!_alive(generation)) return;
+    }
     final matches = await _matches(accepted);
     if (!_alive(generation)) return;
+    final progress = switch (job['progress']) {
+      {'step': final int step, 'total': final int total} => (
+        step: step,
+        total: total,
+      ),
+      _ => null,
+    };
     _show(
       phase,
       handle: accepted,
@@ -1679,6 +1873,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       stale: !matches,
       message: switch (phase) {
         'queued' => 'Accepted by the computer. Waiting for the writing model.',
+        'running' when progress != null =>
+          'Generating on your computer: step ${progress.step} of ${progress.total}. You can close this page and return later.',
         'running' => 'Running on your computer. You can close this preview and return later.',
         'failed' =>
           job['error'] == 'INVALID_OUTPUT'
@@ -1723,6 +1919,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             ? noteImageOutputBytes
             : handle.isNoteScan
             ? noteScanOutputBytes
+            : handle.isNoteBackground
+            ? 1024
             : summaryOutputBytes,
       ) &&
       (!handle.isTransformation || validTransformOutput(text));
@@ -1867,6 +2065,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             handle.isNoteIdeas ||
             handle.isNoteImage ||
             handle.isNoteScan ||
+            handle.isNoteBackground ||
             handle.isDiaryDay) ||
         !state.terminal ||
         state.phase == 'completed' ||

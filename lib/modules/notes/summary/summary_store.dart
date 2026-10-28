@@ -10,6 +10,7 @@ import '../transform/transform_contract.dart';
 import '../metadata/note_help_contract.dart';
 import '../images/note_image_contract.dart';
 import '../images/note_scan.dart';
+import '../images/note_background_gen.dart';
 import '../../presentation/presentation_contract.dart';
 import '../../diary/history/diary_history_contract.dart';
 import '../../diary/questions/daily_question_contract.dart';
@@ -66,6 +67,9 @@ class SummaryHandle {
 
   /// I04 transcription of a scanned page for the saved note [noteId].
   bool get isNoteScan => operation == noteScanOperation;
+
+  /// I06 generated background for the saved note [noteId].
+  bool get isNoteBackground => operation == noteBackgroundOperation;
 
   /// Diary tasks keyed by a civil date rather than a note UUID.
   bool get isDiaryDay => isDiarySuggestion || isDailyQuestion || isDiaryAnswer;
@@ -147,6 +151,7 @@ class SummaryHandle {
             !handle.isNoteIdeas &&
             !handle.isNoteImage &&
             !handle.isNoteScan &&
+            !handle.isNoteBackground &&
             handle.operation != 'summarize-note') ||
         (handle.isNoteIdeas && handle.noteId != noteIdeasKey) ||
         (handle.isDiaryDay &&
@@ -184,6 +189,11 @@ class SummaryHandle {
         }
       } else if (handle.isNoteImage) {
         if (NoteImageRequest.decode(handle.localSource!).noteId !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
+      } else if (handle.isNoteBackground) {
+        if (NoteBackgroundRequest.decode(handle.localSource!).noteId !=
             handle.noteId) {
           throw const FormatException('Mismatched source');
         }

@@ -438,6 +438,41 @@ class NotesRepository {
     return saved;
   }
 
+  /// Sets [background] only if the note's background still equals [expected];
+  /// other fields and later text edits are kept. Never creates a conflict draft.
+  NoteEntity setNoteBackground({
+    required String uuid,
+    required Map<String, dynamic> expected,
+    required Map<String, dynamic> background,
+  }) {
+    _editable();
+    String canonical(Map<String, dynamic> value) => jsonEncode({
+      for (final key in value.keys.toList()..sort()) key: value[key],
+    });
+    late NoteEntity saved;
+    _db.store.runInTransaction(TxMode.write, () {
+      final note = getNoteByUuid(uuid);
+      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
+        throw StateError('This note is no longer available.');
+      }
+      if (canonical(note.background) != canonical(expected)) {
+        throw StateError(
+          'The background changed since then. Choose it again from Background.',
+        );
+      }
+      saved = saveNote(
+        uuid: uuid,
+        expectedVersionVectorJson: note.versionVectorJson,
+        title: note.title,
+        content: note.content,
+        tags: note.tags,
+        attachmentPaths: note.attachments,
+        background: background,
+      );
+    });
+    return saved;
+  }
+
   /// Every attachment path on any stored note, including notes in Trash.
   Set<String> allAttachmentPaths() => {
     for (final note in _box.getAll())

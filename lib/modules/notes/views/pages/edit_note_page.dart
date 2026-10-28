@@ -24,6 +24,7 @@ import 'package:journal/modules/notes/transform/transform_page.dart';
 import 'package:journal/modules/notes/metadata/note_help_pages.dart';
 import 'package:journal/modules/notes/images/note_image_page.dart';
 import 'package:journal/modules/notes/images/note_scan_page.dart';
+import 'package:journal/modules/notes/images/note_background_page.dart';
 import 'package:journal/modules/presentation/presentation_page.dart';
 import 'package:journal/modules/presentation/presentation_body.dart';
 import 'package:journal/modules/presentation/presentation_contract.dart';
@@ -519,6 +520,12 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                           );
                         } else if (value == 'metadata') {
                           _openMetadataHelp();
+                        } else if (value == 'background') {
+                          context.nav
+                              .push<bool>(
+                                NoteBackgroundPage(noteId: _savedNote!.uuid),
+                              )
+                              .then((_) => _reloadSaved(_savedNote!.uuid));
                         } else if (value == 'scan') {
                           context.nav
                               .push<bool>(
@@ -555,6 +562,11 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                           const PopupMenuItem(
                             value: 'scan',
                             child: Text('Scan a page'),
+                          ),
+                        if (canModifySaved)
+                          const PopupMenuItem(
+                            value: 'background',
+                            child: Text('Generate a background'),
                           ),
                         const PopupMenuItem(
                           value: 'recovery',

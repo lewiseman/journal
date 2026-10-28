@@ -140,6 +140,7 @@ class NoteScanResult {
       if (_key(word).isNotEmpty)
         word.replaceAll(RegExp(r'''^[("'“‘]+|[)"'”’.,;:!?]+$'''), ''),
   ];
+
   /// Case-insensitive, ignoring surrounding punctuation only: "3:15pm" and
   /// "315pm" differ.
   static String _key(String word) => word.toLowerCase().replaceAll(
