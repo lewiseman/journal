@@ -1,3 +1,5 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -145,226 +147,212 @@ class _NoteScanPageState extends ConsumerState<NoteScanPage> {
             when a.path.contains('/note_scans/'))
           a,
     ];
-    return Scaffold(
-      appBar: AppBar(title: const Text('Scan a page')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const Text(
-              'Photograph or choose a page of printed or handwritten notes. The text is read on your trusted computer and shown here to correct before anything is added. Handwriting, unusual layouts and languages other than English are read less reliably: check every line.',
+    return NoteAiScaffold(
+      tool: NoteAiTool.scan,
+      step: result != null
+          ? 2
+          : state.busy
+          ? 1
+          : 0,
+      children: [
+        const NoteAiDetails(
+          'Photograph or choose a page of printed or handwritten notes. The text is read on your trusted computer and shown here to correct before anything is added. Handwriting, unusual layouts and languages other than English are read less reliably: check every line.',
+          title: 'Tips for a good scan',
+        ),
+        const SizedBox(height: 12),
+        if (readOnly)
+          const Text(
+            'Existing notes are read-only on this device, so scans cannot be added here.',
+          ),
+        if (page != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(page),
+                key: ValueKey(page),
+                height: 260,
+                fit: BoxFit.contain,
+                cacheHeight: 780,
+                errorBuilder: (_, _, _) =>
+                    const Text('This page image is no longer available.'),
+              ),
             ),
-            const SizedBox(height: 12),
-            if (readOnly)
-              const Text(
-                'Existing notes are read-only on this device, so scans cannot be added here.',
+          ),
+        if (handle == null && state.phase == 'idle' && !readOnly) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                key: const ValueKey('note-scan-camera'),
+                onPressed: _working ? null : () => _pick(ImageSource.camera),
+                icon: const Icon(Icons.photo_camera_outlined),
+                label: Text(_scan == null ? 'Take photo' : 'Retake'),
               ),
-            if (page != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.file(
-                    File(page),
-                    key: ValueKey(page),
-                    height: 260,
-                    fit: BoxFit.contain,
-                    cacheHeight: 780,
-                    errorBuilder: (_, _, _) =>
-                        const Text('This page image is no longer available.'),
-                  ),
-                ),
+              OutlinedButton.icon(
+                key: const ValueKey('note-scan-gallery'),
+                onPressed: _working ? null : () => _pick(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Choose image'),
               ),
-            if (handle == null && state.phase == 'idle' && !readOnly) ...[
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    key: const ValueKey('note-scan-camera'),
-                    onPressed: _working
-                        ? null
-                        : () => _pick(ImageSource.camera),
-                    icon: const Icon(Icons.photo_camera_outlined),
-                    label: Text(_scan == null ? 'Take photo' : 'Retake'),
-                  ),
-                  OutlinedButton.icon(
-                    key: const ValueKey('note-scan-gallery'),
-                    onPressed: _working
-                        ? null
-                        : () => _pick(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Choose image'),
-                  ),
-                  if (_scan != null)
-                    OutlinedButton.icon(
-                      onPressed: _working ? null : _rotate,
-                      icon: const Icon(Icons.rotate_90_degrees_cw_outlined),
-                      label: const Text('Rotate'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Tips: flat page, even light, text upright and filling the frame. Only this page (re-encoded, without location or camera metadata, at most 1280 px) is sent.',
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                key: const ValueKey('note-scan-start'),
-                onPressed: _scan == null || _working
-                    ? null
-                    : () =>
-                          controller.startNoteScan(widget.noteId, path: _scan!),
-                icon: const Icon(Icons.document_scanner_outlined),
-                label: const Text('Read text'),
-              ),
-            ],
-            if (_error != null)
-              Text(_error!, key: const ValueKey('note-scan-error')),
-            if (handle != null && !mine) ...[
-              const Text(
-                'Another AI preview is open. Finish or clear it first.',
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NoteSummaryPage(),
-                  ),
-                ),
-                child: const Text('Open the current preview'),
-              ),
-            ],
-            if (mine) ...[
-              Text(summaryPhaseLabel(state.phase), style: theme.titleMedium),
-              if (state.stale)
-                const Text(
-                  'The note changed or the page image is gone. This text cannot be inserted.',
-                  key: ValueKey('note-scan-stale'),
-                ),
-              if (state.text != null && result == null)
-                const Text('The transcription could not be read safely.'),
-              if (result != null && (result.empty || !result.readable)) ...[
-                const Text(
-                  'No legible text was found. Try a sharper, brighter photo with the page upright, or rotate it.',
-                  key: ValueKey('note-scan-unreadable'),
-                ),
-                if (request != null)
-                  TextButton(
-                    onPressed: () => _again(request.path),
-                    child: const Text('Try again with this page'),
-                  ),
-              ],
-              if (result != null && !result.empty) ...[
-                const SizedBox(height: 8),
-                NoteScanReview(
-                  result: result,
-                  controller: _text,
-                  onChanged: () => setState(() {}),
-                ),
-                FilledButton(
-                  key: const ValueKey('note-scan-insert'),
-                  onPressed:
-                      state.stale ||
-                          state.busy ||
-                          readOnly ||
-                          _text.text.trim().isEmpty
-                      ? null
-                      : () async {
-                          final inserted = await controller.acceptNoteScan(
-                            _text.text,
-                          );
-                          if (inserted && context.mounted) {
-                            Navigator.of(context).pop(true);
-                          }
-                        },
-                  child: const Text('Insert text and attach page'),
-                ),
-              ],
-              if (state.terminal)
-                TextButton(
-                  onPressed: state.busy
-                      ? null
-                      : () async {
-                          final path = request?.path;
-                          await controller.clear();
-                          if (path != null) {
-                            await ref.read(noteScanStoreProvider).delete(path);
-                          }
-                          if (mounted) setState(() => _scan = null);
-                        },
-                  child: const Text('Discard scan'),
-                ),
-              if (!state.terminal && !state.busy)
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed: controller.retry,
-                      child: const Text('Retry / retrieve same task'),
-                    ),
-                    TextButton(
-                      onPressed: controller.cancel,
-                      child: const Text('Cancel task'),
-                    ),
-                  ],
+              if (_scan != null)
+                OutlinedButton.icon(
+                  onPressed: _working ? null : _rotate,
+                  icon: const Icon(Icons.rotate_90_degrees_cw_outlined),
+                  label: const Text('Rotate'),
                 ),
             ],
-            if (state.busy) const LinearProgressIndicator(),
-            if (state.message != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  state.message!,
-                  key: const ValueKey('note-scan-message'),
-                ),
-              ),
-            if (handle == null && state.phase != 'idle' && !state.busy)
-              TextButton(
-                onPressed: state.phase == 'storageError'
-                    ? controller.restore
-                    : controller.clear,
-                child: const Text('Return'),
-              ),
-            if (previous.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text('Earlier scans of this note', style: theme.titleSmall),
-              for (final scan in previous)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(scan.filename, overflow: TextOverflow.ellipsis),
-                  trailing: const Icon(Icons.notes_outlined),
-                  onTap: () async {
-                    final original = await ref
-                        .read(noteScanStoreProvider)
-                        .readOriginal(scan.path);
-                    if (!context.mounted) return;
-                    await showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Original transcription'),
-                        content: SingleChildScrollView(
-                          child: SelectableText(
-                            original ?? 'No original transcription is kept for this page on this phone.',
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Close'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-            ],
-            const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 8),
+
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const ValueKey('note-scan-start'),
+            onPressed: _scan == null || _working
+                ? null
+                : () => controller.startNoteScan(widget.noteId, path: _scan!),
+            icon: const Icon(Icons.document_scanner_outlined),
+            label: const Text('Read text'),
+          ),
+        ],
+        if (_error != null)
+          Text(_error!, key: const ValueKey('note-scan-error')),
+        if (handle != null && !mine) ...[
+          const Text('Another AI preview is open. Finish or clear it first.'),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const NoteSummaryPage()),
+            ),
+            child: const Text('Open the current preview'),
+          ),
+        ],
+        if (mine) ...[
+          Text(summaryPhaseLabel(state.phase), style: theme.titleMedium),
+          if (state.stale)
             const Text(
-              'The page copy and its original transcription stay on this phone and are removed by account reset. Sync copies only the attachment path, not the image. Inserting keeps a prior-body copy in Prior content / recovery.',
+              'The note changed or the page image is gone. This text cannot be inserted.',
+              key: ValueKey('note-scan-stale'),
+            ),
+          if (state.text != null && result == null)
+            const Text('The transcription could not be read safely.'),
+          if (result != null && (result.empty || !result.readable)) ...[
+            const Text(
+              'No legible text was found. Try a sharper, brighter photo with the page upright, or rotate it.',
+              key: ValueKey('note-scan-unreadable'),
+            ),
+            if (request != null)
+              TextButton(
+                onPressed: () => _again(request.path),
+                child: const Text('Try again with this page'),
+              ),
+          ],
+          if (result != null && !result.empty) ...[
+            const SizedBox(height: 8),
+            NoteScanReview(
+              result: result,
+              controller: _text,
+              onChanged: () => setState(() {}),
+            ),
+            FilledButton(
+              key: const ValueKey('note-scan-insert'),
+              onPressed:
+                  state.stale ||
+                      state.busy ||
+                      readOnly ||
+                      _text.text.trim().isEmpty
+                  ? null
+                  : () async {
+                      final inserted = await controller.acceptNoteScan(
+                        _text.text,
+                      );
+                      if (inserted && context.mounted) {
+                        Navigator.of(context).pop(true);
+                      }
+                    },
+              child: const Text('Insert text and attach page'),
             ),
           ],
-        ),
-      ),
+          if (state.terminal)
+            TextButton(
+              onPressed: state.busy
+                  ? null
+                  : () async {
+                      final path = request?.path;
+                      await controller.clear();
+                      if (path != null) {
+                        await ref.read(noteScanStoreProvider).delete(path);
+                      }
+                      if (mounted) setState(() => _scan = null);
+                    },
+              child: const Text('Discard scan'),
+            ),
+          if (!state.terminal && !state.busy)
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: controller.retry,
+                  child: const Text('Retry / retrieve same task'),
+                ),
+                TextButton(
+                  onPressed: controller.cancel,
+                  child: const Text('Cancel task'),
+                ),
+              ],
+            ),
+        ],
+        if (state.busy) const LinearProgressIndicator(),
+        if (state.message != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              state.message!,
+              key: const ValueKey('note-scan-message'),
+            ),
+          ),
+        if (handle == null && state.phase != 'idle' && !state.busy)
+          TextButton(
+            onPressed: state.phase == 'storageError'
+                ? controller.restore
+                : controller.clear,
+            child: const Text('Return'),
+          ),
+        if (previous.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Earlier scans of this note', style: theme.titleSmall),
+          for (final scan in previous)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(scan.filename, overflow: TextOverflow.ellipsis),
+              trailing: const Icon(Icons.notes_outlined),
+              onTap: () async {
+                final original = await ref
+                    .read(noteScanStoreProvider)
+                    .readOriginal(scan.path);
+                if (!context.mounted) return;
+                await showDialog<void>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Original transcription'),
+                    content: SingleChildScrollView(
+                      child: SelectableText(
+                        original ?? 'No original transcription is kept for this page on this phone.',
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ],
     );
   }
 }

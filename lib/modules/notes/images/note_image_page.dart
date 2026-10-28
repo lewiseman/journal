@@ -1,3 +1,5 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -70,199 +72,185 @@ class _NoteImagePageState extends ConsumerState<NoteImagePage> {
         ],
       ),
     );
-    return Scaffold(
-      appBar: AppBar(title: const Text('Ask about an image')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
+    return NoteAiScaffold(
+      tool: NoteAiTool.image,
+      step: answer != null
+          ? 2
+          : state.busy
+          ? 1
+          : 0,
+      children: [
+        if (handle == null && state.phase == 'idle') ...[
+          const SizedBox(height: 12),
+          if (images.isEmpty)
             const Text(
-              'An AI description can miss or misread details. It never identifies people or guesses feelings. Your note changes only if you insert reviewed text.',
+              'This saved note has no image attachments.',
+              key: ValueKey('note-image-none'),
             ),
+          for (final image in images)
+            _ImageChoice(
+              attachment: image,
+              selected: _path == image.path,
+              onTap: () => setState(() => _path = image.path),
+            ),
+          if (images.isNotEmpty) ...[
             const SizedBox(height: 12),
-            if (handle == null && state.phase == 'idle') ...[
-              const Text(
-                'Only the chosen image, re-encoded on this phone without location or camera metadata (at most 1280 px), and your question go to your trusted computer. The note text, other attachments and other notes stay here.',
+            NoteAiChoices<String>(
+              choices: noteImageModes,
+              selected: _mode,
+              icons: const {
+                'describe': Icons.image_outlined,
+                'explain': Icons.lightbulb_outline_rounded,
+                'question': Icons.question_answer_outlined,
+              },
+              onChanged: (value) => setState(() => _mode = value),
+            ),
+            if (_mode == 'question')
+              TextField(
+                key: const ValueKey('note-image-question'),
+                controller: _question,
+                maxLength: noteImageQuestionChars,
+                decoration: const InputDecoration(
+                  labelText: 'Question about what is visible',
+                ),
+                onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: 12),
-              if (images.isEmpty)
-                const Text(
-                  'This saved note has no image attachments.',
-                  key: ValueKey('note-image-none'),
-                ),
-              for (final image in images)
-                _ImageChoice(
-                  attachment: image,
-                  selected: _path == image.path,
-                  onTap: () => setState(() => _path = image.path),
-                ),
-              if (images.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                SegmentedButton<String>(
-                  segments: [
-                    for (final entry in noteImageModes.entries)
-                      ButtonSegment(value: entry.key, label: Text(entry.value)),
-                  ],
-                  selected: {_mode},
-                  onSelectionChanged: (value) =>
-                      setState(() => _mode = value.single),
-                ),
-                if (_mode == 'question')
-                  TextField(
-                    key: const ValueKey('note-image-question'),
-                    controller: _question,
-                    maxLength: noteImageQuestionChars,
-                    decoration: const InputDecoration(
-                      labelText: 'Question about what is visible',
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              key: const ValueKey('note-image-start'),
+              onPressed:
+                  _path == null ||
+                      (_mode == 'question' && _question.text.trim().isEmpty)
+                  ? null
+                  : () => controller.startNoteImage(
+                      widget.noteId,
+                      path: _path!,
+                      mode: _mode,
+                      question: _mode == 'question' ? _question.text : '',
                     ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  key: const ValueKey('note-image-start'),
-                  onPressed:
-                      _path == null ||
-                          (_mode == 'question' && _question.text.trim().isEmpty)
-                      ? null
-                      : () => controller.startNoteImage(
-                          widget.noteId,
-                          path: _path!,
-                          mode: _mode,
-                          question: _mode == 'question' ? _question.text : '',
-                        ),
-                  icon: const Icon(Icons.image_search_outlined),
-                  label: const Text('Ask'),
-                ),
-              ],
-            ],
-            if (handle != null && !mine) ...[
-              const Text(
-                'Another AI preview is open. Finish or clear it first.',
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const NoteSummaryPage(),
-                  ),
-                ),
-                child: const Text('Open the current preview'),
-              ),
-            ],
-            if (mine) ...[
-              Text(
-                summaryPhaseLabel(state.phase),
-                key: const ValueKey('note-image-phase'),
-                style: theme.titleMedium,
-              ),
-              if (state.stale)
-                const Text(
-                  'The note or its image attachment changed after you asked. This answer cannot be inserted.',
-                  key: ValueKey('note-image-stale'),
-                ),
-              if (state.text != null && answer == null)
-                const Text('The answer could not be read safely.'),
-              if (answer != null) ...[
-                if (answer.answer.isNotEmpty)
-                  section(
-                    'Answer',
-                    answer.answer,
-                    key: const ValueKey('note-image-answer'),
-                  ),
-                section(
-                  'What is visible',
-                  answer.observations,
-                  key: const ValueKey('note-image-observations'),
-                ),
-                if (answer.text.isNotEmpty)
-                  section(
-                    'Text read from the image (content only, may contain errors)',
-                    answer.text,
-                    key: const ValueKey('note-image-text'),
-                  ),
-                if (answer.inference.isNotEmpty)
-                  section(
-                    'Possible interpretation (not certain)',
-                    answer.inference,
-                    key: const ValueKey('note-image-inference'),
-                  ),
-                const SizedBox(height: 16),
-                Text('Insert into the note', style: theme.titleSmall),
-                TextField(
-                  key: const ValueKey('note-image-insertion'),
-                  controller: _insertion,
-                  minLines: 2,
-                  maxLines: 8,
-                  decoration: const InputDecoration(
-                    helperText: 'Edit before inserting. Appended to the end of the note body.',
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                if (readOnly)
-                  const Text(
-                    'Existing notes are read-only on this device. You can review or copy this answer.',
-                  ),
-                FilledButton(
-                  key: const ValueKey('note-image-insert'),
-                  onPressed:
-                      state.stale ||
-                          state.busy ||
-                          readOnly ||
-                          _insertion.text.trim().isEmpty
-                      ? null
-                      : () async {
-                          final inserted = await controller.acceptNoteImage(
-                            _insertion.text,
-                          );
-                          if (inserted && context.mounted) {
-                            Navigator.of(context).pop(true);
-                          }
-                        },
-                  child: const Text('Insert reviewed text'),
-                ),
-              ],
-              if (state.terminal)
-                TextButton(
-                  onPressed: state.busy ? null : controller.clear,
-                  child: const Text('Close / clear answer'),
-                ),
-              if (!state.terminal && !state.busy)
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed: controller.retry,
-                      child: const Text('Retry / retrieve same task'),
-                    ),
-                    TextButton(
-                      onPressed: controller.cancel,
-                      child: const Text('Cancel task'),
-                    ),
-                  ],
-                ),
-            ],
-            if (state.busy) const LinearProgressIndicator(),
-            if (state.message != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  state.message!,
-                  key: const ValueKey('note-image-message'),
-                ),
-              ),
-            if (handle == null && state.phase != 'idle' && !state.busy)
-              TextButton(
-                onPressed: state.phase == 'storageError'
-                    ? controller.restore
-                    : controller.clear,
-                child: const Text('Return'),
-              ),
-            const SizedBox(height: 16),
-            const Text(
-              'Inserted text keeps a prior-body copy in Prior content / recovery on this phone. The image itself is never changed or uploaded to sync.',
+              icon: const Icon(Icons.image_search_outlined),
+              label: const Text('Ask'),
             ),
           ],
-        ),
-      ),
+        ],
+        if (handle != null && !mine) ...[
+          const Text('Another AI preview is open. Finish or clear it first.'),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const NoteSummaryPage()),
+            ),
+            child: const Text('Open the current preview'),
+          ),
+        ],
+        if (mine) ...[
+          Text(
+            summaryPhaseLabel(state.phase),
+            key: const ValueKey('note-image-phase'),
+            style: theme.titleMedium,
+          ),
+          if (state.stale)
+            const Text(
+              'The note or its image attachment changed after you asked. This answer cannot be inserted.',
+              key: ValueKey('note-image-stale'),
+            ),
+          if (state.text != null && answer == null)
+            const Text('The answer could not be read safely.'),
+          if (answer != null) ...[
+            if (answer.answer.isNotEmpty)
+              section(
+                'Answer',
+                answer.answer,
+                key: const ValueKey('note-image-answer'),
+              ),
+            section(
+              'What is visible',
+              answer.observations,
+              key: const ValueKey('note-image-observations'),
+            ),
+            if (answer.text.isNotEmpty)
+              section(
+                'Text read from the image (content only, may contain errors)',
+                answer.text,
+                key: const ValueKey('note-image-text'),
+              ),
+            if (answer.inference.isNotEmpty)
+              section(
+                'Possible interpretation (not certain)',
+                answer.inference,
+                key: const ValueKey('note-image-inference'),
+              ),
+            const SizedBox(height: 16),
+            Text('Insert into the note', style: theme.titleSmall),
+            TextField(
+              key: const ValueKey('note-image-insertion'),
+              controller: _insertion,
+              minLines: 2,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                helperText: 'Edit before inserting. Appended to the end of the note body.',
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            if (readOnly)
+              const Text(
+                'Existing notes are read-only on this device. You can review or copy this answer.',
+              ),
+            FilledButton(
+              key: const ValueKey('note-image-insert'),
+              onPressed:
+                  state.stale ||
+                      state.busy ||
+                      readOnly ||
+                      _insertion.text.trim().isEmpty
+                  ? null
+                  : () async {
+                      final inserted = await controller.acceptNoteImage(
+                        _insertion.text,
+                      );
+                      if (inserted && context.mounted) {
+                        Navigator.of(context).pop(true);
+                      }
+                    },
+              child: const Text('Insert reviewed text'),
+            ),
+          ],
+          if (state.terminal)
+            TextButton(
+              onPressed: state.busy ? null : controller.clear,
+              child: const Text('Close / clear answer'),
+            ),
+          if (!state.terminal && !state.busy)
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: controller.retry,
+                  child: const Text('Retry / retrieve same task'),
+                ),
+                TextButton(
+                  onPressed: controller.cancel,
+                  child: const Text('Cancel task'),
+                ),
+              ],
+            ),
+        ],
+        if (state.busy) const LinearProgressIndicator(),
+        if (state.message != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              state.message!,
+              key: const ValueKey('note-image-message'),
+            ),
+          ),
+        if (handle == null && state.phase != 'idle' && !state.busy)
+          TextButton(
+            onPressed: state.phase == 'storageError'
+                ? controller.restore
+                : controller.clear,
+            child: const Text('Return'),
+          ),
+      ],
     );
   }
 }

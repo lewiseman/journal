@@ -380,7 +380,7 @@ void main() {
     expect(app.notes.getNoteByUuid('chosen')!.content, 'Original.');
   });
   testWidgets(
-    'narrow writing review shows inert Markdown and accept/reject; recovery is reachable',
+    'narrow writing review shows inert Markdown and accept/reject',
     (tester) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;
@@ -409,8 +409,8 @@ void main() {
             .data,
         '**Original.**',
       );
-      expect(find.text('Accept replacement'), findsOneWidget);
-      expect(find.text('Reject / clear proposal'), findsOneWidget);
+      expect(find.text('Use this'), findsOneWidget);
+      expect(find.text('Try another'), findsOneWidget);
       expect(tester.takeException(), null);
       await tester.pumpWidget(const SizedBox());
     },

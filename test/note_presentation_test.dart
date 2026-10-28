@@ -314,6 +314,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('This note has a website'), findsOneWidget);
     expect(find.byKey(const ValueKey('note-website-stale')), findsNothing);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('note-website-model')),
+      180,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('note-presentation')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(
       find.text('Built on your computer with Qwen2.5-Coder · 14B Instruct.'),
       findsOneWidget,
@@ -323,6 +333,16 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 50)),
     );
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('note-website-stale')).hitTestable(),
+      -180,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('note-presentation')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.byKey(const ValueKey('note-website-stale')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('note-website-remove')));
     await tester.runAsync(
@@ -331,6 +351,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(app.notes.getNoteByUuid('n')!.website, '');
     expect(find.text('This note has a website'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Markdown').hitTestable(),
+      -180,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('note-presentation')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     await tester.tap(find.text('Markdown'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('note-markdown-start')), findsOneWidget);

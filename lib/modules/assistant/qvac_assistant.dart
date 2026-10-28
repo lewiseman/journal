@@ -618,6 +618,19 @@ class QvacAssistantSheet extends StatefulWidget {
   final String pageLabel;
   final QvacAssistantSheetBuilder? contentBuilder;
 
+  /// Gives feature pages room without changing the toolbox's initial height.
+  /// Outside an assistant sheet, there is nothing to resize.
+  static void expand(BuildContext context) {
+    final sheet = context.findAncestorStateOfType<_QvacAssistantSheetState>();
+    if (sheet == null) return;
+    // Wait for the feature's scroll position: detaching the menu's position
+    // cancels any sheet animation that was started against it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (sheet.mounted) sheet._resize(1);
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   @override
   State<QvacAssistantSheet> createState() => _QvacAssistantSheetState();
 }
@@ -673,6 +686,7 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
                 child: Opacity(
                   opacity: ((exposed - 76) / 48).clamp(0, 1),
                   child: _SettingsTag(
+                    iconOnly: widget.pageLabel == 'Note',
                     onPressed: () => Navigator.pop(context, true),
                   ),
                 ),
@@ -686,7 +700,11 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
               snapSizes: const [_initialSize],
               builder: (context, scrollController) => Material(
                 key: const ValueKey('qvac-sheet-surface'),
-                color: colors.surface,
+                color: widget.pageLabel == 'Note'
+                    ? (colors.brightness == Brightness.dark
+                          ? const Color(0xFF232522)
+                          : const Color(0xFFFAF8F2))
+                    : colors.surface,
                 elevation: 0,
                 borderRadius: BorderRadius.vertical(
                   top: Radius.circular(28 * ((1 - size) / .08).clamp(0, 1)),
@@ -759,19 +777,36 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
   );
 }
 
-/// QVAC's own tag above every page sheet: the floating sticker in small,
-/// with the same status dot, so settings read as part of the assistant.
+/// Settings stay above the sheet; note tools use a compact icon shortcut.
 class _SettingsTag extends ConsumerWidget {
-  const _SettingsTag({required this.onPressed});
+  const _SettingsTag({required this.onPressed, this.iconOnly = false});
   final VoidCallback onPressed;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    if (iconOnly) {
+      return Material(
+        color: colors.surface,
+        elevation: 3,
+        shadowColor: colors.shadow.withValues(alpha: .35),
+        shape: CircleBorder(
+          side: BorderSide(color: colors.outlineVariant.withValues(alpha: .6)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: IconButton(
+          key: const ValueKey('qvac-local-ai-settings'),
+          tooltip: 'Local AI settings',
+          onPressed: onPressed,
+          icon: const Icon(Icons.tune_rounded, size: 20),
+        ),
+      );
+    }
     final phase = ref.watch(
       companionControllerProvider.select((state) => state.phase),
     );
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final status = _qvacStatus(phase, colors);
     return Semantics(
       key: const ValueKey('qvac-local-ai-settings'),

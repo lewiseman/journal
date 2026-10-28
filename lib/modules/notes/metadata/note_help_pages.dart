@@ -1,3 +1,4 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
@@ -124,157 +125,143 @@ class _NoteMetadataPageState extends ConsumerState<NoteMetadataPage> {
       for (final tag in suggestions?.tags ?? const <NoteTag>[])
         if (_tags.contains(tag.key)) tag,
     ];
-    return Scaffold(
-      appBar: AppBar(title: const Text('Title & tag ideas')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
+    return NoteAiScaffold(
+      tool: NoteAiTool.metadata,
+      step: suggestions != null
+          ? 2
+          : state.busy
+          ? 1
+          : 0,
+      children: [
+        if (handle == null && state.phase == 'idle') ...[
+          if (note == null || note.isDeleted)
+            const Text('This note is no longer available.')
+          else if (note.content.trim().isEmpty)
             const Text(
-              'Optional suggestions based only on this note. Choose any you want; nothing changes until you apply them.',
+              'Write something in the note body first. Titles and tags are suggested only from what the note says.',
+              key: ValueKey('note-metadata-empty'),
+            )
+          else if (readOnly)
+            const Text(
+              'Existing notes are read-only on this device, so suggestions cannot be applied here.',
+            )
+          else
+            FilledButton.icon(
+              key: const ValueKey('note-metadata-start'),
+              onPressed: () => controller.startNoteMetadata(widget.noteId),
+              icon: const Icon(Icons.sell_outlined),
+              label: const Text('Suggest title & tags'),
             ),
-            const SizedBox(height: 12),
-            if (handle == null && state.phase == 'idle') ...[
-              const Text(
-                'Sends this saved note’s title, body and current tag names to your trusted computer. Attachments, background and other notes stay here. Up to 2,000 UTF-8 bytes; longer notes are not sent or shortened.',
-              ),
-              const SizedBox(height: 16),
-              if (note == null || note.isDeleted)
-                const Text('This note is no longer available.')
-              else if (note.content.trim().isEmpty)
-                const Text(
-                  'Write something in the note body first. Titles and tags are suggested only from what the note says.',
-                  key: ValueKey('note-metadata-empty'),
-                )
-              else if (readOnly)
-                const Text(
-                  'Existing notes are read-only on this device, so suggestions cannot be applied here.',
-                )
-              else
-                FilledButton.icon(
-                  key: const ValueKey('note-metadata-start'),
-                  onPressed: () => controller.startNoteMetadata(widget.noteId),
-                  icon: const Icon(Icons.sell_outlined),
-                  label: const Text('Suggest title & tags'),
-                ),
-            ],
-            if (handle != null && !mine) const _OtherTask(),
-            if (mine) ...[
-              Text(
-                summaryPhaseLabel(state.phase),
-                key: const ValueKey('note-metadata-phase'),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (handle!.noteId != widget.noteId)
-                const Text('These suggestions belong to another note.'),
-              if (state.stale)
-                const Text(
-                  'The note changed or was deleted after the request. These suggestions cannot be applied.',
-                  key: ValueKey('note-metadata-stale'),
-                ),
-              if (state.text != null && suggestions == null)
-                const Text('The suggestions could not be read safely.'),
-              if (suggestions != null) ...[
-                const SizedBox(height: 16),
-                Text('Title', style: Theme.of(context).textTheme.titleSmall),
-                ListTile(
-                  key: const ValueKey('note-metadata-keep-title'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    _title == null
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_off,
-                  ),
-                  title: Text('Keep “${note?.title ?? ''}”'),
-                  onTap: () => setState(() => _title = null),
-                ),
-                for (final title in suggestions.titles)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      _title == title
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                    ),
-                    title: Text(title),
-                    onTap: () => setState(() => _title = title),
-                  ),
-                if (suggestions.titles.isEmpty)
-                  const Text('No new titles were suggested.'),
-                const SizedBox(height: 12),
-                Text(
-                  'Add tags (existing tags are kept)',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final tag in suggestions.tags)
-                      FilterChip(
-                        avatar: Text(tag.emoji),
-                        label: Text(tag.name),
-                        selected: _tags.contains(tag.key),
-                        onSelected: (value) => setState(
-                          () => value
-                              ? _tags.add(tag.key)
-                              : _tags.remove(tag.key),
-                        ),
-                      ),
-                  ],
-                ),
-                if (suggestions.tags.isEmpty)
-                  const Text('No new tags were suggested.'),
-                const SizedBox(height: 16),
-                FilledButton(
-                  key: const ValueKey('note-metadata-apply'),
-                  onPressed:
-                      state.stale ||
-                          state.busy ||
-                          readOnly ||
-                          handle.noteId != widget.noteId ||
-                          (_title == null && chosen.isEmpty)
-                      ? null
-                      : () async {
-                          final before = note!;
-                          final accepted = await controller.acceptNoteMetadata(
-                            title: _title,
-                            tags: chosen,
-                          );
-                          if (!context.mounted || !accepted) return;
-                          final after = ref
-                              .read(notesRepositoryProvider)
-                              .getNoteByUuid(widget.noteId);
-                          Navigator.of(context).pop(
-                            after == null
-                                ? null
-                                : NoteMetadataUndo(
-                                    noteId: widget.noteId,
-                                    title: before.title,
-                                    tags: List.of(before.tags),
-                                    version: after.versionVectorJson,
-                                  ),
-                          );
-                        },
-                  child: const Text('Apply selected'),
-                ),
-              ],
-              if (state.terminal)
-                TextButton(
-                  key: const ValueKey('note-metadata-clear'),
-                  onPressed: state.busy ? null : controller.clear,
-                  child: const Text('Reject / clear suggestions'),
-                ),
-            ],
-            const _TaskControls(),
-            const SizedBox(height: 16),
+        ],
+        if (handle != null && !mine) const _OtherTask(),
+        if (mine) ...[
+          Text(
+            summaryPhaseLabel(state.phase),
+            key: const ValueKey('note-metadata-phase'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          if (handle!.noteId != widget.noteId)
+            const Text('These suggestions belong to another note.'),
+          if (state.stale)
             const Text(
-              'Applied titles and tags save like a manual edit and follow normal note sync. Undo is offered right after applying.',
+              'The note changed or was deleted after the request. These suggestions cannot be applied.',
+              key: ValueKey('note-metadata-stale'),
+            ),
+          if (state.text != null && suggestions == null)
+            const Text('The suggestions could not be read safely.'),
+          if (suggestions != null) ...[
+            const SizedBox(height: 16),
+            Text('Title', style: Theme.of(context).textTheme.titleSmall),
+            ListTile(
+              key: const ValueKey('note-metadata-keep-title'),
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                _title == null
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
+              ),
+              title: Text('Keep “${note?.title ?? ''}”'),
+              onTap: () => setState(() => _title = null),
+            ),
+            for (final title in suggestions.titles)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  _title == title
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                ),
+                title: Text(title),
+                onTap: () => setState(() => _title = title),
+              ),
+            if (suggestions.titles.isEmpty)
+              const Text('No new titles were suggested.'),
+            const SizedBox(height: 12),
+            Text(
+              'Add tags (existing tags are kept)',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in suggestions.tags)
+                  FilterChip(
+                    avatar: Text(tag.emoji),
+                    label: Text(tag.name),
+                    selected: _tags.contains(tag.key),
+                    onSelected: (value) => setState(
+                      () => value ? _tags.add(tag.key) : _tags.remove(tag.key),
+                    ),
+                  ),
+              ],
+            ),
+            if (suggestions.tags.isEmpty)
+              const Text('No new tags were suggested.'),
+            const SizedBox(height: 16),
+            FilledButton(
+              key: const ValueKey('note-metadata-apply'),
+              onPressed:
+                  state.stale ||
+                      state.busy ||
+                      readOnly ||
+                      handle.noteId != widget.noteId ||
+                      (_title == null && chosen.isEmpty)
+                  ? null
+                  : () async {
+                      final before = note!;
+                      final accepted = await controller.acceptNoteMetadata(
+                        title: _title,
+                        tags: chosen,
+                      );
+                      if (!context.mounted || !accepted) return;
+                      final after = ref
+                          .read(notesRepositoryProvider)
+                          .getNoteByUuid(widget.noteId);
+                      Navigator.of(context).pop(
+                        after == null
+                            ? null
+                            : NoteMetadataUndo(
+                                noteId: widget.noteId,
+                                title: before.title,
+                                tags: List.of(before.tags),
+                                version: after.versionVectorJson,
+                              ),
+                      );
+                    },
+              child: const Text('Apply selected'),
             ),
           ],
-        ),
-      ),
+          if (state.terminal)
+            TextButton(
+              key: const ValueKey('note-metadata-clear'),
+              onPressed: state.busy ? null : controller.clear,
+              child: const Text('Reject / clear suggestions'),
+            ),
+        ],
+        const _TaskControls(),
+      ],
     );
   }
 }
@@ -322,121 +309,115 @@ class _NoteIdeasPageState extends ConsumerState<NoteIdeasPage> {
           NoteIdeaContext.fromNote(note),
     ];
     final ideas = mine ? controller.noteIdeas() : null;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Starting ideas')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            if (handle == null && state.phase == 'idle') ...[
-              const Text(
-                'Get a few lines to start a new note. By default only your optional topic is sent; no notes or history leave this phone.',
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                key: const ValueKey('note-ideas-topic'),
-                controller: _topic,
-                maxLength: noteIdeaTopicChars,
-                decoration: const InputDecoration(
-                  labelText: 'Topic (optional)',
-                  hintText: 'For example: weekend plans',
-                ),
-              ),
-              SwitchListTile(
-                key: const ValueKey('note-ideas-personal'),
-                contentPadding: EdgeInsets.zero,
-                value: _personal,
-                title: const Text('Use notes I choose'),
-                subtitle: const Text(
-                  'Send the title and start of up to 3 notes you pick below.',
-                ),
-                onChanged: (value) => setState(() {
-                  _personal = value;
-                  if (!value) _selected.clear();
-                }),
-              ),
-              if (_personal) ...[
-                for (final note in notes)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _selected.contains(note.uuid),
-                    title: Text(
-                      note.title.trim().isEmpty ? 'Untitled' : note.title,
-                    ),
-                    onChanged:
-                        !_selected.contains(note.uuid) &&
-                            _selected.length >= noteIdeaContextNotes
-                        ? null
-                        : (value) => setState(
-                            () => value == true
-                                ? _selected.add(note.uuid)
-                                : _selected.remove(note.uuid),
-                          ),
-                  ),
-                if (context_.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Exactly this will be sent',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  for (final item in context_)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        '${item.title}\n${item.excerpt}',
-                        key: ValueKey('note-ideas-disclosed-${item.noteId}'),
-                      ),
-                    ),
-                ],
-              ],
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                key: const ValueKey('note-ideas-start'),
-                onPressed: () => controller.startNoteIdeas(
-                  NoteIdeaSource(
-                    topic: _topic.text,
-                    notes: _personal ? context_ : const [],
-                  ),
-                ),
-                icon: const Icon(Icons.lightbulb_outline),
-                label: const Text('Suggest ideas'),
-              ),
-            ],
-            if (handle != null && !mine) const _OtherTask(),
-            if (mine) ...[
-              Text(
-                summaryPhaseLabel(state.phase),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              if (state.text != null && ideas == null)
-                const Text('The ideas could not be read safely.'),
-              for (final idea in ideas ?? const <String>[])
-                Card(
-                  child: ListTile(
-                    title: Text(idea),
-                    trailing: const Icon(Icons.arrow_outward_rounded),
-                    onTap: () async {
-                      await controller.clear();
-                      if (!context.mounted) return;
-                      Navigator.of(context).pop();
-                      widget.onUseIdea?.call(idea);
-                    },
-                  ),
-                ),
-              if (state.terminal)
-                TextButton(
-                  onPressed: state.busy ? null : controller.clear,
-                  child: const Text('Clear ideas'),
-                ),
-            ],
-            const _TaskControls(),
-            const SizedBox(height: 12),
-            const Text(
-              'Ideas are suggestions only. Nothing is saved until you write and save a note.',
+    return NoteAiScaffold(
+      tool: NoteAiTool.ideas,
+      step: ideas != null
+          ? 2
+          : state.busy
+          ? 1
+          : 0,
+      children: [
+        if (handle == null && state.phase == 'idle') ...[
+          const SizedBox(height: 12),
+          TextField(
+            key: const ValueKey('note-ideas-topic'),
+            controller: _topic,
+            maxLength: noteIdeaTopicChars,
+            decoration: const InputDecoration(
+              labelText: 'Topic (optional)',
+              hintText: 'For example: weekend plans',
             ),
+          ),
+          SwitchListTile(
+            key: const ValueKey('note-ideas-personal'),
+            contentPadding: EdgeInsets.zero,
+            value: _personal,
+            title: const Text('Use notes I choose'),
+            subtitle: const Text(
+              'Send the title and start of up to 3 notes you pick below.',
+            ),
+            onChanged: (value) => setState(() {
+              _personal = value;
+              if (!value) _selected.clear();
+            }),
+          ),
+          if (_personal) ...[
+            for (final note in notes)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _selected.contains(note.uuid),
+                title: Text(
+                  note.title.trim().isEmpty ? 'Untitled' : note.title,
+                ),
+                onChanged:
+                    !_selected.contains(note.uuid) &&
+                        _selected.length >= noteIdeaContextNotes
+                    ? null
+                    : (value) => setState(
+                        () => value == true
+                            ? _selected.add(note.uuid)
+                            : _selected.remove(note.uuid),
+                      ),
+              ),
+            if (context_.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Exactly this will be sent',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              for (final item in context_)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    '${item.title}\n${item.excerpt}',
+                    key: ValueKey('note-ideas-disclosed-${item.noteId}'),
+                  ),
+                ),
+            ],
           ],
-        ),
-      ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            key: const ValueKey('note-ideas-start'),
+            onPressed: () => controller.startNoteIdeas(
+              NoteIdeaSource(
+                topic: _topic.text,
+                notes: _personal ? context_ : const [],
+              ),
+            ),
+            icon: const Icon(Icons.lightbulb_outline),
+            label: const Text('Suggest ideas'),
+          ),
+        ],
+        if (handle != null && !mine) const _OtherTask(),
+        if (mine) ...[
+          Text(
+            summaryPhaseLabel(state.phase),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          if (state.text != null && ideas == null)
+            const Text('The ideas could not be read safely.'),
+          for (final idea in ideas ?? const <String>[])
+            Card(
+              child: ListTile(
+                title: Text(idea),
+                trailing: const Icon(Icons.arrow_outward_rounded),
+                onTap: () async {
+                  await controller.clear();
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                  widget.onUseIdea?.call(idea);
+                },
+              ),
+            ),
+          if (state.terminal)
+            TextButton(
+              onPressed: state.busy ? null : controller.clear,
+              child: const Text('Clear ideas'),
+            ),
+        ],
+        const _TaskControls(),
+        const SizedBox(height: 12),
+      ],
     );
   }
 }

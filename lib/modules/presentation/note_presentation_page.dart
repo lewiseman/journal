@@ -1,3 +1,4 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -111,54 +112,50 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
     final readOnly =
         ref.watch(syncDeviceRoleProvider) == SyncDeviceRole.secondary;
     final busyElsewhere = handle != null && !websiteTask && !markdownTask;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Presentation')),
-      body: ListView(
-        key: const ValueKey('note-presentation'),
-        padding: const EdgeInsets.all(20),
-        children: [
-          SegmentedButton<NotePresentationMode>(
-            key: const ValueKey('note-presentation-mode'),
-            segments: const [
-              ButtonSegment(
-                value: NotePresentationMode.website,
-                icon: Icon(Icons.web_outlined),
-                label: Text('Website'),
-              ),
-              ButtonSegment(
-                value: NotePresentationMode.markdown,
-                icon: Icon(Icons.notes_rounded),
-                label: Text('Markdown'),
-              ),
-            ],
-            selected: {mode},
-            onSelectionChanged: state.busy
-                ? null
-                : (value) => setState(() => _mode = value.single),
-          ),
-          const SizedBox(height: 16),
-          if (saved == null)
-            const Text('This note is no longer available.')
-          else if (readOnly)
-            const Text(
-              'Existing notes are read-only on this device, so their presentation cannot change here.',
-            )
-          else if (busyElsewhere) ...[
-            const Text('Another AI preview is open. Finish or clear it first.'),
-            TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NoteSummaryPage(),
-                ),
-              ),
-              child: const Text('Open the current preview'),
+    return NoteAiScaffold(
+      tool: NoteAiTool.presentation,
+      step: state.text != null && !busyElsewhere
+          ? 2
+          : state.busy
+          ? 1
+          : 0,
+      listKey: const ValueKey('note-presentation'),
+      children: [
+        NoteAiChoices<NotePresentationMode>(
+          key: const ValueKey('note-presentation-mode'),
+          choices: const {
+            NotePresentationMode.website: 'Website',
+            NotePresentationMode.markdown: 'Markdown',
+          },
+          selected: mode,
+          icons: const {
+            NotePresentationMode.website: Icons.web_outlined,
+            NotePresentationMode.markdown: Icons.format_list_bulleted_rounded,
+          },
+          onChanged: state.busy
+              ? null
+              : (value) => setState(() => _mode = value),
+        ),
+        const SizedBox(height: 16),
+        if (saved == null)
+          const Text('This note is no longer available.')
+        else if (readOnly)
+          const Text(
+            'Existing notes are read-only on this device, so their presentation cannot change here.',
+          )
+        else if (busyElsewhere) ...[
+          const Text('Another AI preview is open. Finish or clear it first.'),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const NoteSummaryPage()),
             ),
-          ] else if (mode == NotePresentationMode.website)
-            ..._website(saved, state, websiteTask)
-          else
-            ..._markdown(state, markdownTask),
-        ],
-      ),
+            child: const Text('Open the current preview'),
+          ),
+        ] else if (mode == NotePresentationMode.website)
+          ..._website(saved, state, websiteTask)
+        else
+          ..._markdown(state, markdownTask),
+      ],
     );
   }
 
@@ -224,6 +221,13 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
           children: [
             for (final idea in _ideas)
               ActionChip(
+                avatar: Icon(switch (idea) {
+                  'Recipe card' => Icons.restaurant_outlined,
+                  'Event invitation' => Icons.celebration_outlined,
+                  'Travel itinerary' => Icons.map_outlined,
+                  'Bold landing page' => Icons.bolt_rounded,
+                  _ => Icons.web_outlined,
+                }, size: 19),
                 label: Text(idea),
                 onPressed: () => setState(() => _description.text = idea),
               ),
@@ -331,8 +335,9 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
     final controller = ref.read(noteSummaryProvider.notifier);
     final theme = Theme.of(context);
     return [
-      const Text(
-        'Rewrites this note as Markdown, with headings and lists where they help, and replaces its text. The current text is kept in Prior content / recovery. Any website is removed.',
+      const NoteAiDetails(
+        'Rewrites this note as Markdown, with headings and lists where they help, and replaces its text. Any website is removed.',
+        title: 'What will change',
       ),
       const SizedBox(height: 12),
       if (!mine)

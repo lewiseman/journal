@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/assistant/qvac_assistant.dart';
@@ -314,8 +315,8 @@ void main() {
       return app;
     }
 
-    ListTile tile(WidgetTester tester, String name) =>
-        tester.widget<ListTile>(find.byKey(ValueKey('note-assistant-$name')));
+    NoteAiToolCard tile(WidgetTester tester, String name) => tester
+        .widget<NoteAiToolCard>(find.byKey(ValueKey('note-assistant-$name')));
 
     testWidgets('offers only the draft tools, resting while offline', (
       tester,
@@ -323,15 +324,16 @@ void main() {
       final app = await mount(tester, phase: CompanionPhase.unavailable);
       await tester.tap(button);
       await tester.pumpAndSettle();
-      expect(find.text('New note'), findsOneWidget);
+      expect(find.text('QVAC'), findsNothing);
+      expect(find.byTooltip('Close'), findsNothing);
       expect(
         find.byKey(const ValueKey('note-assistant-save-first')),
         findsNothing,
       );
-      final tiles = tester.widgetList<ListTile>(
+      final tiles = tester.widgetList<NoteAiToolCard>(
         find.descendant(
           of: find.byKey(const ValueKey('note-assistant-actions')),
-          matching: find.byType(ListTile),
+          matching: find.byType(NoteAiToolCard),
         ),
       );
       expect(tiles.map((t) => (t.key! as ValueKey).value), [
@@ -339,7 +341,7 @@ void main() {
         'note-assistant-scan',
         'note-assistant-background',
       ]);
-      expect(tiles.every((t) => !t.enabled), isTrue);
+      expect(tiles.every((t) => t.onTap == null), isTrue);
       await tester.pumpWidget(const SizedBox.shrink());
       app.container.dispose();
     });
@@ -353,17 +355,34 @@ void main() {
         ..output = _template;
       await tester.tap(button);
       await tester.pumpAndSettle();
-      expect(tile(tester, 'template').enabled, isTrue);
+      expect(tile(tester, 'template').onTap, isNotNull);
       await tester.tap(find.byKey(const ValueKey('note-assistant-template')));
       await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<DraggableScrollableSheet>(
+              find.byType(DraggableScrollableSheet),
+            )
+            .controller!
+            .size,
+        closeTo(1, .01),
+      );
       await tester.enterText(
         find.byKey(const ValueKey('note-draft-template-topic')),
         'Weekly team meeting',
       );
       await tester.pump();
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('note-draft-template-start')),
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('note-draft-template-start')).hitTestable(),
+        120,
+        scrollable: find
+            .descendant(
+              of: find.byType(NoteDraftTemplatePage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
+      await tester.pumpAndSettle();
       await tester.runAsync(() async {
         await tester.tap(
           find.byKey(const ValueKey('note-draft-template-start')),
@@ -408,17 +427,52 @@ void main() {
           desktop.finishOnSubmit = true;
           await tester.tap(button);
           await tester.pumpAndSettle();
+          await tester.scrollUntilVisible(
+            find
+                .byKey(const ValueKey('note-assistant-background'))
+                .hitTestable(),
+            100,
+            scrollable: find.descendant(
+              of: find.byKey(const ValueKey('note-assistant-actions')),
+              matching: find.byType(Scrollable),
+            ),
+          );
           await tester.tap(
             find.byKey(const ValueKey('note-assistant-background')),
           );
           await tester.pumpAndSettle();
-          await tester.enterText(
-            find.byKey(const ValueKey('note-draft-background-prompt')),
-            'Sea glass',
+          expect(
+            tester
+                .widget<DraggableScrollableSheet>(
+                  find.byType(DraggableScrollableSheet),
+                )
+                .controller!
+                .size,
+            closeTo(1, .01),
+          );
+          await tester.tap(find.text('Ocean'));
+          await tester.pump();
+          expect(
+            tester
+                .widget<TextField>(
+                  find.byKey(const ValueKey('note-draft-background-prompt')),
+                )
+                .controller!
+                .text,
+            contains('ocean waves'),
           );
           await tester.pump();
-          await tester.ensureVisible(
-            find.byKey(const ValueKey('note-draft-background-start')),
+          await tester.scrollUntilVisible(
+            find
+                .byKey(const ValueKey('note-draft-background-start'))
+                .hitTestable(),
+            120,
+            scrollable: find
+                .descendant(
+                  of: find.byType(NoteDraftBackgroundPage),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
           );
           await tester.pumpAndSettle();
           await tester.runAsync(() async {

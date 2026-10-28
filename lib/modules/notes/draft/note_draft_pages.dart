@@ -1,3 +1,5 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -102,6 +104,13 @@ class _NoteDraftTemplatePageState extends ConsumerState<NoteDraftTemplatePage> {
             children: [
               for (final suggestion in _suggestions)
                 ActionChip(
+                  avatar: Icon(switch (suggestion) {
+                    'Meeting notes' => Icons.groups_outlined,
+                    'Trip plan' => Icons.map_outlined,
+                    'Recipe' => Icons.restaurant_outlined,
+                    'Weekly review' => Icons.date_range_outlined,
+                    _ => Icons.menu_book_outlined,
+                  }, size: 19),
                   label: Text(suggestion),
                   onPressed: state.busy
                       ? null
@@ -386,6 +395,12 @@ class _NoteDraftBackgroundPageState
       tool: NoteDraftTool.background,
       children: [
         if (preview == null) ...[
+          NoteAiBackdropIdeas(
+            value: _prompt.text,
+            onChanged: state.busy
+                ? null
+                : (value) => setState(() => _prompt.text = value),
+          ),
           TextField(
             key: const ValueKey('note-draft-background-prompt'),
             controller: _prompt,
@@ -398,15 +413,16 @@ class _NoteDraftBackgroundPageState
             ),
             onChanged: (_) => setState(() {}),
           ),
-          SegmentedButton<String>(
-            segments: [
-              for (final entry in noteBackgroundTones.entries)
-                ButtonSegment(value: entry.key, label: Text(entry.value)),
-            ],
-            selected: {_tone},
-            onSelectionChanged: state.busy
+          NoteAiChoices<String>(
+            choices: noteBackgroundTones,
+            selected: _tone,
+            icons: const {
+              'light': Icons.light_mode_outlined,
+              'dark': Icons.dark_mode_outlined,
+            },
+            onChanged: state.busy
                 ? null
-                : (value) => setState(() => _tone = value.single),
+                : (value) => setState(() => _tone = value),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -467,54 +483,47 @@ class _DraftScaffold extends ConsumerWidget {
     final controller = ref.read(noteDraftAiProvider.notifier);
     final other = state.tool != null && state.tool != tool && state.busy;
     final mine = state.tool == tool;
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            if (other) ...[
-              const Text(
-                'Another QVAC task for this note is still running.',
-                key: ValueKey('note-draft-other'),
-              ),
-              TextButton(
+    return NoteAiScaffold(
+      tool: NoteAiTool.values.byName(tool.name),
+      step: mine && state.completed
+          ? 2
+          : mine && state.busy
+          ? 1
+          : 0,
+      children: [
+        if (other) ...[
+          const Text(
+            'Another QVAC task for this note is still running.',
+            key: ValueKey('note-draft-other'),
+          ),
+          TextButton(onPressed: controller.reset, child: const Text('Stop it')),
+        ] else ...[
+          ...children,
+          if (mine && state.busy) ...[
+            const SizedBox(height: 16),
+            const LinearProgressIndicator(key: ValueKey('note-draft-progress')),
+            const SizedBox(height: 8),
+            Text(state.message ?? 'Working on your computer…'),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton(
+                key: const ValueKey('note-draft-cancel'),
                 onPressed: controller.reset,
-                child: const Text('Stop it'),
+                child: const Text('Cancel'),
               ),
-            ] else ...[
-              ...children,
-              if (mine && state.busy) ...[
-                const SizedBox(height: 16),
-                const LinearProgressIndicator(
-                  key: ValueKey('note-draft-progress'),
-                ),
-                const SizedBox(height: 8),
-                Text(state.message ?? 'Working on your computer…'),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton(
-                    key: const ValueKey('note-draft-cancel'),
-                    onPressed: controller.reset,
-                    child: const Text('Cancel'),
-                  ),
-                ),
-              ],
-              if (mine && state.phase == 'failed' && state.message != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(
-                    state.message!,
-                    key: const ValueKey('note-draft-message'),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ],
-        ),
-      ),
+          if (mine && state.phase == 'failed' && state.message != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                state.message!,
+                key: const ValueKey('note-draft-message'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+        ],
+      ],
     );
   }
 }

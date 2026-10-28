@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,6 +48,7 @@ Future<SyncFixture> _mount(
   bool secondary = false,
   bool newNote = false,
   bool dark = false,
+  bool reducedMotion = true,
   double scale = 1,
   Size size = const Size(390, 844),
 }) async {
@@ -112,7 +114,7 @@ Future<SyncFixture> _mount(
           navigatorObservers: [QvacAssistantObserver(assistant)],
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
-              disableAnimations: true,
+              disableAnimations: reducedMotion,
               textScaler: TextScaler.linear(scale),
             ),
             child: QvacAssistantHost(
@@ -139,7 +141,7 @@ Future<SyncFixture> _mount(
 Future<void> _open(WidgetTester tester, String action) async {
   final tile = find.byKey(ValueKey('note-assistant-$action'));
   await tester.scrollUntilVisible(
-    tile,
+    tile.hitTestable(),
     160,
     scrollable: find.descendant(of: _menu, matching: find.byType(Scrollable)),
   );
@@ -171,6 +173,9 @@ void main() {
     await (FontLoader(
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+    await (FontLoader(
+      'Lora',
+    )..addFont(rootBundle.load('assets/fonts/Lora-Regular.ttf'))).load();
     final font = File.fromUri(
       File(Platform.resolvedExecutable).uri
           .resolve('../../material_fonts/Roboto-Regular.ttf'),
@@ -192,8 +197,20 @@ void main() {
       expect(find.byTooltip('Note options'), findsOneWidget);
       await tester.tap(_button);
       await tester.pumpAndSettle();
-      expect(find.text('Your note'), findsOneWidget);
+      expect(find.text('QVAC'), findsNothing);
+      expect(find.byTooltip('Close'), findsNothing);
+      expect(find.byKey(const ValueKey('note-assistant-title')), findsNothing);
+      expect(find.text('No computer connected'), findsNothing);
       expect(_settings, findsOneWidget);
+      expect(
+        tester
+            .widget<DraggableScrollableSheet>(
+              find.byType(DraggableScrollableSheet),
+            )
+            .controller!
+            .size,
+        closeTo(.64, .01),
+      );
       await _capture(tester, 'note-menu');
       for (final tool in <String, Type>{
         'summary': NoteSummaryPage,
@@ -202,7 +219,6 @@ void main() {
         'image': NoteImagePage,
         'scan': NoteScanPage,
         'background': NoteBackgroundPage,
-        'recovery': NoteRecoveryPage,
         'presentation': NotePresentationPage,
       }.entries) {
         await _open(tester, tool.key);
@@ -214,8 +230,6 @@ void main() {
         );
         final controller = PrimaryScrollController.of(tester.element(list));
         expect(controller.positions.length, 1);
-        await tester.drag(list, const Offset(0, -500));
-        await tester.pumpAndSettle();
         expect(
           tester
               .widget<DraggableScrollableSheet>(
@@ -226,9 +240,11 @@ void main() {
           closeTo(1, .01),
         );
         expect(_settings, findsNothing);
-        if (tool.key == 'summary') {
-          await _capture(tester, 'note-summary-expanded');
-        }
+        await tester.drag(list, const Offset(0, -500));
+        await tester.pumpAndSettle();
+        controller.jumpTo(0);
+        await tester.pumpAndSettle();
+        await _capture(tester, 'note-${tool.key}-expanded');
         await tester.tap(find.byType(BackButton));
         await tester.pumpAndSettle();
         expect(_menu, findsOneWidget);
@@ -237,6 +253,43 @@ void main() {
       await _unmount(tester, app);
     },
   );
+
+  testWidgets('opening a feature animates the compact sheet to full height', (
+    tester,
+  ) async {
+    final app = await _mount(tester, reducedMotion: false);
+    await tester.tap(_button);
+    await tester.pumpAndSettle();
+    final sheet = tester
+        .widget<DraggableScrollableSheet>(find.byType(DraggableScrollableSheet))
+        .controller!;
+    expect(sheet.size, closeTo(.64, .01));
+    await _open(tester, 'writing');
+    expect(sheet.size, closeTo(1, .01));
+    expect(find.byType(NoteTransformPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await _unmount(tester, app);
+  });
+
+  testWidgets('dragging down dismisses the tools and their feature pages', (
+    tester,
+  ) async {
+    final app = await _mount(tester);
+    final handle = find.byKey(const ValueKey('qvac-sheet-handle'));
+    for (final tool in [null, 'writing']) {
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      if (tool != null) {
+        await _open(tester, tool);
+      }
+      await tester.drag(tool == null ? _menu : handle, const Offset(0, 600));
+      await tester.pumpAndSettle();
+      expect(find.byType(QvacAssistantSheet), findsNothing);
+      expect(find.byType(EditNotePage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+    await _unmount(tester, app);
+  });
 
   testWidgets('accepted title changes refresh the note and preserve Undo', (
     tester,
@@ -293,10 +346,10 @@ void main() {
         find.byKey(const ValueKey('note-assistant-save-first')),
         findsOneWidget,
       );
-      for (final tile in tester.widgetList<ListTile>(
-        find.descendant(of: _menu, matching: find.byType(ListTile)),
+      for (final tile in tester.widgetList<NoteAiToolCard>(
+        find.descendant(of: _menu, matching: find.byType(NoteAiToolCard)),
       )) {
-        expect(tile.enabled, false);
+        expect(tile.onTap, isNull);
       }
       expect(find.byType(NoteSummaryPage), findsNothing);
       if (!newNote) {
@@ -323,11 +376,67 @@ void main() {
         findsNothing,
       );
       expect(find.byKey(const ValueKey('note-assistant-image')), findsNothing);
-      await _open(tester, 'recovery');
-      expect(find.byType(NoteRecoveryPage), findsOneWidget);
+      await _open(tester, 'summary');
+      expect(find.byType(NoteSummaryPage), findsOneWidget);
       await _unmount(tester, app);
     },
   );
+
+  testWidgets('the visual toolbox exposes labelled, generous touch targets', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final app = await _mount(tester);
+    await tester.tap(_button);
+    await tester.pumpAndSettle();
+    final writing = find.byKey(const ValueKey('note-assistant-writing'));
+    expect(
+      tester.getSemantics(writing),
+      matchesSemantics(
+        label: 'Improve writing. Rewrite, expand, or edit',
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasTapAction: true,
+      ),
+    );
+    expect(tester.getSize(writing).height, greaterThanOrEqualTo(48));
+    await tester.tap(find.byKey(const ValueKey('qvac-sheet-handle')));
+    await tester.pumpAndSettle();
+    await _capture(tester, 'note-menu-expanded');
+    await _unmount(tester, app);
+    semantics.dispose();
+  });
+
+  testWidgets('every note tool adapts to a small screen with large text', (
+    tester,
+  ) async {
+    final app = await _mount(
+      tester,
+      dark: true,
+      scale: 2,
+      size: const Size(320, 568),
+    );
+    await tester.tap(_button);
+    await tester.pumpAndSettle();
+    await _capture(tester, 'note-menu-large-dark');
+    for (final tool in [
+      'summary',
+      'writing',
+      'metadata',
+      'scan',
+      'background',
+      'presentation',
+    ]) {
+      await _open(tester, tool);
+      expect(find.byType(BackButton), findsOneWidget);
+      await _capture(tester, 'note-$tool-large-dark');
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: tool);
+    }
+    await _unmount(tester, app);
+  });
 
   testWidgets(
     'large text and native back keep navigation within the note sheet',

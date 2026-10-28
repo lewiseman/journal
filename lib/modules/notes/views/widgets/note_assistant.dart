@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+
+import 'note_ai_widgets.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:journal/modules/assistant/qvac_assistant.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/notes/draft/note_draft_pages.dart';
 import 'package:journal/modules/notes/images/note_background_page.dart';
@@ -12,25 +16,19 @@ import 'package:journal/modules/notes/transform/transform_page.dart';
 import 'package:journal/modules/presentation/note_presentation_page.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
-import 'package:journal/modules/settings/companion/companion_page.dart';
 import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
 
 enum _NoteTool {
-  template('Starting template', Icons.dashboard_customize_outlined),
-  summary('Summarize', Icons.summarize_outlined),
-  writing('Writing help', Icons.edit_note_rounded),
-  metadata('Title & tag ideas', Icons.sell_outlined),
-  image('Ask about an image', Icons.image_search_rounded),
-  scan('Scan a page', Icons.document_scanner_outlined),
-  background('Generate a background', Icons.wallpaper_outlined),
-  recovery('Prior content / recovery', Icons.history_rounded),
-  presentation('Presentation', Icons.auto_fix_high_outlined);
+  template,
+  summary,
+  writing,
+  metadata,
+  image,
+  scan,
+  background,
+  presentation;
 
-  const _NoteTool(this.label, this.icon);
-  final String label;
-  final IconData icon;
-
-  /// What a new, unsaved note can use; results stay in the editor's draft.
+  NoteAiTool get visual => NoteAiTool.values.byName(name);
   static const draft = [template, scan, background];
 }
 
@@ -89,6 +87,7 @@ class _NoteAssistantState extends State<NoteAssistant> {
     if (widget.scrollController.hasClients) {
       widget.scrollController.jumpTo(0);
     }
+    QvacAssistantSheet.expand(context);
     final result = await _navigator.currentState!.push<Object?>(
       _route(
         (_) => switch (tool) {
@@ -98,7 +97,6 @@ class _NoteAssistantState extends State<NoteAssistant> {
           _NoteTool.image => NoteImagePage(noteId: noteId),
           _NoteTool.scan => NoteScanPage(noteId: noteId),
           _NoteTool.background => NoteBackgroundPage(noteId: noteId),
-          _NoteTool.recovery => NoteRecoveryPage(noteId: noteId),
           _NoteTool.presentation => NotePresentationPage(noteId: noteId),
           _NoteTool.template => throw StateError('Only new notes use this.'),
         },
@@ -120,6 +118,7 @@ class _NoteAssistantState extends State<NoteAssistant> {
     if (widget.scrollController.hasClients) {
       widget.scrollController.jumpTo(0);
     }
+    QvacAssistantSheet.expand(context);
     final result = await _navigator.currentState!.push<Object?>(
       _route(
         (_) => switch (tool) {
@@ -158,7 +157,6 @@ class _NoteAssistantState extends State<NoteAssistant> {
           available: widget.available,
           scrollController: widget.scrollController,
           onOpen: _open,
-          onClose: () => Navigator.of(context).maybePop(),
         ),
         maintainState: false,
       ),
@@ -173,13 +171,11 @@ class _NoteAssistantMenu extends ConsumerWidget {
     required this.available,
     required this.scrollController,
     required this.onOpen,
-    required this.onClose,
   });
   final String? noteId;
   final bool draft, available;
   final ScrollController scrollController;
   final ValueChanged<_NoteTool> onOpen;
-  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -223,62 +219,105 @@ class _NoteAssistantMenu extends ConsumerWidget {
     bool enabled(_NoteTool tool) => draft
         ? available && connected
         : canUse && (tool != _NoteTool.summary || hasText);
+    final paper = noteAiPaper(context);
+    final narrow =
+        MediaQuery.sizeOf(context).width < 350 ||
+        MediaQuery.textScalerOf(context).scale(14) > 20;
+    Widget card(_NoteTool tool, {bool fullWidth = false}) => NoteAiToolCard(
+      key: ValueKey('note-assistant-${tool.name}'),
+      tool: tool.visual,
+      horizontal: fullWidth || draft || narrow,
+      onTap: enabled(tool) ? () => onOpen(tool) : null,
+    );
+    List<Widget> group(String label, List<_NoteTool> choices) {
+      final visible = choices.where(tools.contains).toList();
+      if (visible.isEmpty) return [];
+      return [
+        Padding(
+          padding: const EdgeInsets.only(top: 20, bottom: 10),
+          child: Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              letterSpacing: .3,
+            ),
+          ),
+        ),
+        for (var i = 0; i < visible.length; i += draft || narrow ? 1 : 2)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: draft || narrow || i + 1 == visible.length
+                ? card(visible[i], fullWidth: true)
+                : IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: card(visible[i])),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: i + 1 < visible.length
+                              ? card(visible[i + 1])
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+      ];
+    }
+
     return Material(
-      color: theme.colorScheme.surface,
+      color: paper,
       child: ListView(
         key: const ValueKey('note-assistant-actions'),
         controller: scrollController,
         physics: const ClampingScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
-          24,
-          4,
-          24,
+          20,
+          0,
+          20,
           24 + MediaQuery.paddingOf(context).bottom,
         ),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  draft ? 'New note' : 'Your note',
-                  style: theme.textTheme.headlineSmall,
-                ),
-              ),
-              IconButton(
-                tooltip: 'Close',
-                onPressed: onClose,
-                icon: const Icon(Icons.close_rounded),
-              ),
-            ],
-          ),
-          if (note != null)
-            Text(
-              note.title.trim().isEmpty ? 'Untitled note' : note.title,
-              key: const ValueKey('note-assistant-title'),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyLarge,
-            ),
-          const SizedBox(height: 6),
-          Text(companionPhaseLabel(phase), style: theme.textTheme.bodySmall),
           if (!canUse && !draft) ...[
             const SizedBox(height: 16),
-            const Text(
-              'Save your note and close the editor to use these tools.',
-              key: ValueKey('note-assistant-save-first'),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer.withValues(
+                  alpha: .5,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.save_outlined),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Save your note and close the editor to use these tools.',
+                      key: const ValueKey('note-assistant-save-first'),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
-          const SizedBox(height: 20),
-          for (final tool in tools)
-            ListTile(
-              key: ValueKey('note-assistant-${tool.name}'),
-              contentPadding: const EdgeInsets.symmetric(vertical: 4),
-              leading: Icon(tool.icon),
-              title: Text(tool.label),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              enabled: enabled(tool),
-              onTap: enabled(tool) ? () => onOpen(tool) : null,
-            ),
+          if (draft)
+            ...group('Start', _NoteTool.draft)
+          else ...[
+            ...group('Edit', [
+              _NoteTool.writing,
+              _NoteTool.summary,
+              _NoteTool.metadata,
+            ]),
+            ...group('Add', [_NoteTool.scan, _NoteTool.image]),
+            ...group('Appearance', [
+              _NoteTool.presentation,
+              _NoteTool.background,
+            ]),
+          ],
         ],
       ),
     );
