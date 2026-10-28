@@ -17,7 +17,7 @@ import 'package:journal/modules/diary/views/widgets/diary_sheet.dart'
     show DiaryAccess;
 import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
 
-import '../widgets/diary_sheet.dart' show DiaryPresentationScope;
+import '../widgets/diary_sheet.dart' show DiaryLiveScope;
 
 class DiaryPage extends StatelessWidget {
   const DiaryPage({super.key, this.clock, this.diaries});
@@ -35,7 +35,7 @@ class DiaryPage extends StatelessWidget {
               canEdit:
                   ref.watch(syncDeviceRoleProvider) != SyncDeviceRole.secondary,
               today: TimeHelper.dateOnly((clock ?? DateTime.now)()),
-              child: DiaryPresentationScope(
+              child: DiaryLiveScope(
                 child: _DiaryReader(clock: clock, diaries: days),
               ),
             ),

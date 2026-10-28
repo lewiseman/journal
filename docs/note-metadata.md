@@ -4,7 +4,7 @@ N02 adds optional, explicit AI suggestions on top of the F01/R01 task path. Noth
 
 ## Use it
 
-1. **Title & tag ideas.** Save a note, return to its preview and open the wand menu → **Title & tag ideas** → **Suggest title & tags**. Review the result: *Keep "current title"* is selected by default; tap one suggested title to replace it. Suggested tags are unselected chips; tap the ones you want. **Apply selected** stays disabled until something is chosen. Existing tags are always kept. After applying, the editor shows **Undo**, which restores the exact previous title and tags if the note has not changed since.
+1. **Title & tag ideas.** Save a note, return to its preview and open the QVAC sheet → **Title & tag ideas** → **Suggest title & tags**. Review the result: *Keep "current title"* is selected by default; tap one suggested title to replace it. Suggested tags are unselected chips; tap the ones you want. **Apply selected** stays disabled until something is chosen. Existing tags are always kept. After applying, the editor shows **Undo**, which restores the exact previous title and tags if the note has not changed since.
 2. **Starting ideas.** On the Notes page the idea card keeps its offline shuffle. The new ✨ button opens **Starting ideas**: an optional topic, and an off-by-default **Use notes I choose** switch that lists notes to tick (at most three) and shows *exactly* the title and first 240 characters that will be sent. Tapping an idea clears the task and opens a new note with that line as its title.
 
 Both reuse the single protected note-AI slot, so they appear in More → Local QVAC → AI task history, survive app restart, retry with the same task ID and can be cancelled like summaries.

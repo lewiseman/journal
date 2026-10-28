@@ -13,6 +13,15 @@ reflect the companion's live transport phase, not model readiness.
   and opens its styling tools within the same sheet; it is disabled on empty
   days. These actions no longer appear on the diary card. Existing edit and
   secondary-device restrictions apply.
+- Diary Microphone closes the QVAC sheet and opens the full voice conversation
+  page for the selected day. Leaving voice returns directly to the diary.
+- In a single note, the sheet contains Summarize, Writing help, Title & tag
+  ideas, Ask about an image (when attached), Scan a page, Generate a background,
+  Prior content / recovery, and Presentation. The tools use saved previews;
+  unsaved notes and active editor drafts show a save-first explanation.
+  Scanning and background generation retain their primary-device restriction.
+  Back returns to the tools menu. Accepted title/tag changes reveal the note
+  and its Undo action; other accepted changes refresh the saved note on return.
 - The sheet and its page content share scrolling: scroll up to fill the page,
   then continue through the content. Drag or tap the handle to resize it.
 - Every page sheet has a Local AI settings shortcut above its surface, in the
@@ -42,3 +51,5 @@ dismissal, animation interruptions, scrolling, and adaptive layouts.
 `test/more_page_test.dart` also exercises docking in the real More page.
 `test/diary_assistant_test.dart` exercises selected-day tools, shared scrolling,
 metadata saving, microphone layout and secondary-device restrictions.
+`test/note_assistant_test.dart` covers every note tool, shared scrolling, editor
+refresh and Undo, draft restrictions, secondary devices, and back navigation.

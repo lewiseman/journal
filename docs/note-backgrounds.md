@@ -1,6 +1,6 @@
 # I06 — Generate an optional note background
 
-From a saved note's wand menu, **Generate a background** creates an image on the paired computer from words the user types. The note changes only when they press **Use as background**, and the previous background can be restored.
+From a saved note's QVAC sheet, **Generate a background** creates an image on the paired computer from words the user types. The note changes only when they press **Use as background**, and the previous background can be restored.
 
 ## Flow
 

@@ -1,14 +1,14 @@
 # H01 — Safe optional presentation
 
-H01 styles a saved note body or one diary text entry on the current device. It
-preserves source bytes, existing paragraphs, Markdown structure and block order.
+H01 styles a saved note body on the current device. It preserves source bytes,
+existing paragraphs, Markdown structure and block order. Diary entries are not
+styled: the diary shows plain text only, without Markdown.
 The optional computer still uses Electron 45.0.0, QVAC SDK 0.22.0 and its pinned
 Qwen2.5 0.5B Instruct Q4_K_M model. No model is downloaded or replaced by H01.
 
 ## Use and recover
 
-Save a note, then open its wand menu → **Presentation**. In the live diary reader,
-choose **Presentation**, then a saved entry. Describe an optional styling request
+Save a note, then open its wand menu → **Presentation**. Describe an optional styling request
 and choose **Generate presentation**. Compare the exact selectable original with
 the styled preview, then explicitly accept or reject it. Nothing is submitted
 until Generate. Editing continues to use the original text/Markdown.
@@ -17,8 +17,8 @@ Accepted styling appears in the reader and survives app restart without the
 computer. **Revert to original** disables it immediately. The presentation screen
 also exposes its exact saved source snapshot for inspection/copy and explicitly
 confirmed removal. A changed/deleted source disables rendering of that derivative;
-it cannot replace newer words. Adding another diary item leaves a styled item
-valid. The original snapshot remains available until replacement/removal/reset.
+it cannot replace newer words. The original snapshot remains available until
+replacement/removal/reset.
 
 The small model has limited capability. An unconstrained real-QVAC trial omitted
 the required CSS field. H01 uses the installed SDK's per-request `json_schema`
@@ -81,9 +81,8 @@ There is no standalone styled HTML/PDF export in H01.
 ## Storage, roles and privacy
 
 The existing single protected task slot is shared by summaries, note writing and
-presentations. A typed source reference distinguishes a note from a dated diary
-item, while old summary/transformation handles and secure-storage keys remain
-compatible. Only temporary block IDs, their text and intent go to the paired
+presentations. A typed source reference names the note, while old
+summary/transformation handles and secure-storage keys remain compatible. Only temporary block IDs, their text and intent go to the paired
 computer: no title, tags, attachments, journal IDs or unrelated entries. Exact
 source/version snapshots stay in protected task storage, excluded from task
 metadata. Existing signed/pinned transport, device attribution, cancellation,
@@ -97,9 +96,7 @@ sync collections/outboxes and does not change source clocks or pending uploads.
 Other devices receive ordinary source content without this device's styling.
 Account reset clears presentation rows and protected task data.
 
-Note revisions use the version vector and exact body. Diary revisions use the
-selected item's full serialized state, including timestamps/deletion, without
-the day's changing list/metadata. Acceptance rereads the live source and editing
+Note revisions use the version vector and exact body. Acceptance rereads the live source and editing
 role in an ObjectBox transaction. Stale/duplicate tasks are refused. Secondary
 devices can review; accepting/reverting/removing requires existing edit rights.
 Viewing/copying source does not bypass editing roles.
@@ -126,7 +123,7 @@ node scripts/verify-notes.cjs /absolute/new/empty/h01-evidence \
   /absolute/verified/model.gguf --presentation
 ```
 
-The packaged two-phase harness uses synthetic note/diary blocks and an isolated
+The packaged two-phase harness uses synthetic note blocks and an isolated
 encrypted vault, real signed/pinned TLS/QVAC, same-ID retry, companion restart,
 retrieval and acknowledgment. It refuses a nonempty evidence directory. The
 per-request grammar API was verified in the installed SDK's

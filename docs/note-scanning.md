@@ -1,6 +1,6 @@
 # I04 — Scan a physical note into editable text
 
-From a saved note's wand menu, **Scan a page** photographs or imports a printed or handwritten page. The text is transcribed on the paired computer and shown for correction. Only on **Insert text and attach page** is the corrected text appended to the note and the page attached. General document ingestion, automatic rewriting and handwriting guarantees are out of scope; rewriting stays a separate, explicit N01 action afterwards.
+From a saved note's QVAC sheet, **Scan a page** photographs or imports a printed or handwritten page. The text is transcribed on the paired computer and shown for correction. Only on **Insert text and attach page** is the corrected text appended to the note and the page attached. General document ingestion, automatic rewriting and handwriting guarantees are out of scope; rewriting stays a separate, explicit N01 action afterwards.
 
 ## Flow
 

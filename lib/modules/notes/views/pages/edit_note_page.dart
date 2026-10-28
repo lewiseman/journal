@@ -7,6 +7,7 @@ import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:journal/common.dart';
+import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/notes/controllers/note_attachment_service.dart';
 import 'package:journal/modules/notes/models/note_attachment.dart';
 import 'package:journal/modules/notes/models/note_tag.dart';
@@ -14,18 +15,13 @@ import 'package:journal/modules/notes/views/widgets/edit_note_card_bg.dart';
 import 'package:journal/modules/notes/views/widgets/edit_note_page_bg.dart';
 import 'package:journal/modules/notes/views/widgets/note_art_picker.dart';
 import 'package:journal/modules/notes/views/widgets/note_actions_menu.dart';
+import 'package:journal/modules/notes/views/widgets/note_assistant.dart';
 import 'package:journal/modules/notes/views/widgets/note_attachment_strip.dart';
 import 'package:journal/modules/notes/views/widgets/note_image_provider.dart';
 import 'package:journal/modules/notes/views/widgets/note_paint_timing.dart';
 import 'package:journal/modules/notes/views/widgets/note_tag_picker.dart';
 import 'package:journal/modules/notes/views/widgets/unsaved_note_sheet.dart';
-import 'package:journal/modules/notes/summary/summary_page.dart';
-import 'package:journal/modules/notes/transform/transform_page.dart';
 import 'package:journal/modules/notes/metadata/note_help_pages.dart';
-import 'package:journal/modules/notes/images/note_image_page.dart';
-import 'package:journal/modules/notes/images/note_scan_page.dart';
-import 'package:journal/modules/notes/images/note_background_page.dart';
-import 'package:journal/modules/presentation/presentation_page.dart';
 import 'package:journal/modules/presentation/presentation_body.dart';
 import 'package:journal/modules/presentation/presentation_contract.dart';
 
@@ -185,25 +181,9 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
     }
   }
 
-  Future<void> _openWritingHelp({bool recovery = false}) async {
-    final note = _savedNote;
-    if (note == null || _hasUnsavedChanges) return;
-    await context.nav.push<void>(
-      recovery
-          ? NoteRecoveryPage(noteId: note.uuid)
-          : NoteTransformPage(noteId: note.uuid),
-    );
-    _reloadSaved(note.uuid);
-  }
-
-  Future<void> _openMetadataHelp() async {
-    final note = _savedNote;
-    if (note == null || _hasUnsavedChanges) return;
-    final undo = await context.nav.push<NoteMetadataUndo>(
-      NoteMetadataPage(noteId: note.uuid),
-    );
-    _reloadSaved(note.uuid);
-    if (!mounted || undo == null) return;
+  void _metadataApplied(NoteMetadataUndo undo) {
+    if (!mounted) return;
+    _reloadSaved(undo.noteId);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Title and tags updated.'),
@@ -438,7 +418,7 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
             policy: ResizeImagePolicy.fit,
           );
 
-    return EditNotepageBg(
+    final page = EditNotepageBg(
       seed: _noteArtworkSeed,
       animationDuration: _artworkDuration,
       color: paperColor,
@@ -459,7 +439,8 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                     Brightness.dark
               // The crossover where black has better contrast than white.
               : headerColor.computeLuminance() < .179;
-          return PopScope(
+          final noteId = _savedNote?.uuid;
+          final content = PopScope(
             canPop: _isPreviewMode && expansion == 0,
             onPopInvokedWithResult: (didPop, _) {
               if (!didPop) _requestExit();
@@ -488,96 +469,6 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                 scrolledUnderElevation: 0,
                 actionsPadding: const EdgeInsets.only(right: 12),
                 actions: [
-                  if (_isPreviewMode &&
-                      expansion == 0 &&
-                      _savedNote != null &&
-                      !_hasUnsavedChanges &&
-                      '${_savedNote!.title}${_savedNote!.content}'
-                          .trim()
-                          .isNotEmpty)
-                    IconButton(
-                      tooltip: 'Summarize saved note',
-                      icon: const Icon(Icons.summarize_outlined),
-                      onPressed: () => context.nav.push<void>(
-                        NoteSummaryPage(noteId: _savedNote!.uuid),
-                      ),
-                    ),
-                  if (_isPreviewMode &&
-                      expansion == 0 &&
-                      _savedNote != null &&
-                      !_hasUnsavedChanges)
-                    PopupMenuButton<String>(
-                      tooltip: 'Writing help and recovery',
-                      icon: const Icon(Icons.auto_fix_high_outlined),
-                      onSelected: (value) {
-                        if (value == 'presentation') {
-                          context.nav.push<void>(
-                            PresentationPage(
-                              source: PresentationSourceRef.note(
-                                _savedNote!.uuid,
-                              ),
-                            ),
-                          );
-                        } else if (value == 'metadata') {
-                          _openMetadataHelp();
-                        } else if (value == 'background') {
-                          context.nav
-                              .push<bool>(
-                                NoteBackgroundPage(noteId: _savedNote!.uuid),
-                              )
-                              .then((_) => _reloadSaved(_savedNote!.uuid));
-                        } else if (value == 'scan') {
-                          context.nav
-                              .push<bool>(
-                                NoteScanPage(noteId: _savedNote!.uuid),
-                              )
-                              .then((_) => _reloadSaved(_savedNote!.uuid));
-                        } else if (value == 'image') {
-                          context.nav
-                              .push<bool>(
-                                NoteImagePage(noteId: _savedNote!.uuid),
-                              )
-                              .then((_) => _reloadSaved(_savedNote!.uuid));
-                        } else {
-                          _openWritingHelp(recovery: value == 'recovery');
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(
-                          value: 'write',
-                          child: Text('Writing help'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'metadata',
-                          child: Text('Title & tag ideas'),
-                        ),
-                        if (_attachmentPaths.any(
-                          (a) => NoteAttachment.tryFromMap(a)?.isImage == true,
-                        ))
-                          const PopupMenuItem(
-                            value: 'image',
-                            child: Text('Ask about an image'),
-                          ),
-                        if (canModifySaved)
-                          const PopupMenuItem(
-                            value: 'scan',
-                            child: Text('Scan a page'),
-                          ),
-                        if (canModifySaved)
-                          const PopupMenuItem(
-                            value: 'background',
-                            child: Text('Generate a background'),
-                          ),
-                        const PopupMenuItem(
-                          value: 'recovery',
-                          child: Text('Prior content / recovery'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'presentation',
-                          child: Text('Presentation'),
-                        ),
-                      ],
-                    ),
                   if (_isPreviewMode && expansion == 0 && canModifySaved)
                     NoteActionsMenu(
                       isPinned: _savedNote?.isPinned ?? false,
@@ -677,9 +568,24 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                   : null,
             ),
           );
+          return QvacAssistantContent(
+            label: 'Note',
+            builder: (context, scrollController) => NoteAssistant(
+              noteId: noteId,
+              available:
+                  _isPreviewMode && expansion == 0 && !_hasUnsavedChanges,
+              scrollController: scrollController,
+              onChanged: () {
+                if (noteId != null) _reloadSaved(noteId);
+              },
+              onMetadataApplied: _metadataApplied,
+            ),
+            child: content,
+          );
         },
       ),
     );
+    return QvacAssistantPage(label: 'Note', child: page);
   }
 
   List<Widget> _noteSlivers(bool canEdit, NoteColors colors) {

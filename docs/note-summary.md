@@ -4,7 +4,7 @@ Implemented 27 October 2026. **R01 update:** [task recovery](task-recovery.md) e
 
 ## Use
 
-Open a saved nonempty note in preview mode → **Summarize saved note** (summary icon) → **Summarize**. The second action explicitly authorizes sending the saved title and body to the selected trusted computer. Unsaved drafts have no summary action. Attachments, tags, artwork, other notes, account identifiers and source UUID/revision are not transmitted.
+Open a saved nonempty note in preview mode → tap the floating QVAC logo → **Summarize** → **Summarize**. The second action explicitly authorizes sending the saved title and body to the selected trusted computer. Unsaved drafts keep the summary action disabled in the QVAC sheet. Attachments, tags, artwork, other notes, account identifiers and source UUID/revision are not transmitted.
 
 The preview distinguishes submitting without confirmed acceptance, accepted/queued, running, retrieving, completed, cancelled, interrupted and actionable errors. It offers **Copy summary**, **Dismiss**, explicit cancellation, and **Clear preview** for terminal work. Copy exports inert plain text to the system clipboard; it never edits or saves a note. There is no editor insertion action. Dismiss retains recovery information; More → Local QVAC → **AI task history** reopens it, including when the source was deleted. Only one preview is retained per phone; finish/cancel and clear it before starting another.
 

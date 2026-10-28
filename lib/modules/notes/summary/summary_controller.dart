@@ -283,7 +283,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (handle != null) {
       final Stream<Object?> stream = handle.isThoughtReflection
           ? ref.read(thoughtsRepositoryProvider).watchThoughts()
-          : handle.presentationSource?.kind == 'diary' || handle.isDiaryDay
+          : handle.isDiaryDay
           ? ref.read(diaryRepositoryProvider).watchAllDays()
           : ref.read(notesRepositoryProvider).watchNoteByUuid(handle.noteId);
       _source = stream.listen((_) {
@@ -443,10 +443,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           'This saved text is no longer available.',
         );
       }
-      final blocks = PresentationBlocks(
-        source.content,
-        markdown: sourceRef.kind == 'note',
-      );
+      final blocks = PresentationBlocks(source.content);
       final input = blocks.request(intent);
       final connection = ref.read(companionControllerProvider);
       final computer = connection.selected;
@@ -1888,10 +1885,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           throw const FormatException('Missing protected source');
         }
         final snapshot = PresentationSnapshot.decode(handle.localSource!);
-        final blocks = PresentationBlocks(
-          snapshot.content,
-          markdown: snapshot.ref.kind == 'note',
-        );
+        final blocks = PresentationBlocks(snapshot.content);
         await compilePresentationBounded(
           job['text'] as String,
           blocks.nodes.length,
@@ -2009,10 +2003,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     }
     try {
       final source = PresentationSnapshot.decode(handle.localSource!);
-      final blocks = PresentationBlocks(
-        source.content,
-        markdown: source.ref.kind == 'note',
-      );
+      final blocks = PresentationBlocks(source.content);
       final document = await compilePresentationBounded(
         text,
         blocks.nodes.length,

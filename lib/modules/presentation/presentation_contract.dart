@@ -12,37 +12,28 @@ const presentationOperation = 'present-text';
 const presentationPolicy = 1;
 const presentationOutputBytes = 4096;
 
+/// Presentations style saved notes only. Diary entries stay plain text.
 class PresentationSourceRef {
-  const PresentationSourceRef.note(this.id) : kind = 'note', day = null;
-  const PresentationSourceRef.diary(this.day, this.id) : kind = 'diary';
-  final String kind, id;
-  final String? day;
-  String get key => '$kind:${day == null ? '' : '$day:'}$id';
+  const PresentationSourceRef.note(this.id);
+  final String id;
+  String get key => 'note:$id';
   @override
   bool operator ==(Object other) =>
       other is PresentationSourceRef && key == other.key;
   @override
   int get hashCode => key.hashCode;
-  Map<String, dynamic> toJson() => {
-    'kind': kind,
-    'id': id,
-    if (day != null) 'day': day,
-  };
+  Map<String, dynamic> toJson() => {'kind': 'note', 'id': id};
   factory PresentationSourceRef.fromJson(Map<String, dynamic> value) {
     final id = value['id'];
-    if (id is! String || id.isEmpty || id.length > 80 || id.contains(':')) {
+    if (id is! String ||
+        id.isEmpty ||
+        id.length > 80 ||
+        id.contains(':') ||
+        value['kind'] != 'note' ||
+        value.containsKey('day')) {
       throw const FormatException('Invalid presentation source');
     }
-    if (value['kind'] == 'note' && value['day'] == null) {
-      return PresentationSourceRef.note(id);
-    }
-    final day = value['day'];
-    if (value['kind'] == 'diary' &&
-        day is String &&
-        RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(day)) {
-      return PresentationSourceRef.diary(day, id);
-    }
-    throw const FormatException('Invalid presentation source');
+    return PresentationSourceRef.note(id);
   }
 }
 
@@ -79,19 +70,14 @@ bool presentationText(String value, int maxBytes) =>
 /// Original AST nodes are never supplied by the model. Only references to these
 /// immutable blocks can enter a presentation.
 class PresentationBlocks {
-  PresentationBlocks(String source, {required bool markdown}) {
+  PresentationBlocks(String source) {
     if (!presentationText(source, 65536)) {
       throw const FormatException('Source must fit 64 KiB');
     }
-    nodes = markdown
-        ? md.Document(
-            extensionSet: md.ExtensionSet.gitHubFlavored,
-            encodeHtml: false,
-          ).parseLines(const LineSplitter().convert(source))
-        : source
-              .split(RegExp(r'\n[ \t]*\n'))
-              .map((p) => md.Element('p', [md.Text(p)]))
-              .toList();
+    nodes = md.Document(
+      extensionSet: md.ExtensionSet.gitHubFlavored,
+      encodeHtml: false,
+    ).parseLines(const LineSplitter().convert(source));
     var count = 0;
     void check(md.Node node, int depth) {
       if (++count > 256 || depth > 16) {

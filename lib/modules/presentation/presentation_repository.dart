@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/objectbox/objectbox.dart';
@@ -45,36 +43,18 @@ class PresentationRepository {
       .watch(triggerImmediately: true)
       .map((q) => q.findFirst());
   Stream<PresentationSnapshot?> watchSource(PresentationSourceRef sourceRef) =>
-      (sourceRef.kind == 'note'
-              ? db.noteBox
-                    .query(NoteEntity_.uuid.equals(sourceRef.id))
-                    .watch(triggerImmediately: true)
-              : db.diaryBox
-                    .query(DiaryDayEntity_.dateString.equals(sourceRef.day!))
-                    .watch(triggerImmediately: true))
+      db.noteBox
+          .query(NoteEntity_.uuid.equals(sourceRef.id))
+          .watch(triggerImmediately: true)
           .map((_) => source(sourceRef));
   PresentationSnapshot? source(PresentationSourceRef ref) {
-    if (ref.kind == 'note') {
-      final query = db.noteBox.query(NoteEntity_.uuid.equals(ref.id)).build();
-      final note = query.findFirst();
-      query.close();
-      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
-        return null;
-      }
-      return PresentationSnapshot(ref, note.content, note.versionVectorJson);
-    }
-    final query = db.diaryBox
-        .query(DiaryDayEntity_.dateString.equals(ref.day!))
-        .build();
-    final day = query.findFirst();
+    final query = db.noteBox.query(NoteEntity_.uuid.equals(ref.id)).build();
+    final note = query.findFirst();
     query.close();
-    if (day == null || day.isDeleted) return null;
-    final item = day.items
-        .where((i) => i.itemUuid == ref.id && !i.isDeleted)
-        .firstOrNull;
-    return item == null
-        ? null
-        : PresentationSnapshot(ref, item.content, jsonEncode(item.toJson()));
+    if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
+      return null;
+    }
+    return PresentationSnapshot(ref, note.content, note.versionVectorJson);
   }
 
   bool matches(PresentationSnapshot snapshot) =>
@@ -91,10 +71,7 @@ class PresentationRepository {
     required SafePresentationDocument document,
   }) {
     _editable();
-    final blocks = PresentationBlocks(
-      snapshot.content,
-      markdown: snapshot.ref.kind == 'note',
-    );
+    final blocks = PresentationBlocks(snapshot.content);
     final validated = SafePresentationDocument.decode(
       document.encode(),
       blocks.nodes.length,

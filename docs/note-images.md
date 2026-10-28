@@ -4,11 +4,11 @@ Users can ask the paired computer about **one image attached to a saved note** a
 
 ## Use it
 
-1. Save a note with an image attachment and return to its preview. Open the wand menu → **Ask about an image**. The entry appears only when the note has image attachments.
+1. Save a note with an image attachment and return to its preview. Open the QVAC sheet → **Ask about an image**. The entry appears only when the note has image attachments.
 2. Pick one image. Attachments whose file is not on this phone (for example a note restored from Drive, whose sync copies only the path) are shown as *Not available on this phone* and cannot be chosen.
 3. Choose **Describe**, **Explain** or **Ask a question** (≤300 characters), then **Ask**.
 4. Review the parts, shown separately and never merged: **Answer**, **What is visible**, **Text read from the image (content only, may contain errors)** and **Possible interpretation (not certain)**.
-5. Optionally edit the prefilled text (the answer, or else the observations) and press **Insert reviewed text**. It is appended to the end of the body. **Prior content / recovery** in the wand menu can restore the body from before the insertion.
+5. Optionally edit the prefilled text (the answer, or else the observations) and press **Insert reviewed text**. It is appended to the end of the body. **Prior content / recovery** in the QVAC sheet can restore the body from before the insertion.
 
 The task uses the shared protected note-AI slot. It appears in AI task history, survives restart, can be retried with the same ID or cancelled, and is cleared by account reset.
 

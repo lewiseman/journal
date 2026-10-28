@@ -122,7 +122,7 @@ void main() {
     }
     const source =
         '[word](https://example.invalid) ![alt](file:///private) <script>literal</script>';
-    final blocks = PresentationBlocks(source, markdown: true);
+    final blocks = PresentationBlocks(source);
     final document = await compilePresentationBounded(
       jsonEncode({'html': html, 'css': css}),
       1,
@@ -296,11 +296,6 @@ void main() {
         title: 'Synthetic private title',
         content: '# Plans for Friday\n\nMeet Mira at noon.',
       );
-      final date = DiaryRepository.formatDateKey(DateTime.now());
-      final item = diary.addTimelineItem(
-        dateString: date,
-        content: 'A quiet walk by the river.\n\nI watched the afternoon light.',
-      );
       await show(EditNotePage(existingNote: note));
       container.read(companionControllerProvider);
       container.read(noteSummaryProvider);
@@ -354,20 +349,6 @@ void main() {
       await controller.startPresentation(noteRef);
       await waitFor(() => container.read(noteSummaryProvider).terminal);
       expect(await controller.acceptPresentation(), true);
-      final diaryRef = PresentationSourceRef.diary(date, item.itemUuid);
-      await show(PresentationPage(source: diaryRef));
-      await controller.startPresentation(diaryRef);
-      await waitFor(() => container.read(noteSummaryProvider).terminal);
-      expect(container.read(noteSummaryProvider).phase, 'completed');
-      diary.addTimelineItem(
-        dateString: date,
-        content: 'Another item does not change this source.',
-      );
-      expect(await controller.acceptPresentation(), true);
-      report['diaryGeneratedAcceptedAndAppendPreservedVersion'] = true;
-      report['diaryDocument'] = jsonDecode(
-        repository.get(diaryRef.key)!.document,
-      );
       // A fresh proposal cannot apply after a source change.
       await controller.startPresentation(noteRef);
       notes.saveNote(

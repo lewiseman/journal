@@ -195,24 +195,21 @@ void main() {
   test(
     'source blocks preserve Markdown structure and bounded private context',
     () {
-      final blocks = PresentationBlocks(
-        '# Original\n\n- One\n- Two',
-        markdown: true,
-      );
+      final blocks = PresentationBlocks('# Original\n\n- One\n- Two');
       final input = jsonDecode(blocks.request('Comfortable')) as Map;
       expect(input.keys.toSet(), {'blocks', 'intent'});
       expect((input['blocks'] as List).length, 2);
       expect(input.toString(), isNot(contains('uuid')));
       expect(
-        () => PresentationBlocks('a\n\n' * 17, markdown: false),
+        () => PresentationBlocks('a\n\n' * 17),
         throwsFormatException,
       );
       expect(
-        () => PresentationBlocks('x' * 65537, markdown: true),
+        () => PresentationBlocks('x' * 65537),
         throwsFormatException,
       );
       expect(
-        () => PresentationBlocks('x' * 2000, markdown: false).request(''),
+        () => PresentationBlocks('x' * 2000).request(''),
         throwsFormatException,
       );
     },
@@ -292,40 +289,28 @@ void main() {
     ).clear();
     expect(reopened.store.box<PresentationEntity>().count(), 0);
   });
-  test(
-    'diary revision belongs to an item; appending another item preserves it',
-    () async {
-      final app = await SyncFixture.create(MemoryDrive(), 'phone');
-      final repo = PresentationRepository(app.db, app.storage);
-      final item = app.diary.addTimelineItem(
-        dateString: '2026-10-26',
-        content: 'A moment.',
-      );
-      final ref = PresentationSourceRef.diary('2026-10-26', item.itemUuid);
-      final source = repo.source(ref)!;
-      app.diary.addTimelineItem(
-        dateString: '2026-10-26',
-        content: 'Another moment.',
-      );
-      expect(repo.matches(source), true);
-      repo.accept(
-        taskId: 'diary-task',
-        snapshot: source,
-        document: compilePresentation(template(1), 1),
-      );
-      app.diary.updateTimelineItem(
-        dateString: '2026-10-26',
-        itemUuid: item.itemUuid,
-        content: 'New words.',
-      );
-      expect(repo.matches(source), false);
-      app.diary.deleteTimelineItem(
-        dateString: '2026-10-26',
-        itemUuid: item.itemUuid,
-      );
-      expect(repo.source(ref), null);
-    },
-  );
+  test('presentation sources are notes only', () {
+    expect(
+      PresentationSourceRef.fromJson({'kind': 'note', 'id': 'n1'}),
+      const PresentationSourceRef.note('n1'),
+    );
+    expect(
+      () => PresentationSourceRef.fromJson({
+        'kind': 'diary',
+        'day': '2026-10-26',
+        'id': 'item',
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => PresentationSourceRef.fromJson({
+        'kind': 'note',
+        'day': '2026-10-26',
+        'id': 'n1',
+      }),
+      throwsFormatException,
+    );
+  });
   testWidgets(
     'offline renderer, theme, scaling, RTL, selection, semantics and renderer failure',
     (tester) async {
@@ -335,7 +320,7 @@ void main() {
       addTearDown(() => HttpOverrides.global = client);
       const source =
           '# Heading\n\nمرحبا **words** [link](https://example.invalid) ![alt](file:///private) <script>evil()</script>';
-      final blocks = PresentationBlocks(source, markdown: true);
+      final blocks = PresentationBlocks(source);
       for (final size in [const Size(320, 568), const Size(844, 390)]) {
         tester.view.resetPhysicalSize();
         tester.view.physicalSize = size;
@@ -413,79 +398,41 @@ void main() {
       tester.view.resetDevicePixelRatio();
     },
   );
-  testWidgets(
-    'styled diary curl face and live prose stay aligned and react to local style replacement',
-    (tester) async {
-      final app = (await tester.runAsync(
-        () => SyncFixture.create(MemoryDrive(), 'phone'),
-      ))!;
-      final item = app.diary.addTimelineItem(
-        dateString: '2026-10-26',
-        content: 'A quiet walk.\n\nAfternoon light.',
-      );
-      final source = PresentationSourceRef.diary('2026-10-26', item.itemUuid);
-      final repo = PresentationRepository(app.db, app.storage);
-      repo.accept(
-        taskId: 'first-style',
-        snapshot: repo.source(source)!,
-        document: compilePresentation(template(2), 2),
-      );
-      final day = app.diary.getDay('2026-10-26')!;
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            objectBoxProvider.overrideWithValue(app.db),
-            syncStateStoreProvider.overrideWithValue(app.storage),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: DiaryPresentationScope(
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: 320,
-                        height: 240,
-                        child: DiarySheet(day: day),
-                      ),
-                      SizedBox(
-                        width: 320,
-                        child: DiaryDayContent(day: day, interactive: true),
-                      ),
-                    ],
-                  ),
-                ),
+  testWidgets('diary entries render as plain text, never styled or Markdown', (
+    tester,
+  ) async {
+    final app = (await tester.runAsync(
+      () => SyncFixture.create(MemoryDrive(), 'phone'),
+    ))!;
+    app.diary.addTimelineItem(
+      dateString: '2026-10-26',
+      content: '# Not a heading\n\n**not bold**',
+    );
+    final day = app.diary.getDay('2026-10-26')!;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          objectBoxProvider.overrideWithValue(app.db),
+          syncStateStoreProvider.overrideWithValue(app.storage),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: DiaryLiveScope(
+                child: DiaryDayContent(day: day, interactive: true),
               ),
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
-      final bodies = find.byType(SafePresentationBody);
-      expect(bodies, findsNWidgets(2));
-      final before = tester.getSize(bodies.first).height;
-      expect(tester.getSize(bodies.last).height, closeTo(before, 0.1));
-      repo.accept(
-        taskId: 'second-style',
-        snapshot: repo.source(source)!,
-        document: compilePresentation(
-          template(
-            2,
-            css: '.s0 {font-size:1.25em;line-height:1.8;margin-bottom:1em;}',
-          ),
-          2,
-        ),
-      );
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 30)),
-      );
-      await tester.pumpAndSettle();
-      final after = tester.getSize(bodies.first).height;
-      expect(after, greaterThan(before));
-      expect(tester.getSize(bodies.last).height, closeTo(after, 0.1));
-      expect(tester.takeException(), null);
-    },
-  );
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(PresentationBody), findsNothing);
+    expect(find.text('# Not a heading\n\n**not bold**'), findsOneWidget);
+    expect(tester.takeException(), null);
+    // Let the fixture's scheduled sync timer finish.
+    await tester.pump(const Duration(seconds: 1));
+  });
   testWidgets(
     'accepted reader reacts to live source changes, deletion and unsupported storage',
     (tester) async {

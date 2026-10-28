@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/suggestions/diary_details_page.dart';
-import 'package:journal/modules/presentation/presentation_contract.dart';
-import 'package:journal/modules/presentation/presentation_page.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/settings/companion/companion_page.dart';
-import 'package:journal/modules/voice/views/pages/diary_talk_page.dart';
+import 'package:journal/modules/voice/voice.dart';
+import 'package:journal/utils/navigation_helper.dart';
 import 'package:journal/utils/time_helper.dart';
 
-enum _DiaryTool { details, microphone, presentation }
+enum _DiaryTool { details }
 
 /// The selected reader day is captured when QVAC opens, including empty days.
 /// Opening the menu itself never creates a microphone or a conversation.
@@ -30,7 +28,6 @@ class DiaryAssistant extends ConsumerStatefulWidget {
 
 class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
   _DiaryTool? _tool;
-  PresentationSourceRef? _presentationSource;
 
   void _open(_DiaryTool? tool) {
     if (widget.scrollController.hasClients) {
@@ -38,8 +35,25 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
     }
     setState(() {
       _tool = tool;
-      _presentationSource = null;
     });
+  }
+
+  void _openVoice() {
+    if (!widget.canAddVoice || ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    final reduced =
+        MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
+    context.nav.replace<void, bool>(
+      VoiceSessionPage(
+        date: widget.date,
+        mode: VoiceSessionMode.conversation,
+        title: 'Your day, out loud',
+      ),
+      transition: reduced ? NavTransition.none : NavTransition.fade,
+    );
   }
 
   @override
@@ -51,73 +65,8 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
           scrollController: widget.scrollController,
           onBack: () => _open(null),
         );
-      case _DiaryTool.microphone:
-        return DiaryTalkPage(
-          date: widget.date,
-          scrollController: widget.scrollController,
-        );
-      case _DiaryTool.presentation:
-        final source = _presentationSource;
-        if (source != null) {
-          return PresentationPage(
-            key: ValueKey(source.key),
-            source: source,
-            scrollController: widget.scrollController,
-            onBack: () => _open(_DiaryTool.presentation),
-          );
-        }
-        break;
       case null:
         break;
-    }
-    final dateString = TimeHelper.dateKey(widget.date);
-    final day =
-        ref
-            .watch(diaryDaysProvider)
-            .value
-            ?.where((day) => day.dateString == dateString)
-            .firstOrNull ??
-        ref.read(diaryRepositoryProvider).getDay(dateString);
-    final items = day?.visibleItems.toList() ?? [];
-    if (_tool == _DiaryTool.presentation) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Presentation'),
-          leading: BackButton(onPressed: () => _open(null)),
-        ),
-        body: ListView(
-          key: const ValueKey('diary-presentation-entries'),
-          controller: widget.scrollController,
-          physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.all(24),
-          children: [
-            const Text('Choose a saved entry'),
-            const SizedBox(height: 12),
-            if (items.isEmpty)
-              const Text('Save an entry for this day to style its words.'),
-            for (final item in items)
-              ListTile(
-                key: ValueKey('diary-presentation-entry-${item.itemUuid}'),
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  item.content,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () {
-                  widget.scrollController.jumpTo(0);
-                  setState(() {
-                    _presentationSource = PresentationSourceRef.diary(
-                      dateString,
-                      item.itemUuid,
-                    );
-                  });
-                },
-              ),
-          ],
-        ),
-      );
     }
     final theme = Theme.of(context);
     final phase = ref.watch(
@@ -178,17 +127,7 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
           subtitle: widget.canAddVoice
               ? 'Talk through your day and turn it into an entry.'
               : 'Older days are read-only on this device.',
-          onTap: widget.canAddVoice ? () => _open(_DiaryTool.microphone) : null,
-        ),
-        const SizedBox(height: 12),
-        _ToolTile(
-          key: const ValueKey('diary-assistant-presentation'),
-          icon: Icons.auto_fix_high_outlined,
-          title: 'Presentation',
-          subtitle: items.isEmpty
-              ? 'Save an entry for this day to style its words.'
-              : 'Style a saved entry while keeping your words.',
-          onTap: items.isEmpty ? null : () => _open(_DiaryTool.presentation),
+          onTap: widget.canAddVoice ? _openVoice : null,
         ),
       ],
     );

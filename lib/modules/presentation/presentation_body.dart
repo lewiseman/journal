@@ -44,10 +44,7 @@ class PresentationBody extends ConsumerWidget {
           !ref.read(presentationRepositoryProvider).matches(snapshot)) {
         return original();
       }
-      final blocks = PresentationBlocks(
-        content,
-        markdown: source.kind == 'note',
-      );
+      final blocks = PresentationBlocks(content);
       return SafePresentationBody(
         blocks: blocks,
         document: SafePresentationDocument.decode(

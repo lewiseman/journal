@@ -9,17 +9,16 @@ import 'package:journal/modules/diary/views/widgets/diary_photo_story_strip.dart
 import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
 import 'package:journal/modules/voice/views/pages/diary_conversation_page.dart';
 import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
-import 'package:journal/modules/presentation/presentation_body.dart';
-import 'package:journal/modules/presentation/presentation_contract.dart';
 import 'package:journal/modules/diary/suggestions/diary_suggestion_contract.dart';
 
-class DiaryPresentationScope extends InheritedWidget {
-  const DiaryPresentationScope({super.key, required super.child});
+/// Marks the live diary reader, as opposed to static previews of its pages.
+class DiaryLiveScope extends InheritedWidget {
+  const DiaryLiveScope({super.key, required super.child});
   static bool enabled(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<DiaryPresentationScope>() !=
+      context.dependOnInheritedWidgetOfExactType<DiaryLiveScope>() !=
       null;
   @override
-  bool updateShouldNotify(DiaryPresentationScope oldWidget) => false;
+  bool updateShouldNotify(DiaryLiveScope oldWidget) => false;
 }
 
 /// Applies the cached device role without coupling paper previews to Riverpod.
@@ -177,7 +176,7 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
     // Photo-only stories have no text, so the page shows display items while
     // text tools in QVAC keep to entries with words.
     final items = day.displayItems.toList();
-    final live = widget.interactive && DiaryPresentationScope.enabled(context);
+    final live = widget.interactive && DiaryLiveScope.enabled(context);
     final title = day.isDeleted ? '' : day.dayTitle?.trim() ?? '';
     final mood = day.isDeleted ? null : decodeDayMood(day.dayMood);
     final themes = day.isDeleted ? const <String>[] : day.themes;
@@ -261,19 +260,6 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                   ),
                 if (item.content.trim().isEmpty)
                   const SizedBox.shrink()
-                else if (DiaryPresentationScope.enabled(context))
-                  PresentationBody(
-                    source: PresentationSourceRef.diary(
-                      day.dateString,
-                      item.itemUuid,
-                    ),
-                    content: item.content,
-                    selectable: widget.interactive,
-                    fallback: Text(
-                      item.content.trim(),
-                      key: ValueKey(item.itemUuid),
-                    ),
-                  )
                 else
                   Text(item.content.trim(), key: ValueKey(item.itemUuid)),
                 const SizedBox(height: 26),
@@ -297,7 +283,7 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                 dateString: day.dateString,
                 live:
                     widget.interactive &&
-                    DiaryPresentationScope.enabled(context),
+                    DiaryLiveScope.enabled(context),
               ),
             ),
             // A zero-height footer balances the space around the invitation.

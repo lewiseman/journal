@@ -15,10 +15,10 @@ import 'package:journal/modules/diary/views/pages/diary_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
-import 'package:journal/modules/presentation/presentation_page.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/voice/views/pages/diary_talk_page.dart';
+import 'package:journal/modules/voice/voice.dart';
 import 'package:sync_wise/sync_wise.dart';
 
 import 'note_summary_test.dart' show TestReset;
@@ -239,147 +239,80 @@ void main() {
     (name: 'light', dark: false, scale: 1.0, size: const Size(390, 844)),
     (name: 'large-dark', dark: true, scale: 2.0, size: const Size(320, 568)),
   ]) {
-    testWidgets('microphone shares sheet scrolling and fits ${layout.name}', (
-      tester,
-    ) async {
-      final app = await _mount(
-        tester,
-        dark: layout.dark,
-        scale: layout.scale,
-        size: layout.size,
-      );
-      await _select(tester, 24);
-      final before = app.diary.getDay('2026-10-24')!.toSyncJson('test');
-      await tester.tap(_button);
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('Microphone'),
-        150,
-        scrollable: find.descendant(
-          of: find.byKey(const ValueKey('diary-assistant-actions')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.tap(find.text('Microphone'));
-      await tester.pumpAndSettle();
-      final talk = tester.widget<DiaryTalkPage>(find.byType(DiaryTalkPage));
-      expect(talk.date, DateTime(2026, 10, 24));
-      final scroll = find.descendant(
-        of: find.byType(DiaryTalkPage),
-        matching: find.byType(SingleChildScrollView),
-      );
-      expect(scroll, findsOneWidget);
-      expect(
-        tester.widget<SingleChildScrollView>(scroll).controller,
-        talk.scrollController,
-      );
-      await tester.drag(scroll, const Offset(0, -600));
-      await tester.pumpAndSettle();
-      expect(_settings, findsNothing);
-      await _capture(tester, 'diary-microphone-${layout.name}');
-      await tester.ensureVisible(find.byTooltip('Close'));
-      await tester.tap(find.byTooltip('Close'));
-      await tester.pumpAndSettle();
-      expect(find.byType(QvacAssistantSheet), findsNothing);
-      expect(app.diary.getDay('2026-10-24')!.toSyncJson('test'), before);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'microphone replaces the sheet with the full voice page in ${layout.name}',
+      (tester) async {
+        final app = await _mount(
+          tester,
+          dark: layout.dark,
+          scale: layout.scale,
+          size: layout.size,
+        );
+        await _select(tester, 24);
+        final before = app.diary.getDay('2026-10-24')!.toSyncJson('test');
+        await tester.tap(_button);
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.text('Microphone'),
+          150,
+          scrollable: find.descendant(
+            of: find.byKey(const ValueKey('diary-assistant-actions')),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        await tester.tap(find.text('Microphone'));
+        await tester.pumpAndSettle();
+        final voice = tester.widget<VoiceSessionPage>(
+          find.byType(VoiceSessionPage),
+        );
+        expect(voice.mode, VoiceSessionMode.conversation);
+        expect(voice.date, DateTime(2026, 10, 24));
+        final talk = tester.widget<DiaryTalkPage>(find.byType(DiaryTalkPage));
+        expect(talk.date, DateTime(2026, 10, 24));
+        expect(talk.scrollController, isNull);
+        expect(
+          find.byType(QvacAssistantSheet, skipOffstage: false),
+          findsNothing,
+        );
+        expect(find.byType(DraggableScrollableSheet), findsNothing);
+        expect(_settings, findsNothing);
+        await _capture(tester, 'diary-microphone-${layout.name}');
+        await tester.ensureVisible(find.byTooltip('Close'));
+        await tester.tap(find.byTooltip('Close'));
+        await tester.pumpAndSettle();
+        expect(find.byType(QvacAssistantSheet), findsNothing);
+        expect(find.byType(VoiceSessionPage), findsNothing);
+        expect(app.diary.getDay('2026-10-24')!.toSyncJson('test'), before);
+        await tester.tap(_button);
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<Text>(find.byKey(const ValueKey('diary-assistant-date')))
+              .data,
+          'Sat, 24 Oct 2026',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
-  testWidgets(
-    'presentation picks a selected-day entry and stays in the shared sheet',
-    (tester) async {
-      final app = await _mount(tester);
-      final second = app.diary.addTimelineItem(
-        dateString: '2026-10-24',
-        content: 'A second memory to style.',
-      );
-      app.diary.addTimelineItem(
-        dateString: '2026-10-25',
-        content: 'Words from another day.',
-      );
-      await tester.tap(_button);
-      await tester.pumpAndSettle();
-      final menuScroll = find.descendant(
-        of: find.byKey(const ValueKey('diary-assistant-actions')),
-        matching: find.byType(Scrollable),
-      );
-      await tester.scrollUntilVisible(
-        find.text('Presentation'),
-        150,
-        scrollable: menuScroll,
-      );
-      final presentationTile = find.descendant(
-        of: find.byKey(const ValueKey('diary-assistant-presentation')),
-        matching: find.byType(ListTile),
-      );
-      expect(tester.widget<ListTile>(presentationTile).enabled, false);
-      Navigator.of(tester.element(find.byType(QvacAssistantSheet))).pop();
-      await tester.pumpAndSettle();
-      await _select(tester, 24);
-      expect(find.text('Presentation'), findsNothing);
-      final before = app.diary.getDay('2026-10-24')!.toSyncJson('test');
-      await tester.tap(_button);
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('Presentation'),
-        150,
-        scrollable: menuScroll,
-      );
-      expect(tester.widget<ListTile>(presentationTile).enabled, true);
-      await tester.tap(find.text('Presentation'));
-      await tester.pumpAndSettle();
-      final entries = find.byKey(const ValueKey('diary-presentation-entries'));
-      expect(find.text('Choose a saved entry'), findsOneWidget);
-      expect(
-        find.descendant(of: entries, matching: find.byType(ListTile)),
-        findsNWidgets(2),
-      );
-      expect(find.text('Words from another day.'), findsNothing);
-      await tester.tap(
-        find.byKey(ValueKey('diary-presentation-entry-${second.itemUuid}')),
-      );
-      await tester.pumpAndSettle();
-      final page = tester.widget<PresentationPage>(
-        find.byType(PresentationPage),
-      );
-      expect(page.source!.day, '2026-10-24');
-      expect(page.source!.id, second.itemUuid);
-      expect(find.text('A second memory to style.'), findsOneWidget);
-      expect(find.byType(QvacAssistantSheet), findsOneWidget);
-      final list = find.descendant(
-        of: find.byType(PresentationPage),
-        matching: find.byType(ListView),
-      );
-      expect(tester.widget<ListView>(list).controller, page.scrollController);
-      await tester.drag(list, const Offset(0, -500));
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<DraggableScrollableSheet>(
-              find.byType(DraggableScrollableSheet),
-            )
-            .controller!
-            .size,
-        closeTo(1, .01),
-      );
-      expect(_settings, findsNothing);
-      await _capture(tester, 'diary-presentation-expanded');
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
-      expect(find.text('Choose a saved entry'), findsOneWidget);
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('diary-assistant-actions')),
-        findsOneWidget,
-      );
-      expect(app.diary.getDay('2026-10-24')!.toSyncJson('test'), before);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-      app.container.dispose();
-    },
-  );
+  testWidgets('the diary menu offers no presentation styling', (tester) async {
+    final app = await _mount(tester);
+    await tester.tap(_button);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('diary-assistant-actions')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('diary-assistant-presentation')),
+      findsNothing,
+    );
+    expect(find.text('Presentation'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    app.container.dispose();
+  });
 
   testWidgets(
     'secondary devices can speak today but cannot change older days',
@@ -405,6 +338,16 @@ void main() {
       await tester.tap(_button);
       await tester.pumpAndSettle();
       expect(tester.widget<ListTile>(microphone).enabled, true);
+      await tester.tap(microphone);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(QvacAssistantSheet, skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        tester.widget<DiaryTalkPage>(find.byType(DiaryTalkPage)).date,
+        DateTime(2026, 10, 26),
+      );
     },
   );
 }

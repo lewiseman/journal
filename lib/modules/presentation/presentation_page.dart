@@ -78,10 +78,7 @@ class _PresentationPageState extends ConsumerState<PresentationPage> {
         snapshot = current;
       }
       if (snapshot != null) {
-        blocks = PresentationBlocks(
-          snapshot.content,
-          markdown: snapshot.ref.kind == 'note',
-        );
+        blocks = PresentationBlocks(snapshot.content);
       }
     } catch (_) {
       sourceError = 'This source is too large or complex for presentation. The original is available below.';

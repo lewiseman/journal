@@ -48,8 +48,8 @@ prompts. "Just the photos" with no captions gives empty content.
 **Readers.** `visibleItems` still filters on text. Search, daily questions,
 history, suggestions and summaries therefore see only the user's words and
 never get an empty photo-only item. A new `displayItems` also includes
-photo-only stories. The diary page and calendar use it. **Day details** and
-**Presentation** appear only when the day has entries with text.
+photo-only stories. The diary page and calendar use it. **Day details** works
+only from entries with text.
 
 **Copies.** `DiaryPhotoStore` writes each copy through a `.partial` file and a
 rename, and only when you save. If the save then fails, it removes the copies
