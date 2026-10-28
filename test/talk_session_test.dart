@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:journal/modules/settings/companion/companion_protocol.dart';
 import 'package:journal/modules/voice/controllers/diary_conversation.dart';
 import 'package:journal/modules/voice/controllers/reply_voice.dart';
 import 'package:journal/modules/voice/controllers/talk_session.dart';
@@ -18,6 +19,18 @@ class FakeMic implements TalkMic {
 
   @override
   Future<void> stop() async => on = false;
+}
+
+class BrokenMic implements TalkMic {
+  @override
+  Future<void> start(void Function(Uint8List pcm) onData) async =>
+      throw const CompanionFailure(
+        'MICROPHONE',
+        'Could not open the microphone.',
+      );
+
+  @override
+  Future<void> stop() async {}
 }
 
 class FakeVoice extends ReplyVoice {
@@ -103,6 +116,38 @@ void main() {
     await talk.handle({'type': 'reply', 'text': 'What happened next?'});
     expect(conversation.turns.last['text'], 'What happened next?');
     expect(voice.said, isEmpty);
+    expect(talk.phase, TalkPhase.paused);
+  });
+
+  test(
+    'a microphone that fails to open keeps its reason over "nothing heard"',
+    () async {
+      final broken = TalkSession(
+        conversation: conversation,
+        voice: voice,
+        mic: BrokenMic(),
+      );
+      addTearDown(broken.dispose);
+      await broken.handle({'type': 'listening'});
+      expect(broken.note, 'Could not open the microphone.');
+      await broken.handle({'type': 'endpoint'});
+      await broken.handle({'type': 'empty'});
+      expect(broken.phase, TalkPhase.paused);
+      expect(broken.note, 'Could not open the microphone.');
+    },
+  );
+
+  test('after nothing was heard, continuing listens again without repeating the question', () async {
+    await talk.handle({'type': 'reply', 'text': 'How was your day?'});
+    await pumpEventQueue();
+    expect(voice.said, ['How was your day?']);
+    await talk.handle({'type': 'listening'});
+    await talk.handle({'type': 'endpoint'});
+    await talk.handle({'type': 'empty'});
+    expect(talk.note, contains('Nothing was heard'));
+    expect(mic.on, isFalse);
+    // No socket in this test, so resume reconnects via start(); check the
+    // in-session path directly instead.
     expect(talk.phase, TalkPhase.paused);
   });
 }

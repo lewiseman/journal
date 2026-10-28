@@ -7,6 +7,7 @@ import 'package:journal/modules/diary/views/widgets/diary_paper_material.dart';
 import 'package:journal/modules/diary/views/widgets/diary_paper_stamp.dart';
 import 'package:journal/modules/diary/views/widgets/diary_photo_story_strip.dart';
 import 'package:journal/modules/diary/views/widgets/diary_writing_prompt.dart';
+import 'package:journal/modules/voice/views/pages/diary_conversation_page.dart';
 import 'package:journal/modules/diary/questions/daily_question_prompt.dart';
 import 'package:journal/modules/presentation/presentation_body.dart';
 import 'package:journal/modules/presentation/presentation_contract.dart';
@@ -254,6 +255,13 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
                         ? () => _openPhotoStory(context, day, item)
                         : null,
                   ),
+                if (item.aiConversation?.turns.isNotEmpty ?? false)
+                  _DiaryConversationChip(
+                    item: item,
+                    onOpen: live
+                        ? () => _openConversation(context, day, item)
+                        : null,
+                  ),
                 if (item.content.trim().isEmpty)
                   const SizedBox.shrink()
                 else if (DiaryPresentationScope.enabled(context))
@@ -350,6 +358,49 @@ class _DiaryDayContentState extends State<DiaryDayContent> {
             // A zero-height footer balances the space around the invitation.
             if (items.isEmpty) const SizedBox.shrink(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Opens the voice conversation an entry was written from.
+void _openConversation(
+  BuildContext context,
+  DiaryDayEntity day,
+  DiaryItem item,
+) {
+  if (ModalRoute.of(context)?.isCurrent == false) return;
+  final reduced =
+      MediaQuery.disableAnimationsOf(context) ||
+      MediaQuery.accessibleNavigationOf(context);
+  context.nav.push<void>(
+    DiaryConversationPage(dateString: day.dateString, itemUuid: item.itemUuid),
+    transition: reduced ? NavTransition.none : NavTransition.platform,
+  );
+}
+
+/// Marks an entry that came from a voice conversation.
+class _DiaryConversationChip extends StatelessWidget {
+  const _DiaryConversationChip({required this.item, this.onOpen});
+  final DiaryItem item;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final turns = item.aiConversation!.turns.length;
+    final label = item.content.trim().isEmpty
+        ? 'Conversation · no entry yet'
+        : 'Conversation · $turns ${turns == 1 ? 'turn' : 'turns'}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: ActionChip(
+          key: ValueKey('diary-conversation-${item.itemUuid}'),
+          avatar: const Icon(Icons.forum_outlined, size: 18),
+          label: Text(label),
+          onPressed: onOpen,
         ),
       ),
     );

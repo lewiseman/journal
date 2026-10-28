@@ -40,8 +40,21 @@ class PcmTalkMic implements TalkMic {
         'Microphone permission was denied. Allow it in Android app settings, then continue.',
       );
     }
-    // The native recorder always writes a file; this one only lives for a turn.
-    _file = File('${(await VoiceStore().directory()).path}/talk.pcm');
+    // The native recorder always writes a new file; this one only lives for a
+    // turn. A file left by a crash would make every later start fail, so
+    // earlier ones are removed and each turn gets its own name.
+    final directory = await VoiceStore().directory();
+    try {
+      for (final old in directory.listSync()) {
+        final name = old.uri.pathSegments.last;
+        if (name.startsWith('talk') && name.endsWith('.pcm')) {
+          await old.delete();
+        }
+      }
+    } catch (_) {}
+    _file = File(
+      '${directory.path}/talk-${DateTime.now().microsecondsSinceEpoch}.pcm',
+    );
     await _recorder.start(
       path: _file!.path,
       onData: onData,
@@ -52,10 +65,14 @@ class PcmTalkMic implements TalkMic {
 
   @override
   Future<void> stop() async {
-    await _recorder.stop();
     try {
-      if (await _file?.exists() ?? false) await _file!.delete();
-    } catch (_) {}
+      await _recorder.stop();
+    } finally {
+      try {
+        if (await _file?.exists() ?? false) await _file!.delete();
+      } catch (_) {}
+      _file = null;
+    }
   }
 }
 
@@ -92,6 +109,10 @@ class TalkSession extends ChangeNotifier {
   final _segments = <int, String>{};
   int _frames = 0, _generation = 0;
   bool _micOn = false, _held = false;
+
+  /// The microphone failed to open this turn; the computer's following
+  /// "nothing heard" must not replace that reason.
+  bool _micFailed = false;
 
   void _update() {
     if (!disposed) notifyListeners();
@@ -202,6 +223,7 @@ class TalkSession extends ChangeNotifier {
         }
         _segments.clear();
         heard = '';
+        _micFailed = false;
         phase = TalkPhase.listening;
         await _openMic();
       case 'segment':
@@ -213,23 +235,31 @@ class TalkSession extends ChangeNotifier {
             .join(' ');
       case 'endpoint':
         await _closeMic();
+        if (_micFailed) return;
         if (!_held) phase = TalkPhase.transcribing;
       case 'turn':
         heard = '';
         await conversation.append('user', event['text'] as String);
       case 'empty':
+        await _closeMic();
         heard = '';
+        if (_micFailed) return;
         _pause('Nothing was heard. Continue when you are ready.');
       case 'error':
         await _closeMic();
+        if (_micFailed) return;
         streaming = '';
         _pause(event['message'] as String?);
     }
     _update();
   }
 
+  /// Whether the latest question has been spoken (or skipped) this session.
+  bool _asked = false;
+
   Future<void> _speak(String text) async {
     final generation = ++_generation;
+    _asked = false;
     phase = TalkPhase.speaking;
     _update();
     await voice.say(text);
@@ -239,6 +269,7 @@ class TalkSession extends ChangeNotifier {
   }
 
   void _listen() {
+    _asked = true;
     _generation++;
     unawaited(voice.stop());
     phase = TalkPhase.listening;
@@ -268,6 +299,9 @@ class TalkSession extends ChangeNotifier {
       phase = TalkPhase.thinking;
       _update();
       _send({'type': 'retry'});
+    } else if (_asked) {
+      // The question was already heard; only the answer is missing.
+      _listen();
     } else {
       await _speak(turns.last['text']!);
     }
@@ -282,6 +316,28 @@ class TalkSession extends ChangeNotifier {
     if (_micOn) _send({'type': 'done'});
     await _closeMic();
     _pause('Paused while the app was in the background.');
+  }
+
+  /// Finishing: lets a turn being said land first, then hangs up so the
+  /// computer is free to write the diary draft.
+  Future<void> end() async {
+    if (phase == TalkPhase.listening && _micOn && heard.isNotEmpty) {
+      done();
+    }
+    final until = DateTime.now().add(const Duration(seconds: 15));
+    while (!disposed &&
+        (phase == TalkPhase.listening || phase == TalkPhase.transcribing) &&
+        heard.isNotEmpty &&
+        DateTime.now().isBefore(until)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    _held = true;
+    _generation++;
+    await voice.stop();
+    await _close();
+    phase = TalkPhase.paused;
+    note = null;
+    _update();
   }
 
   Future<void> _openMic() async {
@@ -308,6 +364,7 @@ class TalkSession extends ChangeNotifier {
       });
     } catch (e) {
       _micOn = false;
+      _micFailed = true;
       _send({'type': 'done'});
       _pause(
         e is CompanionFailure

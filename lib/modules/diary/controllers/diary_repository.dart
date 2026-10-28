@@ -9,6 +9,7 @@ import 'package:journal/modules/root/controllers/journal_sync_store.dart';
 import 'package:journal/objectbox/objectbox.g.dart';
 
 import '../models/diary_day_entity.dart';
+import '../models/diary_ai_conversation.dart';
 import '../models/diary_item.dart';
 import '../models/diary_photo.dart';
 import '../suggestions/diary_suggestion_contract.dart';
@@ -169,6 +170,72 @@ class DiaryRepository {
     });
     onDataChanged?.call();
     return newItem;
+  }
+
+  /// Creates or updates the item a voice conversation is written into. The
+  /// item may have no words yet; [content] replaces them when given.
+  DiaryItem saveAiConversation({
+    required String dateString,
+    required String itemUuid,
+    required DiaryAiConversation conversation,
+    String? content,
+  }) {
+    late DiaryItem saved;
+    _db.store.runInTransaction(TxMode.write, () {
+      final now = sync.now();
+      final day = getDay(dateString);
+      final items = day?.items ?? <DiaryItem>[];
+      final index = items.indexWhere((item) => item.itemUuid == itemUuid);
+      if (index >= 0) {
+        if (!sync.canEdit) {
+          throw StateError('Diary entries are read-only on this device.');
+        }
+        if (items[index].isDeleted) {
+          throw StateError('This entry was deleted from your diary.');
+        }
+        saved = items[index] = items[index].copyWith(
+          content: content,
+          aiConversation: conversation,
+          updatedAt: now,
+          deviceId: _device.deviceId,
+        );
+        day!.items = items;
+      } else {
+        if (!sync.canEdit && dateString != formatDateKey(now)) {
+          throw StateError('This device can only add diary items for today.');
+        }
+        saved = DiaryItem(
+          itemUuid: itemUuid,
+          createdAt: conversation.createdAt,
+          content: content ?? '',
+          aiConversation: conversation,
+          deviceId: _device.deviceId,
+          updatedAt: now,
+        );
+      }
+      final target = day ?? getOrCreateDay(dateString);
+      if (index < 0) {
+        target.items = [...items, saved]
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      }
+      target.updatedAt = now;
+      target.lastEditedByDeviceId = _device.deviceId;
+      target.status = SyncStatus.pendingUpload;
+      _box.put(target);
+      sync.edited('diary', dateString, itemUuid);
+      if (index < 0 && dateString == formatDateKey(now)) {
+        sync.enqueue(
+          PendingCreation(
+            id: itemUuid,
+            type: 'diary',
+            documentId: dateString,
+            payload: {'date_string': dateString, 'item': saved.toJson()},
+          ),
+        );
+      }
+    });
+    onDataChanged?.call();
+    return saved;
   }
 
   /// Updates an existing timeline item.

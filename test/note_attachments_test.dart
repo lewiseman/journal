@@ -328,7 +328,7 @@ void main() {
       VoiceSessionMode.transcription,
     );
     await tester.pump(const Duration(seconds: 2));
-    await tester.tap(find.byTooltip('Back'));
+    await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
     expect(find.byType(VoiceSessionPage), findsNothing);
     expect(tester.widget<TextField>(fields.first).controller!.text, 'My draft');
@@ -365,7 +365,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(VoiceSessionPage), findsOneWidget);
-    await tester.tap(find.byTooltip('Back'));
+    await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });

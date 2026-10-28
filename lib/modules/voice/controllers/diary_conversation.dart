@@ -16,6 +16,7 @@ class DiaryConversation extends ChangeNotifier {
     this.onReply,
     this.diary,
     this.autoOpen = true,
+    this.keep = true,
   }) : store = store ?? VoiceStore(),
        transportFactory = transportFactory ?? PinnedCompanionTransport.new;
   final TrustedComputer Function() computer;
@@ -29,6 +30,9 @@ class DiaryConversation extends ChangeNotifier {
   final List<Map<String, Object>> Function()? diary;
   // False when a live talk session asks the first question instead.
   final bool autoOpen;
+  // False when the diary item holds the conversation instead of the
+  // protected local store.
+  final bool keep;
   String id = const Uuid().v4(),
       draft = '',
       message = 'Start anywhere. Type, or record and review your words.';
@@ -44,7 +48,7 @@ class DiaryConversation extends ChangeNotifier {
   }
 
   Future<void> persist() {
-    if (disposed) return Future.value();
+    if (disposed || !keep) return Future.value();
     final snapshot = {
       'id': id,
       'date': dateString,

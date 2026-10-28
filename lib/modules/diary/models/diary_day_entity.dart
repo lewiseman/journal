@@ -91,14 +91,17 @@ class DiaryDayEntity {
           (item) => !item.isDeleted && item.content.trim().isNotEmpty,
         );
 
-  /// Everything shown on the diary page, including photo-only stories.
+  /// Everything shown on the diary page, including photo-only stories and
+  /// voice conversations not yet written up.
   @Transient()
   Iterable<DiaryItem> get displayItems => isDeleted
       ? const <DiaryItem>[]
       : items.where(
           (item) =>
               !item.isDeleted &&
-              (item.content.trim().isNotEmpty || item.photos.isNotEmpty),
+              (item.content.trim().isNotEmpty ||
+                  item.photos.isNotEmpty ||
+                  (item.aiConversation?.turns.isNotEmpty ?? false)),
         );
 
   /// Parses items JSON into a list of DiaryItem objects

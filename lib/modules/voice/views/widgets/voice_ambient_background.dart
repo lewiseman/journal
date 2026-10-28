@@ -30,6 +30,7 @@ class _VoiceAmbientBackgroundState extends State<VoiceAmbientBackground>
   );
   double _cool = 0;
   double _gain = 1;
+  double _loading = 0;
 
   @override
   void didChangeDependencies() {
@@ -53,12 +54,16 @@ class _VoiceAmbientBackgroundState extends State<VoiceAmbientBackground>
       };
       if (widget.mode == VoiceSessionMode.conversation) _gain *= 1.3;
     }
+    // Loading and speaking share the companion's cool colours; only the
+    // motion tells them apart. Listening is the person's warm palette.
     _cool = switch (widget.phase) {
-      VoiceSessionPhase.thinking => .65,
-      VoiceSessionPhase.speaking => 1,
+      VoiceSessionPhase.thinking || VoiceSessionPhase.speaking => 1,
       VoiceSessionPhase.paused => _cool,
       _ => 0,
     };
+    if (widget.phase != VoiceSessionPhase.paused) {
+      _loading = widget.phase == VoiceSessionPhase.thinking ? 1 : 0;
+    }
     if (widget.reducedMotion ||
         widget.phase == VoiceSessionPhase.paused ||
         widget.phase == VoiceSessionPhase.completed ||
@@ -87,6 +92,7 @@ class _VoiceAmbientBackgroundState extends State<VoiceAmbientBackground>
               end: _GlowResponse(
                 cool: _cool,
                 gain: _gain,
+                loading: _loading,
                 level: widget.reducedMotion ? 0 : widget.activity.level,
                 pitch: widget.reducedMotion ? .5 : widget.activity.pitch,
               ),
@@ -119,9 +125,11 @@ class _GlowResponse {
     required this.gain,
     required this.level,
     required this.pitch,
+    this.loading = 0,
   });
 
-  final double cool, gain, level, pitch;
+  /// 1 while loading: a slow breath and orbit instead of speech syllables.
+  final double cool, gain, level, pitch, loading;
 }
 
 class _GlowResponseTween extends Tween<_GlowResponse> {
@@ -135,6 +143,7 @@ class _GlowResponseTween extends Tween<_GlowResponse> {
       gain: mix(begin!.gain, end!.gain),
       level: mix(begin!.level, end!.level),
       pitch: mix(begin!.pitch, end!.pitch),
+      loading: mix(begin!.loading, end!.loading),
     );
   }
 }
@@ -169,14 +178,27 @@ class _AmbientPainter extends CustomPainter {
                 .18 * math.sin(phase * 29 + 1.2) +
                 .12 * math.sin(phase * 43 + pitch * 2))
             .clamp(.04, 1.0);
-    final energy = response.level * response.gain * (.35 + syllable * .9);
-    final pulse = syllable * response.level;
-    final wanderX =
-        .55 * math.sin(phase * 2 + pitch * 2) +
-        .28 * math.sin(phase * 5 + 1.2) +
-        .17 * math.sin(phase * 9 - .7);
-    final wanderY =
-        .65 * math.cos(phase * 3 - pitch * 3) + .35 * math.sin(phase * 7 + .5);
+    // Loading breathes every two seconds and circles slowly, whatever the
+    // audio level, so waiting never looks like the companion talking.
+    final loading = response.loading;
+    final breath = .5 + .5 * math.sin(phase * 6);
+    double blend(double speech, double wait) =>
+        speech + (wait - speech) * loading;
+    final energy = blend(
+      response.level * response.gain * (.35 + syllable * .9),
+      .18 + breath * .42,
+    );
+    final pulse = blend(syllable * response.level, breath * .7);
+    final wanderX = blend(
+      .55 * math.sin(phase * 2 + pitch * 2) +
+          .28 * math.sin(phase * 5 + 1.2) +
+          .17 * math.sin(phase * 9 - .7),
+      .6 * math.cos(phase * 2),
+    );
+    final wanderY = blend(
+      .65 * math.cos(phase * 3 - pitch * 3) + .35 * math.sin(phase * 7 + .5),
+      .6 * math.sin(phase * 2),
+    );
     canvas.drawRect(
       bounds,
       Paint()

@@ -2,351 +2,225 @@ import 'dart:async';
 
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/controllers/diary_repository.dart';
-import 'package:journal/modules/diary/questions/daily_question_contract.dart';
-import 'package:journal/modules/settings/companion/companion_controller.dart';
-import 'package:journal/modules/settings/companion/companion_protocol.dart';
+import 'package:journal/modules/diary/models/diary_ai_conversation.dart';
 import 'package:journal/modules/voice/controllers/diary_conversation.dart';
-import 'package:journal/modules/voice/controllers/reply_voice.dart';
+import 'package:journal/modules/voice/controllers/diary_talk_sources.dart';
+import 'package:journal/modules/voice/views/widgets/voice_bottom_card.dart';
+import 'package:journal/modules/voice/views/widgets/voice_session_chrome.dart';
+import 'package:journal/modules/voice/views/widgets/voice_transcript.dart';
 
-import 'diary_talk_page.dart';
-
+/// A diary item's saved voice conversation: read the turns, have the
+/// computer write a first-person draft, edit it, and make it the entry.
 class DiaryConversationPage extends ConsumerStatefulWidget {
   const DiaryConversationPage({
     super.key,
-    required this.date,
-    this.talk = false,
+    required this.dateString,
+    required this.itemUuid,
+    this.conversation,
   });
-  final DateTime date;
+  final String dateString, itemUuid;
 
-  /// Opens straight into the hands-free talk loop.
-  final bool talk;
+  /// Injected in tests; the caller then owns and disposes it.
+  final DiaryConversation? conversation;
   @override
   ConsumerState<DiaryConversationPage> createState() =>
       _DiaryConversationPageState();
 }
 
 class _DiaryConversationPageState extends ConsumerState<DiaryConversationPage> {
+  late final DiaryRepository _diary;
   late final DiaryConversation _session;
-  late final Future<void> _restored;
-  final _input = TextEditingController(), _draft = TextEditingController();
-  final _voice = ReplyVoice();
-  String _lastDraft = '';
-  bool _saving = false, _talking = false;
+  final _draft = TextEditingController();
+  DiaryAiConversation? _record;
+  String _content = '';
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
-    _session = DiaryConversation(
-      dateString: DiaryRepository.formatDateKey(widget.date),
-      computer: () {
-        if (ref.read(accountResetProvider).blocksDataAccess) {
-          throw const CompanionFailure(
-            'RESET',
-            'Account reset is in progress.',
-          );
-        }
-        final c = ref.read(companionControllerProvider).selected;
-        if (c == null) {
-          throw const CompanionFailure(
-            'UNAVAILABLE',
-            'Pair your computer in More → Local QVAC.',
-          );
-        }
-        return c;
-      },
-      // The live talk session asks the first question itself.
-      autoOpen: false,
-      onReply: (text) {
-        // While the talk page is opening it speaks the latest question itself.
-        if (!_talking && mounted) unawaited(_voice.say(text));
-      },
-      // The same selection the daily question uses: today's latest entries,
-      // then recent days, within a small budget.
-      diary: () {
-        final source = DailyQuestionSource.select(
-          today: DiaryRepository.formatDateKey(widget.date),
-          day: ref.read(diaryRepositoryProvider).getDay,
-        );
-        return [
-          for (final e in [...source.today, ...source.prior])
-            {'daysAgo': source.ago(e), 'text': e.text},
-        ];
-      },
-    );
-    _session.addListener(_changed);
-    _restored = _session.restore();
-    if (widget.talk) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _talk());
-    }
+    _diary = ref.read(diaryRepositoryProvider);
+    final item = _diary
+        .getDay(widget.dateString)
+        ?.items
+        .where((i) => i.itemUuid == widget.itemUuid && !i.isDeleted)
+        .firstOrNull;
+    _record = item?.aiConversation;
+    _content = item?.content ?? '';
+    _session =
+        widget.conversation ??
+        diaryConversation(ref, dateString: widget.dateString);
+    _session
+      ..id = widget.itemUuid
+      ..turns = [
+        for (final t in _record?.turns ?? const <Map<String, String>>[])
+          Map<String, String>.from(t),
+      ]
+      ..message = ''
+      ..addListener(_changed);
   }
 
   void _changed() {
     if (!mounted) return;
-    if (_lastDraft != _session.draft) {
-      _lastDraft = _session.draft;
+    if (_session.draft.isNotEmpty && _draft.text != _session.draft) {
       _draft.text = _session.draft;
+      _session.draft = '';
     }
     setState(() {});
   }
 
-  Future<void> _send() async {
-    final text = _input.text.trim();
-    if (text.isEmpty || _session.busy || _session.saved) return;
-    unawaited(_voice.stop());
-    try {
-      await _session.add(text);
-      if (!mounted) return;
-      _input.clear();
-      await _session.request('question');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.toString())));
-      }
+  Future<void> _generate() async {
+    if (_draft.text.trim().isNotEmpty &&
+        !await _confirm(
+          'Write a new draft?',
+          'This replaces the draft you are editing.',
+        )) {
+      return;
     }
+    await _session.request('draft');
   }
 
-  Future<void> _talk() async {
-    if (_talking || !mounted || _session.saved) return;
-    _talking = true;
-    await _voice.stop();
-    if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => DiaryTalkPage(
-          conversation: _session,
-          voice: _voice,
-          ready: _restored,
+  Future<bool> _confirm(String title, String body) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Replace'),
+            ),
+          ],
         ),
-      ),
-    );
-    _talking = false;
-    if (mounted) setState(() {});
-  }
+      ) ==
+      true;
 
-  Future<void> _correct(int index) async {
-    final controller = TextEditingController(
-      text: _session.turns[index]['text'],
-    );
-    final replacement = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Correct your words'),
-        content: TextField(controller: controller, minLines: 3, maxLines: 8),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Keep correction'),
-          ),
-        ],
-      ),
-    );
-    if (mounted && replacement != null) {
-      await _session.correct(index, replacement);
-    }
-    // The dialog route may still animate; dispose after its transition.
-    Future<void>.delayed(const Duration(seconds: 1), controller.dispose);
-  }
-
-  Future<void> _save() async {
-    if (_saving ||
-        _session.saved ||
-        _session.busy ||
-        _draft.text.trim().isEmpty ||
-        ref.read(accountResetProvider).blocksDataAccess) {
+  Future<void> _update() async {
+    final text = _draft.text.trim();
+    final record = _record;
+    if (text.isEmpty || record == null || _saving) return;
+    if (_content.trim().isNotEmpty &&
+        _content.trim() != text &&
+        !await _confirm(
+          "Replace this entry's words?",
+          'The entry will read as this draft.',
+        )) {
       return;
     }
     setState(() => _saving = true);
     try {
-      ref
-          .read(diaryRepositoryProvider)
-          .addTimelineItem(
-            dateString: _session.dateString,
-            content: _draft.text.trim(),
-            itemUuid: _session.id,
-          );
-      _session.saved = true;
-      await _session.persist();
+      _diary.saveAiConversation(
+        dateString: widget.dateString,
+        itemUuid: widget.itemUuid,
+        conversation: record.copyWith(draftedAt: DateTime.now()),
+        content: text,
+      );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e is StateError
-                  ? e.message
-                  : 'Could not save. Your reviewed draft is retained.',
-            ),
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e is StateError ? e.message : 'Could not update.'),
+        ),
+      );
     }
   }
 
   @override
   void dispose() {
-    unawaited(_voice.stop());
     _session.removeListener(_changed);
-    _session.dispose();
-    _input.dispose();
+    if (widget.conversation == null) _session.dispose();
     _draft.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final disabled = _session.busy || _session.saved || _saving;
+    final colors = VoiceColors.of(context);
+    final ink = colors.ink;
+    final busy = _session.busy || _session.pending != null;
+    final drafted = _draft.text.trim().isNotEmpty;
+    final reduced =
+        MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('A conversation about your day'),
-        actions: [
-          IconButton(
-            tooltip: _voice.enabled ? 'Mute spoken replies' : 'Speak replies',
-            onPressed: () {
-              setState(() => _voice.enabled = !_voice.enabled);
-              if (!_voice.enabled) unawaited(_voice.stop());
-            },
-            icon: Icon(
-              _voice.enabled
-                  ? Icons.volume_up_outlined
-                  : Icons.volume_off_outlined,
-            ),
-          ),
-          IconButton(
-            tooltip: 'Discard conversation',
-            onPressed: _session.busy ? null : _session.clear,
-            icon: const Icon(Icons.delete_outline),
-          ),
-        ],
-      ),
+      backgroundColor: colors.paper,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.all(20),
+            constraints: const BoxConstraints(maxWidth: 700),
+            child: Column(
               children: [
-                Text(
-                  _session.dateString,
-                  style: Theme.of(context).textTheme.titleSmall,
+                VoiceSessionHeader(
+                  title: 'Your conversation',
+                  subtitle: widget.dateString,
+                  onClose: () => Navigator.of(context).pop(),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Only this conversation is sent to your computer. Replies are read aloud on this phone; mute them with the speaker button.',
+                Expanded(
+                  child: _record == null
+                      ? Center(
+                          child: Text(
+                            'This conversation is no longer in your diary.',
+                            style: TextStyle(color: ink.withValues(alpha: .6)),
+                          ),
+                        )
+                      : VoiceTranscript(
+                          turns: [
+                            for (final t in _record!.turns)
+                              VoiceTranscriptTurn(
+                                speaker: t['speaker'] == 'user'
+                                    ? VoiceSpeaker.user
+                                    : VoiceSpeaker.assistant,
+                                text: t['text'] ?? '',
+                              ),
+                          ],
+                          mode: VoiceSessionMode.conversation,
+                          ink: ink,
+                          reducedMotion: reduced,
+                        ),
                 ),
-                const SizedBox(height: 16),
-                Semantics(liveRegion: true, child: Text(_session.message)),
-                if (_session.busy) const LinearProgressIndicator(),
-                if (_session.pending != null && !_session.busy)
-                  TextButton(
-                    onPressed: _session.retrieve,
-                    child: const Text('Retrieve / retry accepted request'),
+                if (busy)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 28),
+                    child: LinearProgressIndicator(),
                   ),
-                for (var index = 0; index < _session.turns.length; index++)
-                  Card(
-                    child: ListTile(
-                      title: Text(
-                        _session.turns[index]['speaker'] == 'user'
-                            ? 'You'
-                            : 'Companion',
+                if (!busy && _session.message.isNotEmpty && !drafted)
+                  VoiceBottomCard(
+                    ink: ink,
+                    icon: Icons.info_outline_rounded,
+                    title: _session.message,
+                  ),
+                if (drafted)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    child: TextField(
+                      key: const ValueKey('conversation-draft'),
+                      controller: _draft,
+                      enabled: !busy && !_saving,
+                      minLines: 3,
+                      maxLines: 8,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Draft',
+                        border: OutlineInputBorder(),
                       ),
-                      subtitle: SelectableText(_session.turns[index]['text']!),
-                      trailing: _session.turns[index]['speaker'] == 'user'
-                          ? IconButton(
-                              tooltip: 'Correct your words',
-                              onPressed: disabled || _session.pending != null
-                                  ? null
-                                  : () => _correct(index),
-                              icon: const Icon(Icons.edit_outlined),
-                            )
-                          : IconButton(
-                              tooltip: 'Read aloud',
-                              onPressed: () =>
-                                  _voice.say(_session.turns[index]['text']!),
-                              icon: const Icon(Icons.volume_up_outlined),
-                            ),
                     ),
                   ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _input,
-                  enabled: !disabled && _session.pending == null,
-                  minLines: 2,
-                  maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Your words',
-                    hintText: 'Type or record, then review before sending',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _session.saved || _saving ? null : _talk,
-                      icon: const Icon(Icons.mic_none),
-                      label: const Text('Talk'),
-                    ),
-                    FilledButton(
-                      onPressed: disabled || _session.pending != null
-                          ? null
-                          : _send,
-                      child: const Text('Send'),
-                    ),
-                    OutlinedButton(
-                      onPressed:
-                          disabled ||
-                              _session.pending != null ||
-                              _session.turns.isEmpty
-                          ? null
-                          : () => _session.request('draft'),
-                      child: const Text('Create diary draft'),
-                    ),
-                  ],
-                ),
-                if (_session.draft.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _draft,
-                    enabled: !disabled,
-                    minLines: 5,
-                    maxLines: 16,
-                    decoration: const InputDecoration(
-                      labelText: 'Review diary draft',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (value) {
-                      _session.draft = value;
-                      _lastDraft = value;
-                      unawaited(_session.persist());
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: disabled
-                        ? null
-                        : () {
-                            _session.draft = '';
-                            unawaited(_session.persist());
-                            _changed();
-                          },
-                    child: const Text('Reject draft'),
-                  ),
-                  FilledButton(
-                    onPressed: disabled ? null : _save,
-                    child: const Text('Save reviewed diary entry'),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                const Text(
-                  'Conversation and drafts are protected locally for up to 24 hours. Closing keeps them recoverable. Discard deletes this local session; desktop requests expire within 24 hours. Saving follows this device’s normal diary date rules.',
-                  style: TextStyle(fontSize: 12),
+                VoiceSessionControls(
+                  actionLabel: drafted ? 'Write a new draft' : null,
+                  actionIcon: drafted ? Icons.refresh_rounded : null,
+                  onAction: busy || _saving ? null : () => _generate(),
+                  primaryLabel: drafted ? 'Update entry' : 'Generate draft',
+                  onPrimary: _record == null || busy || _saving
+                      ? null
+                      : drafted
+                      ? () => unawaited(_update())
+                      : () => unawaited(_generate()),
                 ),
               ],
             ),

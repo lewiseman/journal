@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:journal/modules/diary/controllers/diary_providers.dart';
+import 'package:journal/modules/diary/controllers/diary_repository.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
@@ -13,6 +16,9 @@ import 'package:journal/modules/voice/voice.dart';
 final _prompt = find.byKey(const ValueKey('diary-writing-prompt'));
 final _actions = find.byKey(const ValueKey('diary-add-actions'));
 final _lines = find.byKey(const ValueKey('diary-prompt-lines'));
+
+/// Voice only keeps a repository; nothing is saved without spoken words.
+class _Diary extends Fake implements DiaryRepository {}
 
 DiaryItem _item(String id, String content, {bool deleted = false}) => DiaryItem(
   itemUuid: id,
@@ -32,7 +38,9 @@ Future<void> _mount(
   bool canEdit = true,
   TextDirection direction = TextDirection.ltr,
 }) => tester.pumpWidget(
-  MaterialApp(
+  ProviderScope(
+    overrides: [diaryRepositoryProvider.overrideWithValue(_Diary())],
+    child: MaterialApp(
     theme: dark ? AppThemeConfig.darkTheme : AppThemeConfig.lightTheme,
     builder: (context, child) => MediaQuery(
       data: MediaQuery.of(context)
@@ -58,6 +66,7 @@ Future<void> _mount(
         ),
       ),
     ),
+  ),
   ),
 );
 
@@ -258,7 +267,7 @@ void main() {
           tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
           VoiceSessionMode.conversation,
         );
-        await tester.tap(find.byTooltip('Back'));
+        await tester.tap(find.byTooltip('Close'));
       } else if (tooltip == 'Add image entry') {
         await tester.pumpAndSettle();
         expect(

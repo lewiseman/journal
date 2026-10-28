@@ -1,3 +1,4 @@
+import 'diary_ai_conversation.dart';
 import 'diary_photo.dart';
 
 class DiaryItem {
@@ -10,6 +11,9 @@ class DiaryItem {
   /// Ordered photo story (I01). Empty for text items; [attachmentPaths]
   /// mirrors its paths for readers that predate photo stories.
   final List<DiaryPhoto> photos;
+
+  /// The voice conversation this entry came from, when there was one.
+  final DiaryAiConversation? aiConversation;
   final String deviceId;
   final DateTime updatedAt;
   final bool isDeleted;
@@ -21,6 +25,7 @@ class DiaryItem {
     this.mood,
     this.attachmentPaths = const [],
     this.photos = const [],
+    this.aiConversation,
     this.deviceId = '',
     required this.updatedAt,
     this.isDeleted = false,
@@ -33,6 +38,7 @@ class DiaryItem {
     String? mood,
     List<String>? attachmentPaths,
     List<DiaryPhoto>? photos,
+    DiaryAiConversation? aiConversation,
     String? deviceId,
     DateTime? updatedAt,
     bool? isDeleted,
@@ -44,6 +50,7 @@ class DiaryItem {
       mood: mood ?? this.mood,
       attachmentPaths: attachmentPaths ?? this.attachmentPaths,
       photos: photos ?? this.photos,
+      aiConversation: aiConversation ?? this.aiConversation,
       deviceId: deviceId ?? this.deviceId,
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
@@ -60,6 +67,7 @@ class DiaryItem {
     'attachment_paths': attachmentPaths,
     // Omitted for text items so their shared documents stay byte-identical.
     if (photos.isNotEmpty) 'photos': [for (final p in photos) p.toJson()],
+    if (aiConversation != null) 'ai_conversation': aiConversation!.toJson(),
     'device_id': deviceId,
     'updated_at': updatedAt.toIso8601String(),
     'is_deleted': isDeleted,
@@ -76,6 +84,7 @@ class DiaryItem {
         (json['attachment_paths'] as List<dynamic>?)?.cast<String>() ??
         const [],
     photos: _photos(json['photos']),
+    aiConversation: DiaryAiConversation.tryParse(json['ai_conversation']),
     deviceId: json['device_id'] as String? ?? '',
     updatedAt: DateTime.parse(json['updated_at'] as String),
     isDeleted: json['is_deleted'] as bool? ?? false,

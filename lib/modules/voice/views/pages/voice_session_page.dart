@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'voice_capture_page.dart';
-import 'diary_conversation_page.dart';
+import 'diary_talk_page.dart';
 
-import 'package:flutter/services.dart';
 import 'package:journal/modules/voice/controllers/voice_session_controller.dart';
 import 'package:journal/modules/voice/models/voice_session.dart';
 import 'package:journal/modules/voice/views/widgets/voice_ambient_background.dart';
+import 'package:journal/modules/voice/views/widgets/voice_session_chrome.dart';
 import 'package:journal/modules/voice/views/widgets/voice_transcript.dart';
 
 class _PreviewVoiceSessionPage extends StatefulWidget {
@@ -97,246 +97,61 @@ class _VoiceSessionPageState extends State<_PreviewVoiceSessionPage>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = dark ? const Color(0xFFF5EEF5) : const Color(0xFF302A32);
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
-          .copyWith(
-            statusBarColor: Colors.transparent,
-            systemNavigationBarColor: Colors.transparent,
-          ),
-      child: Scaffold(
-        backgroundColor: dark
-            ? const Color(0xFF241F27)
-            : const Color(0xFFFFF9EE),
-        body: ListenableBuilder(
-          listenable: _controller,
-          builder: (context, _) {
-            final state = _controller.state;
-            return Stack(
-              children: [
-                Positioned.fill(
-                  child: VoiceAmbientBackground(
-                    mode: widget.mode,
-                    phase: state.phase,
-                    activity: state.activity,
-                    reducedMotion: _reduced,
-                  ),
-                ),
-                SafeArea(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 700),
-                      child: Column(
-                        children: [
-                          _header(ink),
-                          Expanded(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final compact =
-                                    constraints.maxHeight < 300 ||
-                                    MediaQuery.textScalerOf(context).scale(1) >
-                                        1.4;
-                                final statusHeight = compact
-                                    ? (constraints.maxHeight * .18).clamp(
-                                        28.0,
-                                        56.0,
-                                      )
-                                    : (constraints.maxHeight * .43).clamp(
-                                        28.0,
-                                        260.0,
-                                      );
-                                return Column(
-                                  children: [
-                                    SizedBox(
-                                      height: statusHeight,
-                                      child: Center(
-                                        child: _SessionStatus(
-                                          phase: state.phase,
-                                          ink: ink,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: VoiceTranscript(
-                                        turns: state.turns,
-                                        mode: widget.mode,
-                                        ink: ink,
-                                        reducedMotion: _reduced,
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
-                          _controls(state, ink, dark),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _controller,
+    builder: (context, _) {
+      final state = _controller.state;
+      final completed = state.phase == VoiceSessionPhase.completed;
+      final paused = state.phase == VoiceSessionPhase.paused;
+      return VoiceSessionScaffold(
+        background: VoiceAmbientBackground(
+          mode: widget.mode,
+          phase: state.phase,
+          activity: state.activity,
+          reducedMotion: _reduced,
+        ),
+        header: VoiceSessionHeader(
+          title: widget.title,
+          subtitle: 'Preview · sample text',
+          closeTooltip: 'Close voice preview',
+          onClose: _close,
+        ),
+        status: VoiceSessionStatus(
+          label: switch (state.phase) {
+            VoiceSessionPhase.listening => 'Listening',
+            VoiceSessionPhase.thinking => 'A moment to reflect',
+            VoiceSessionPhase.speaking => 'Speaking',
+            VoiceSessionPhase.paused => 'Paused',
+            VoiceSessionPhase.completed => 'Preview finished',
+          },
+          icon: switch (state.phase) {
+            VoiceSessionPhase.listening => Icons.graphic_eq_rounded,
+            VoiceSessionPhase.thinking => Icons.more_horiz_rounded,
+            VoiceSessionPhase.speaking => Icons.graphic_eq_rounded,
+            VoiceSessionPhase.paused => Icons.pause_rounded,
+            VoiceSessionPhase.completed => Icons.check_rounded,
           },
         ),
-      ),
-    );
-  }
-
-  Widget _header(Color ink) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-    child: Row(
-      children: [
-        IconButton(
-          tooltip: 'Close voice preview',
-          onPressed: _close,
-          style: IconButton.styleFrom(
-            minimumSize: const Size(48, 48),
-            foregroundColor: ink,
-          ),
-          icon: const Icon(Icons.close_rounded, size: 23),
+        transcript: VoiceTranscript(
+          turns: state.turns,
+          mode: widget.mode,
+          ink: VoiceColors.of(context).ink,
+          reducedMotion: _reduced,
         ),
-        Expanded(
-          child: Column(
-            children: [
-              Text(
-                widget.title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: ink,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Preview · sample text',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: ink.withValues(alpha: .58),
-                  fontSize: 11,
-                  letterSpacing: .2,
-                ),
-              ),
-            ],
-          ),
+        controls: VoiceSessionControls(
+          actionLabel: completed ? 'Replay' : (paused ? 'Resume' : 'Pause'),
+          actionIcon: completed
+              ? Icons.replay_rounded
+              : (paused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+          onAction: completed
+              ? _controller.replay
+              : (paused ? _controller.resume : _controller.pause),
+          primaryLabel: 'Done',
+          onPrimary: _close,
         ),
-        const SizedBox(width: 48),
-      ],
-    ),
+      );
+    },
   );
-
-  Widget _controls(VoiceSessionState state, Color ink, bool dark) {
-    final completed = state.phase == VoiceSessionPhase.completed;
-    final paused = state.phase == VoiceSessionPhase.paused;
-    final label = completed ? 'Replay' : (paused ? 'Resume' : 'Pause');
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 12, 28, 24),
-      child: Row(
-        children: [
-          IconButton.filledTonal(
-            tooltip: label,
-            onPressed: completed
-                ? _controller.replay
-                : (paused ? _controller.resume : _controller.pause),
-            style: IconButton.styleFrom(
-              minimumSize: const Size(64, 64),
-              foregroundColor: ink,
-              backgroundColor: ink.withValues(alpha: dark ? .12 : .07),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-            ),
-            icon: Icon(
-              completed
-                  ? Icons.replay_rounded
-                  : (paused ? Icons.play_arrow_rounded : Icons.pause_rounded),
-              size: 26,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: FilledButton(
-              onPressed: _close,
-              style: FilledButton.styleFrom(
-                backgroundColor: ink,
-                foregroundColor: dark
-                    ? const Color(0xFF241F27)
-                    : const Color(0xFFFFF9EE),
-                minimumSize: const Size(0, 64),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
-                elevation: 0,
-              ),
-              child: const Text(
-                'Done',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SessionStatus extends StatelessWidget {
-  const _SessionStatus({required this.phase, required this.ink});
-  final VoiceSessionPhase phase;
-  final Color ink;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = switch (phase) {
-      VoiceSessionPhase.listening => 'Listening',
-      VoiceSessionPhase.thinking => 'A moment to reflect',
-      VoiceSessionPhase.speaking => 'Speaking',
-      VoiceSessionPhase.paused => 'Paused',
-      VoiceSessionPhase.completed => 'Preview finished',
-    };
-    final icon = switch (phase) {
-      VoiceSessionPhase.listening => Icons.graphic_eq_rounded,
-      VoiceSessionPhase.thinking => Icons.more_horiz_rounded,
-      VoiceSessionPhase.speaking => Icons.graphic_eq_rounded,
-      VoiceSessionPhase.paused => Icons.pause_rounded,
-      VoiceSessionPhase.completed => Icons.check_rounded,
-    };
-    final text = Text(
-      label,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        color: ink.withValues(alpha: .60),
-        fontSize: 12,
-        letterSpacing: .4,
-      ),
-    );
-    return Semantics(
-      liveRegion: true,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: LayoutBuilder(
-          builder: (context, constraints) => constraints.maxHeight < 80
-              ? Center(child: text)
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, size: 26, color: ink.withValues(alpha: .50)),
-                    const SizedBox(height: 10),
-                    text,
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
 }
 
 /// Production routes always use real capture/conversation. Samples are available
@@ -362,6 +177,6 @@ class VoiceSessionPage extends StatelessWidget {
           controller: controller,
         )
       : mode == VoiceSessionMode.conversation
-      ? DiaryConversationPage(date: date ?? DateTime.now(), talk: true)
+      ? DiaryTalkPage(date: date ?? DateTime.now())
       : VoiceCapturePage(title: title, target: target);
 }

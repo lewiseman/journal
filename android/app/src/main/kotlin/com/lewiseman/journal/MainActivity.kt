@@ -1,6 +1,7 @@
 package com.lewiseman.journal
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -9,6 +10,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.net.Uri
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -21,6 +24,9 @@ class MainActivity : FlutterActivity() {
     private val main = Handler(Looper.getMainLooper())
     private var sink: EventChannel.EventSink? = null
     private var permission: MethodChannel.Result? = null
+    // Answers with a status string rather than a bool, so Dart can tell a
+    // permanently denied microphone (only Settings can fix it) from a denied one.
+    private var micStatusRequest: MethodChannel.Result? = null
     private var recorder: AudioRecord? = null
     private var worker: Thread? = null
     private val running = AtomicBoolean(false)
@@ -36,7 +42,20 @@ class MainActivity : FlutterActivity() {
                 "permission" -> {
                     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) result.success(true)
                     else if (permission != null) result.error("BUSY", "Microphone permission is already pending.", null)
-                    else { permission = result; requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 7301) }
+                    else if (micStatusRequest != null) result.error("BUSY", "Microphone permission is already pending.", null)
+                    else { permission = result; markMicAsked(); requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 7301) }
+                }
+                "micStatus" -> result.success(micStatus())
+                "requestMic" -> {
+                    if (micStatus() == "granted") result.success("granted")
+                    else if (permission != null || micStatusRequest != null) result.error("BUSY", "Microphone permission is already pending.", null)
+                    else { micStatusRequest = result; markMicAsked(); requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 7301) }
+                }
+                "openSettings" -> {
+                    try {
+                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        result.success(true)
+                    } catch (e: Exception) { result.success(false) }
                 }
                 "start" -> {
                     try { startCapture(call.argument<String>("path") ?: ""); result.success(null) }
@@ -51,7 +70,18 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 7301) {
             permission?.success(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED); permission = null
+            micStatusRequest?.success(micStatus()); micStatusRequest = null
         }
+    }
+    private val micPrefs get() = getSharedPreferences("journal_microphone", MODE_PRIVATE)
+    private fun markMicAsked() { micPrefs.edit().putBoolean("asked", true).apply() }
+    // Android only reports "don't ask again" indirectly: after an earlier request,
+    // a denied permission with no rationale to show can no longer be requested.
+    private fun micStatus(): String = when {
+        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> "granted"
+        shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) -> "denied"
+        micPrefs.getBoolean("asked", false) -> "blocked"
+        else -> "denied"
     }
     private fun startCapture(rawPath: String) {
         check(!running.get() && sink != null)

@@ -482,12 +482,12 @@ void main() {
       tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
       VoiceSessionMode.transcription,
     );
-    expect(find.text('Record'), findsOneWidget);
+    expect(find.byTooltip('Record'), findsOneWidget);
     expect(find.text('Preview · sample text'), findsNothing);
     // A live status can animate while protected storage is being restored.
     await tester.pump(const Duration(milliseconds: 300));
     await _capture(tester, 'voice');
-    await tester.tap(find.byTooltip('Back'));
+    await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
     expect(find.byType(VoiceSessionPage), findsNothing);
     expect(
