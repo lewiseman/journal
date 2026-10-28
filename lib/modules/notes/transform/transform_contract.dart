@@ -10,7 +10,10 @@ const transformOperations = {
 const transformOutputBytes = 4096;
 
 /// Labels for other reviewed edits that keep a recovery copy.
-const recoveryOperationLabels = {'ask-note-image': 'Image answer inserted'};
+const recoveryOperationLabels = {
+  'ask-note-image': 'Image answer inserted',
+  'scan-note-image': 'Scanned text inserted',
+};
 const transformSourceBytes = 65536;
 
 bool validTransformOutput(String text) =>

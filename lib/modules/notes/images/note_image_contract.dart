@@ -31,8 +31,8 @@ final _control = RegExp(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]');
 /// What was asked, and about which exact attachment and note version. Kept in
 /// protected task storage; only [mode], [question] and the re-encoded image
 /// are sent.
-class NoteImageSource {
-  const NoteImageSource({
+class NoteImageRequest {
+  const NoteImageRequest({
     required this.noteId,
     required this.version,
     required this.path,
@@ -55,7 +55,7 @@ class NoteImageSource {
     'question': question,
     'imageSha': imageSha,
   });
-  factory NoteImageSource.decode(String raw) {
+  factory NoteImageRequest.decode(String raw) {
     final json = jsonDecode(raw);
     if (json is! Map ||
         [
@@ -70,7 +70,7 @@ class NoteImageSource {
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(json['imageSha'] as String)) {
       throw const FormatException('Invalid image source');
     }
-    return NoteImageSource(
+    return NoteImageRequest(
       noteId: json['noteId'] as String,
       version: json['version'] as String,
       path: json['path'] as String,

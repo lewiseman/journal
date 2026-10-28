@@ -322,6 +322,7 @@ class NotesRepository {
     required String expectedVersion,
     required String operation,
     required String text,
+    Map<String, dynamic>? attachment,
   }) {
     _editable();
     final addition = text.trim();
@@ -362,7 +363,12 @@ class NotesRepository {
         title: note.title,
         content: content,
         tags: note.tags,
-        attachmentPaths: note.attachments,
+        attachmentPaths: [
+          ...note.attachments,
+          if (attachment != null &&
+              !note.attachments.any((a) => a['path'] == attachment['path']))
+            attachment,
+        ],
         background: note.background,
       );
       history.put(
@@ -431,6 +437,13 @@ class NotesRepository {
     });
     return saved;
   }
+
+  /// Every attachment path on any stored note, including notes in Trash.
+  Set<String> allAttachmentPaths() => {
+    for (final note in _box.getAll())
+      for (final attachment in note.attachments)
+        if (attachment['path'] case final String path) path,
+  };
 
   /// Soft deletes a note (creates tombstone).
   void deleteNote(String uuid) {

@@ -139,14 +139,14 @@ void main() {
       expect(() => NoteImageAnswer.parse(bad), throwsFormatException);
     }
     expect(
-      () => NoteImageSource.validate('question', ''),
+      () => NoteImageRequest.validate('question', ''),
       throwsFormatException,
     );
     expect(
-      () => NoteImageSource.validate('describe', 'x'),
+      () => NoteImageRequest.validate('describe', 'x'),
       throwsFormatException,
     );
-    NoteImageSource.validate('question', 'What colour is the door?');
+    NoteImageRequest.validate('question', 'What colour is the door?');
   });
 
   test('only a regular image attached to this note is read and re-encoded within limits', () async {
