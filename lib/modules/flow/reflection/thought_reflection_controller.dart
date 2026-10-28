@@ -92,7 +92,7 @@ class ThoughtReflectionController extends Notifier<ThoughtReflectionState> {
     if (summary.handle != null && !working(thought, summary)) {
       _set(
         thought.uuid,
-        'Another AI request is still open. Finish or clear it in More → Local AI computer → AI task history, then try again.',
+        'Another AI request is still open. Finish or clear it in More → Local QVAC → AI task history, then try again.',
       );
       return;
     }

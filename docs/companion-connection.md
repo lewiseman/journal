@@ -1,6 +1,6 @@
-# Local AI computer
+# Local QVAC
 
-Use **More → Local AI computer**. Open **Connect a phone** on the Electron companion, keep both devices on the same private Wi-Fi, scan/paste its current code, verify its identity and compare the phone verification code before desktop approval. No Google sign-in or journal content is involved.
+Use **More → Local QVAC**. Open **Connect a phone** on the Electron companion, keep both devices on the same private Wi-Fi, scan/paste its current code, verify its identity and compare the phone verification code before desktop approval. No Google sign-in or journal content is involved.
 
 Transport and model readiness are separate. Retry uses saved platform-protected trust. Disconnect retains trust/work and pauses automatic connection; Forget also revokes/deletes retained desktop work when reachable. Offline Forget explains how to revoke later on the desktop. Identity changes require explicit recovery.
 

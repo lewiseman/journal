@@ -84,17 +84,18 @@ class _MorePageState extends ConsumerState<MorePage> {
                               MoreIndexEntry(
                                 title: 'Appearance',
                                 description: 'Colors, theme and fonts',
-                                artwork: MoreEntryArtwork.swatches,
+                                artwork: MoreEntryArtwork.appearance,
                                 onTap: () =>
                                     context.nav.push(const AppearancePage()),
                               ),
                               MoreIndexEntry(
-                                title: 'Local AI computer',
+                                title: 'Local QVAC',
+                                showDivider: false,
                                 status: companionPhaseLabel(connection.phase),
                                 connected:
                                     connection.phase ==
                                     CompanionPhase.connected,
-                                artwork: MoreEntryArtwork.computer,
+                                artwork: MoreEntryArtwork.qvac,
                                 onTap: () =>
                                     context.nav.push(const CompanionPage()),
                               ),
@@ -136,15 +137,22 @@ class _AccountHeader extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) {
     final progress = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
-    return MoreSurface(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          28,
-          lerpDouble(28, 12, progress)!,
-          28,
-          lerpDouble(16, 12, progress)!,
+    // Fill the sliver's exact allocation. Shrink-wrapping fractional padding
+    // can otherwise make paintExtent a fraction smaller than layoutExtent.
+    return SizedBox.expand(
+      child: MoreSurface(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            28,
+            lerpDouble(28, 12, progress)!,
+            28,
+            lerpDouble(16, 12, progress)!,
+          ),
+          child: SyncAccountCard(
+            collapseProgress: progress,
+            onExpand: onExpand,
+          ),
         ),
-        child: SyncAccountCard(collapseProgress: progress, onExpand: onExpand),
       ),
     );
   }

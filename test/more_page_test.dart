@@ -10,6 +10,7 @@ import 'package:journal/config/theme.dart';
 import 'package:journal/modules/account/views/widgets/sync_card.dart';
 import 'package:journal/modules/account/views/pages/reset_account_page.dart';
 import 'package:journal/modules/more/views/pages/more_page.dart';
+import 'package:journal/modules/more/views/widgets/more_index_entry.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
@@ -72,10 +73,14 @@ Future<ProviderContainer> _mount(
   bool dark = false,
   double scale = 1,
   bool signedIn = false,
+  double devicePixelRatio = 1,
 }) async {
-  tester.view.physicalSize = size;
-  tester.view.devicePixelRatio = 1;
-  tester.view.padding = const FakeViewPadding(top: 24, bottom: 24);
+  tester.view.physicalSize = size * devicePixelRatio;
+  tester.view.devicePixelRatio = devicePixelRatio;
+  tester.view.padding = FakeViewPadding(
+    top: 24 * devicePixelRatio,
+    bottom: 24 * devicePixelRatio,
+  );
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPadding);
@@ -129,6 +134,8 @@ Future<ProviderContainer> _mount(
   await tester.runAsync(() async {
     final context = tester.element(find.byType(MorePage));
     await Future.wait([
+      for (final artwork in MoreEntryArtwork.values)
+        precacheImage(AssetImage(artwork.asset), context),
       for (final destination in ['diary', 'notes', 'flow', 'more'])
         for (final state in ['active', 'inactive'])
           precacheImage(
@@ -176,7 +183,7 @@ void main() {
   });
 
   testWidgets(
-    'More opens Appearance directly and AI task history through Local AI computer',
+    'More opens Appearance directly and AI task history through Local QVAC',
     (tester) async {
       await _mount(tester);
       expect(find.byType(SyncAccountCard), findsOneWidget);
@@ -184,7 +191,7 @@ void main() {
       expect(find.text('Settings'), findsNothing);
       expect(find.text('Appearance'), findsOneWidget);
       expect(find.text('AI task history'), findsNothing);
-      expect(find.text('Local AI computer'), findsOneWidget);
+      expect(find.text('Local QVAC'), findsOneWidget);
       expect(find.text('No computer connected'), findsOneWidget);
       expect(find.text('Tasks'), findsNothing);
       expect(find.text('People'), findsNothing);
@@ -201,9 +208,9 @@ void main() {
       expect(find.text('Settings'), findsNothing);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Local AI computer'));
+      await tester.ensureVisible(find.text('Local QVAC'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Local AI computer'));
+      await tester.tap(find.text('Local QVAC'));
       await tester.pumpAndSettle();
       expect(find.byType(CompanionPage), findsOneWidget);
       expect(find.text('Connect to your own computer'), findsOneWidget);
@@ -260,6 +267,49 @@ void main() {
     expect(find.text('Connect Account').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final signedIn in [true, false]) {
+    testWidgets('More header keeps valid geometry through fractional scrolling '
+        'when signed ${signedIn ? 'in' : 'out'}', (tester) async {
+      await _mount(
+        tester,
+        size: const Size(384, 844),
+        devicePixelRatio: 1.9,
+        scale: 1.1,
+        signedIn: signedIn,
+      );
+      final scroll = _moreScroll(tester);
+      final header = tester.widget<SliverPersistentHeader>(
+        find.byType(SliverPersistentHeader),
+      );
+      final collapse = header.delegate.maxExtent - header.delegate.minExtent;
+      final offsets = [
+        // Include an offset close to the reported Android failure.
+        83.96005924907122,
+        // Subpixel motion catches rounding missed by larger scroll steps.
+        for (var i = 1; i <= 32; i++) collapse * i / 9999,
+        for (var i = 0; i <= 80; i++) collapse * i / 80,
+        collapse + 40.125,
+      ];
+      for (final offset in [...offsets, ...offsets.reversed]) {
+        scroll.jumpTo(offset);
+        await tester.pump();
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'Header layout at scroll offset $offset',
+        );
+        final geometry = tester
+            .renderObject<RenderSliver>(find.byType(SliverPersistentHeader))
+            .geometry!;
+        expect(
+          geometry.layoutExtent,
+          lessThanOrEqualTo(geometry.paintExtent),
+          reason: 'Pinned header must never lay out beyond its painted area',
+        );
+      }
+    });
+  }
 
   testWidgets(
     'the signed-in More card opens account actions and updates on logout',
@@ -326,10 +376,10 @@ void main() {
       await tester.ensureVisible(find.text('Appearance'));
       await tester.pumpAndSettle();
       expect(find.text('Appearance').hitTestable(), findsOneWidget);
-      await tester.ensureVisible(find.text('Local AI computer'));
+      await tester.ensureVisible(find.text('Local QVAC'));
       await tester.pumpAndSettle();
-      expect(find.text('Local AI computer').hitTestable(), findsOneWidget);
-      await tester.tap(find.text('Local AI computer'));
+      expect(find.text('Local QVAC').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('Local QVAC'));
       await tester.pumpAndSettle();
       final history = find.byKey(const ValueKey('companion-ai-task-history'));
       await tester.scrollUntilVisible(history, 250);

@@ -69,6 +69,12 @@ const firstTimeUserKey = CacheKey<bool>(CacheNamespace.app, 'firstTimeUser');
 
 const userNameKey = CacheKey<String>(CacheNamespace.app, 'userName');
 
+// The text-to-speech engine and voice for companion replies: {engine, name, locale}.
+const replyVoiceKey = CacheKey<Map<String, dynamic>>(
+  CacheNamespace.app,
+  'replyVoice',
+);
+
 // ─────────────────────────────────────────────
 // Storage abstraction
 // ─────────────────────────────────────────────

@@ -1,9 +1,14 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:journal/modules/more/views/widgets/more_material.dart';
 
-enum MoreEntryArtwork { swatches, computer }
+enum MoreEntryArtwork {
+  appearance('assets/images/more_appearance.png'),
+  qvac('assets/images/more_local_qvac.png');
+
+  const MoreEntryArtwork(this.asset);
+
+  final String asset;
+}
 
 /// An illustrated entry, with its purpose and live status kept in one place.
 class MoreIndexEntry extends StatelessWidget {
@@ -15,6 +20,7 @@ class MoreIndexEntry extends StatelessWidget {
     required this.onTap,
     this.status,
     this.connected = false,
+    this.showDivider = true,
   });
 
   final String title;
@@ -23,6 +29,7 @@ class MoreIndexEntry extends StatelessWidget {
   final VoidCallback onTap;
   final String? status;
   final bool connected;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
@@ -30,8 +37,9 @@ class MoreIndexEntry extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final showArtwork =
-            constraints.maxWidth >= 310 &&
+            constraints.maxWidth >= 250 &&
             MediaQuery.textScalerOf(context).scale(14) <= 20;
+        final artworkSize = constraints.maxWidth < 310 ? 88.0 : 104.0;
         return Material(
           color: Colors.transparent,
           child: InkWell(
@@ -40,7 +48,9 @@ class MoreIndexEntry extends StatelessWidget {
             highlightColor: palette.accent.withValues(alpha: .04),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: palette.rule)),
+                border: showDivider
+                    ? Border(bottom: BorderSide(color: palette.rule))
+                    : null,
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 26),
@@ -112,13 +122,19 @@ class MoreIndexEntry extends StatelessWidget {
                       ),
                     ),
                     if (showArtwork) ...[
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       ExcludeSemantics(
                         child: SizedBox(
-                          width: 96,
-                          height: 96,
+                          width: artworkSize,
+                          height: artworkSize,
                           child: CustomPaint(
-                            painter: _EntryPainter(palette, artwork),
+                            painter: _EntryWashPainter(palette),
+                            child: Image.asset(
+                              artwork.asset,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.medium,
+                              excludeFromSemantics: true,
+                            ),
                           ),
                         ),
                       ),
@@ -142,117 +158,46 @@ class MoreIndexEntry extends StatelessWidget {
   }
 }
 
-class _EntryPainter extends CustomPainter {
-  const _EntryPainter(this.palette, this.artwork);
+class _EntryWashPainter extends CustomPainter {
+  const _EntryWashPainter(this.palette);
 
   final MorePalette palette;
-  final MoreEntryArtwork artwork;
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
     canvas.scale(size.width / 64, size.height / 64);
-    final pen = Paint()
-      ..color = palette.accent.withValues(alpha: .65)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    if (artwork == MoreEntryArtwork.swatches) {
-      final shades = [
-        Color.lerp(palette.paper, const Color(0xffbc9b74), .50)!,
-        Color.lerp(palette.paper, const Color(0xff89917b), .55)!,
-        Color.lerp(palette.paper, palette.accent, .22)!,
-      ];
-      for (var i = 0; i < 3; i++) {
-        canvas.save();
-        canvas.translate(30, 52);
-        canvas.rotate((i - 1) * math.pi / 8);
-        final card = RRect.fromRectAndRadius(
-          const Rect.fromLTWH(-11, -46, 25, 49),
-          const Radius.circular(2),
-        );
-        canvas.drawRRect(
-          card.shift(const Offset(1, 2)),
-          Paint()
-            ..color = palette.ink.withValues(alpha: .12)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
-        );
-        canvas.drawRRect(card, Paint()..color = palette.paper);
-        canvas.save();
-        canvas.clipRRect(card);
-        canvas.drawRect(
-          const Rect.fromLTWH(-11, -46, 25, 32),
-          Paint()
-            ..shader = LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color.lerp(shades[i], palette.paper, .2)!, shades[i]],
-            ).createShader(card.outerRect),
-        );
-        canvas.restore();
-        canvas.drawRRect(card, pen..color = palette.ink.withValues(alpha: .2));
-        canvas.drawLine(const Offset(-5, -8), const Offset(6, -8), pen);
-        canvas.restore();
-      }
-      canvas.drawCircle(
-        const Offset(30, 52),
-        2,
-        Paint()..color = palette.accent,
-      );
-    } else {
-      final screen = RRect.fromRectAndRadius(
-        const Rect.fromLTWH(7, 9, 49, 34),
-        const Radius.circular(3),
-      );
-      canvas.drawRRect(
-        screen.shift(const Offset(1, 2)),
-        Paint()
-          ..color = palette.ink.withValues(alpha: .09)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
-      );
-      canvas.drawRRect(screen, Paint()..color = palette.paper);
-      canvas.drawRRect(screen, pen);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          const Rect.fromLTWH(12, 14, 39, 24),
-          const Radius.circular(1),
-        ),
-        Paint()..color = Color.lerp(palette.paper, palette.accent, .10)!,
-      );
-      final star = Path()
-        ..moveTo(32, 18)
-        ..quadraticBezierTo(32, 26, 40, 26)
-        ..quadraticBezierTo(32, 26, 32, 34)
-        ..quadraticBezierTo(32, 26, 24, 26)
-        ..quadraticBezierTo(32, 26, 32, 18);
-      canvas.drawPath(
-        star,
-        Paint()..color = palette.accent.withValues(alpha: .7),
-      );
-      final stand = Path()
-        ..moveTo(28, 43)
-        ..lineTo(36, 43)
-        ..lineTo(37, 50)
-        ..lineTo(27, 50)
-        ..close();
-      canvas.drawPath(stand, Paint()..color = palette.cloth);
-      canvas.drawPath(stand, pen);
-      final base = RRect.fromRectAndRadius(
-        const Rect.fromLTWH(21, 50, 22, 3),
-        const Radius.circular(1),
-      );
-      canvas.drawRRect(base, Paint()..color = palette.paper);
-      canvas.drawRRect(base, pen);
-      canvas.drawLine(
-        const Offset(12, 56),
-        const Offset(52, 56),
-        pen..color = palette.rule,
-      );
-    }
+    _paintWash(canvas);
+  }
+
+  void _paintWash(Canvas canvas) {
+    final dark = palette.ground.computeLuminance() < .2;
+    final wash = Path()
+      ..moveTo(6, 29)
+      ..cubicTo(2, 14, 22, 3, 36, 6)
+      ..cubicTo(52, 3, 65, 18, 60, 33)
+      ..cubicTo(64, 48, 48, 59, 33, 56)
+      ..cubicTo(16, 62, 1, 47, 6, 29)
+      ..close();
+    canvas.drawPath(
+      wash,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(.1, -.1),
+          radius: .75,
+          colors: [
+            palette.accent.withValues(alpha: dark ? .10 : .055),
+            palette.accent.withValues(alpha: dark ? .045 : .025),
+            palette.accent.withValues(alpha: 0),
+          ],
+          stops: const [0, .55, 1],
+        ).createShader(const Rect.fromLTWH(1, 2, 62, 60))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+    );
   }
 
   @override
-  bool shouldRepaint(_EntryPainter oldDelegate) =>
-      artwork != oldDelegate.artwork ||
+  bool shouldRepaint(_EntryWashPainter oldDelegate) =>
       palette.accent != oldDelegate.palette.accent ||
-      palette.paper != oldDelegate.palette.paper ||
-      palette.ink != oldDelegate.palette.ink;
+      palette.ground != oldDelegate.palette.ground;
 }

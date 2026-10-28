@@ -48,7 +48,7 @@ class _DiaryConversationPageState extends ConsumerState<DiaryConversationPage> {
         if (c == null) {
           throw const CompanionFailure(
             'UNAVAILABLE',
-            'Pair your computer in More → Local AI computer.',
+            'Pair your computer in More → Local QVAC.',
           );
         }
         return c;

@@ -6,7 +6,7 @@ N01 adds explicit rewriting, expansion, tone, grammar/clarity and Markdown propo
 
 1. Save a note and return to its preview. Open the wand menu → **Writing help**.
 2. Choose one action and optionally describe intent (required for tone). Use the whole saved body, or select text in the read-only body field and press **Use selected passage**. No note is sent until **Generate proposal**.
-3. Compare **Original selected text** and **Proposed replacement** as inert selectable text, including literal Markdown. Check facts and voice. Accept writes only the selected body range; reject/clear leaves the note untouched. Dismiss keeps the task in More → Local AI computer → AI task history.
+3. Compare **Original selected text** and **Proposed replacement** as inert selectable text, including literal Markdown. Check facts and voice. Accept writes only the selected body range; reject/clear leaves the note untouched. Dismiss keeps the task in More → Local QVAC → AI task history.
 4. Reopen the wand menu → **Prior content / recovery** to restore the body from before acceptance. Restore refuses a note changed since that acceptance; its prior body remains available to inspect/copy manually. Removing copies has an explicit confirmation.
 
 Unsaved editor drafts never enter this workflow. Returning from writing/recovery refreshes the editor's saved snapshot. Manual editing, its conflict drafts, Markdown preview, title, tags, backgrounds, attachments and pinning retain their existing behavior. Primary/add-only rules are enforced in the repository at acceptance and restoration, even if a role changes while a model runs. Read-only devices may review/reject proposals.

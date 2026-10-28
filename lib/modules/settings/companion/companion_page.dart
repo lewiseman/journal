@@ -5,6 +5,7 @@ import 'package:journal/config/theme.dart';
 
 import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
+import 'package:journal/modules/voice/views/pages/reply_voice_page.dart';
 
 import 'companion_controller.dart';
 import 'companion_protocol.dart';
@@ -41,7 +42,7 @@ class CompanionNavigationTile extends ConsumerWidget {
         child: Icon(Icons.computer_rounded, color: colors.primary, size: 22),
       ),
       title: Text(
-        'Local AI computer',
+        'Local QVAC',
         style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
@@ -101,7 +102,7 @@ class CompanionPage extends ConsumerWidget {
     final controller = ref.read(companionControllerProvider.notifier);
     final selected = state.selected;
     return Scaffold(
-      appBar: AppBar(title: const Text('Local AI computer')),
+      appBar: AppBar(title: const Text('Local QVAC')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -210,6 +211,17 @@ class CompanionPage extends ConsumerWidget {
               MaterialPageRoute<void>(
                 builder: (_) => const SummaryHistoryPage(),
               ),
+            ),
+          ),
+          ListTile(
+            key: const ValueKey('companion-reply-voice'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.record_voice_over_outlined),
+            title: const Text('Reply voice'),
+            subtitle: const Text('Choose how your companion sounds'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ReplyVoicePage()),
             ),
           ),
           if (state.discovered.isNotEmpty) ...[

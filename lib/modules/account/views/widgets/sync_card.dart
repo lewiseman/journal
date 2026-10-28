@@ -35,21 +35,25 @@ class SyncAccountCard extends ConsumerWidget {
     }
   }
 
+  static const _expandedAvatarSize = 84.0;
+  static const _avatarNameGap = 16.0;
+
   static double _identityHeight(BuildContext context, {bool compact = false}) {
     final scaler = MediaQuery.textScalerOf(context);
-    return math.max(
-      compact ? 34 : 48,
-      (scaler.scale(compact ? 16 : 24) * 1.2).ceilToDouble() +
-          4 +
-          (scaler.scale(compact ? 11 : 12) * 1.4).ceilToDouble() +
-          2,
-    );
+    final textHeight =
+        (scaler.scale(compact ? 16 : 24) * 1.2).ceilToDouble() +
+        4 +
+        (scaler.scale(compact ? 11 : 12) * 1.4).ceilToDouble() +
+        2;
+    return compact
+        ? math.max(34, textHeight)
+        : _expandedAvatarSize + _avatarNameGap + textHeight;
   }
 
   static double compactHeight(BuildContext context) =>
       28 + _identityHeight(context, compact: true);
 
-  static const _identityTop = 20.0;
+  static const _identityTop = 24.0;
 
   static double expandedHeight(
     BuildContext context, {
@@ -85,6 +89,16 @@ class SyncAccountCard extends ConsumerWidget {
         ? context.colors.error
         : palette.accent;
     final identityHeight = _identityHeight(context);
+    final compactIdentityHeight = _identityHeight(context, compact: true);
+    // Move the name beside the avatar before lifting it into the compact row.
+    final horizontal = Curves.easeInOut.transform((t / .35).clamp(0.0, 1.0));
+    final vertical = ((t - .35) / .65).clamp(0.0, 1.0);
+    final avatarSize = lerpDouble(_expandedAvatarSize, 32, t)!;
+    final textAlignment = AlignmentDirectional.lerp(
+      AlignmentDirectional.center,
+      AlignmentDirectional.centerStart,
+      horizontal,
+    )!;
     final initials = title
         .split(RegExp(r'\s+'))
         .take(2)
@@ -115,6 +129,7 @@ class SyncAccountCard extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
+            const Positioned.fill(child: MoreBookcloth()),
             Positioned(
               top: lerpDouble(_identityTop, 14, t),
               left: 20,
@@ -128,77 +143,111 @@ class SyncAccountCard extends ConsumerWidget {
                   child: SizedBox(
                     height: lerpDouble(
                       identityHeight,
-                      _identityHeight(context, compact: true),
-                      t,
+                      compactIdentityHeight,
+                      vertical,
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          key: const ValueKey('sync-avatar'),
-                          width: lerpDouble(48, 32, t),
-                          height: lerpDouble(48, 32, t),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: palette.cloth,
-                            border: Border.all(color: palette.rule),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                          child: Text(
-                            initials,
-                            textScaler: TextScaler.noScaling,
-                            style: TextStyle(
-                              color: palette.accent,
-                              fontSize: lerpDouble(19, 13, t),
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 1,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => Stack(
+                        children: [
+                          PositionedDirectional(
+                            top: lerpDouble(
+                              0,
+                              (compactIdentityHeight - 32) / 2,
+                              vertical,
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: palette.ink,
-                                  fontSize: lerpDouble(24, 16, t),
-                                  height: 1.2,
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: -.5,
+                            start: lerpDouble(
+                              (constraints.maxWidth - avatarSize) / 2,
+                              0,
+                              horizontal,
+                            ),
+                            child: Container(
+                              key: const ValueKey('sync-avatar'),
+                              width: avatarSize,
+                              height: avatarSize,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: palette.cloth,
+                                border: Border.all(color: palette.rule),
+                                borderRadius: BorderRadius.circular(
+                                  lerpDouble(6, 2, t)!,
                                 ),
                               ),
-                              if (isSignedIn || compact) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  compact
-                                      ? syncState.status.statusLabel
-                                      : syncAccount!.email,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: compact
-                                        ? statusColor
-                                        : palette.muted,
-                                    fontSize: lerpDouble(12, 11, t),
-                                    height: 1.4,
+                              child: Text(
+                                initials,
+                                textScaler: TextScaler.noScaling,
+                                style: TextStyle(
+                                  color: palette.accent,
+                                  fontSize: lerpDouble(32, 13, t),
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                          PositionedDirectional(
+                            top: lerpDouble(
+                              _expandedAvatarSize + _avatarNameGap,
+                              0,
+                              vertical,
+                            ),
+                            bottom: 0,
+                            start: lerpDouble(0, avatarSize + 14, horizontal),
+                            end: lerpDouble(0, 28, horizontal),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Align(
+                                  alignment: textAlignment,
+                                  child: Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.ink,
+                                      fontSize: lerpDouble(24, 16, t),
+                                      height: 1.2,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: -.5,
+                                    ),
                                   ),
                                 ),
+                                if (isSignedIn || compact) ...[
+                                  const SizedBox(height: 4),
+                                  Align(
+                                    alignment: textAlignment,
+                                    child: Text(
+                                      compact
+                                          ? syncState.status.statusLabel
+                                          : syncAccount!.email,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: compact
+                                            ? statusColor
+                                            : palette.muted,
+                                        fontSize: lerpDouble(12, 11, t),
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                        if (compact)
-                          Icon(
-                            Icons.expand_more_rounded,
-                            color: palette.accent,
-                            size: 20,
-                          ),
-                      ],
+                          if (compact)
+                            PositionedDirectional(
+                              top: 0,
+                              bottom: 0,
+                              end: 0,
+                              child: Icon(
+                                Icons.expand_more_rounded,
+                                color: palette.accent,
+                                size: 20,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -22,10 +22,12 @@ on startup/manual primary sync or after reclaiming the primary role.
 
 ## More
 
-More uses warm woven surfaces, a compact account bookplate and illustrated
-entries for Appearance and Local AI computer. It opens directly on the account
+More keeps the app's normal screen background, with bookcloth texture confined
+to the account card and subtle ink washes behind the illustrated
+entries for Appearance and Local QVAC. It opens directly on the account
 and controls, without a masthead or decorative copy.
-The bookplate folds into a pinned account strip when scrolling. The shared
+The taller bookplate centers a large avatar above the user's name and folds
+into a pinned account strip when scrolling. The shared
 surface, palette and entry widgets can carry this style into More's subpages;
 those subpages keep their current designs for now. See [the style notes](docs/more-design.md).
 The computer entry shows its connection status and opens pairing
@@ -129,7 +131,7 @@ bindings so existing database entity/property IDs are preserved.
 
 See `packages/sync_wise/README.md` for backend and collection adapter contracts.
 
-## Local AI computer
+## Local QVAC
 
 See [connection setup and verification](docs/companion-connection.md) for the optional LAN companion in More.
 
