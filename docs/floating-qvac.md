@@ -5,6 +5,8 @@ The app-wide assistant uses `assets/images/more_local_qvac.png` and the existing
 storage. Its green check, amber connecting state, and muted disconnected badge
 reflect the companion's live transport phase, not model readiness.
 
+- The floating artwork has a close paper sticker edge and soft shadow following
+  its transparent silhouette, with a small status badge and no circular backing.
 - Tap opens a contextual placeholder sheet; hold opens the local AI companion.
 - Drag to move, release to snap to an edge, or release in the bottom dismissal
   area to hide it for the rest of the app session.

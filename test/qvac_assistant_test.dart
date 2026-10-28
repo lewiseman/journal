@@ -232,6 +232,7 @@ void main() {
       find.byKey(const ValueKey('qvac-status-disconnected')),
       findsOneWidget,
     );
+    await _capture(tester, 'disconnected');
     final builds = app.builds();
     (app.scope.read(companionControllerProvider.notifier) as _Connection).phase(
       CompanionPhase.connected,
@@ -262,6 +263,7 @@ void main() {
       find.byKey(const ValueKey('qvac-status-connecting')),
       findsOneWidget,
     );
+    await _capture(tester, 'connecting');
     expect(tester.takeException(), isNull);
   });
 

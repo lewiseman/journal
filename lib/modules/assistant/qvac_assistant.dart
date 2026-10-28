@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
+import 'dart:ui' show ImageFilter, lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -410,51 +410,12 @@ class QvacAssistantButton extends ConsumerWidget {
         onPanCancel: onPanCancel,
         child: Stack(
           fit: StackFit.expand,
+          clipBehavior: Clip.none,
           children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: colors.surfaceContainerLow.withValues(alpha: 1 - dock),
-                border: Border.all(
-                  color: color.withValues(alpha: .45 * (1 - dock)),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: colors.shadow.withValues(alpha: .14 * (1 - dock)),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
-                  ),
-                  if (connected)
-                    BoxShadow(
-                      color: color.withValues(alpha: .13 * (1 - dock)),
-                      blurRadius: 14,
-                    ),
-                ],
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(6 * (1 - dock)),
-                child: Image.asset(
-                  qvacArtwork,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.medium,
-                  excludeFromSemantics: true,
-                ),
-              ),
-            ),
-            if (checking &&
-                !MediaQuery.disableAnimationsOf(context) &&
-                !MediaQuery.accessibleNavigationOf(context))
-              Padding(
-                padding: const EdgeInsets.all(2),
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: color,
-                ),
-              ),
+            _QvacSticker(dock: dock, statusColor: color),
             Positioned(
-              right: 1 + dock * 7,
-              bottom: 1 + dock * 7,
+              right: 3 + dock * 4,
+              bottom: 3 + dock * 4,
               child: Container(
                 key: ValueKey(
                   'qvac-status-${connected
@@ -469,20 +430,85 @@ class QvacAssistantButton extends ConsumerWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: colors.surface, width: 2),
                 ),
-                child: Icon(
-                  connected
-                      ? Icons.check_rounded
-                      : checking
-                      ? Icons.more_horiz_rounded
-                      : Icons.link_off_rounded,
-                  color: Colors.white,
-                  size: 11,
-                ),
+                child:
+                    checking &&
+                        !MediaQuery.disableAnimationsOf(context) &&
+                        !MediaQuery.accessibleNavigationOf(context)
+                    ? const SizedBox.square(
+                        dimension: 11,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(
+                        connected
+                            ? Icons.check_rounded
+                            : checking
+                            ? Icons.more_horiz_rounded
+                            : Icons.link_off_rounded,
+                        color: Colors.white,
+                        size: 11,
+                      ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Expanding the asset's alpha gives the paper edge its exact silhouette,
+/// including the little journal note. All layers share the cached image and
+/// live inside the button's repaint boundary; there is no idle animation.
+class _QvacSticker extends StatelessWidget {
+  const _QvacSticker({required this.dock, required this.statusColor});
+  final double dock;
+  final Color statusColor;
+
+  static const _image = Image(
+    image: AssetImage(qvacArtwork),
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.medium,
+    excludeFromSemantics: true,
+  );
+
+  Widget _silhouette(ImageFilter filter, Color color) => ImageFiltered(
+    imageFilter: filter,
+    child: ColorFiltered(
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      child: _image,
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final floating = 1 - dock;
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        if (floating > 0) ...[
+          Transform.translate(
+            offset: Offset(0, 2 * floating),
+            child: _silhouette(
+              ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+              Theme.of(context).colorScheme.shadow
+                  .withValues(alpha: .24 * floating),
+            ),
+          ),
+          _silhouette(
+            ImageFilter.dilate(radiusX: 3 * floating, radiusY: 3 * floating),
+            statusColor.withValues(alpha: .65 * floating),
+          ),
+          _silhouette(
+            ImageFilter.dilate(radiusX: 2 * floating, radiusY: 2 * floating),
+            const Color(0xfffffcf3).withValues(alpha: floating),
+          ),
+        ],
+        _image,
+      ],
     );
   }
 }
