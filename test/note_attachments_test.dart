@@ -305,7 +305,7 @@ void main() {
     expect(removed, 1);
   });
 
-  testWidgets('voice preview returns to the same unsaved note draft', (
+  testWidgets('voice capture returns to the same unsaved note draft', (
     tester,
   ) async {
     final repository = _NotesRepository();
@@ -328,7 +328,7 @@ void main() {
       VoiceSessionMode.transcription,
     );
     await tester.pump(const Duration(seconds: 2));
-    await tester.tap(find.text('Done'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(find.byType(VoiceSessionPage), findsNothing);
     expect(tester.widget<TextField>(fields.first).controller!.text, 'My draft');
@@ -365,7 +365,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(VoiceSessionPage), findsOneWidget);
-    await tester.tap(find.text('Done'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });

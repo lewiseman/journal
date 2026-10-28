@@ -129,6 +129,7 @@ class _FlowPageState extends ConsumerState<FlowPage> {
       const VoiceSessionPage(
         mode: VoiceSessionMode.transcription,
         title: 'Capture a thought',
+        target: 'flow',
       ),
       transition:
           MediaQuery.disableAnimationsOf(context) ||

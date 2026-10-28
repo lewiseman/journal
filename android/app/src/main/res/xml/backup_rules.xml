@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
+    <exclude domain="file" path="voice_sessions/" />
     <exclude domain="sharedpref" path="journal_companion.xml" />
     <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:journal_companion.xml" />
     <exclude domain="sharedpref" path="FlutterSecureKeyStorage:journal_companion.xml" />

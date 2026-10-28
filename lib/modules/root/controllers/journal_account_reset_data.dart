@@ -21,15 +21,18 @@ class JournalAccountResetData implements AccountResetLocalData {
   final Future<Directory> Function() supportDirectory;
   final Future<void> Function() clearCachedImages;
   final Future<void> Function() clearSummaries;
+  final Future<void> Function() clearVoice;
 
   JournalAccountResetData({
     required this.db,
     Future<Directory> Function()? supportDirectory,
     Future<void> Function()? clearCachedImages,
     Future<void> Function()? clearSummaries,
+    Future<void> Function()? clearVoice,
   }) : supportDirectory = supportDirectory ?? getApplicationSupportDirectory,
        clearCachedImages = clearCachedImages ?? _clearCachedImages,
-       clearSummaries = clearSummaries ?? _noSummaries;
+       clearSummaries = clearSummaries ?? _noSummaries,
+       clearVoice = clearVoice ?? _noSummaries;
 
   static Future<void> _noSummaries() async {}
 
@@ -39,6 +42,7 @@ class JournalAccountResetData implements AccountResetLocalData {
   @override
   Future<void> clear() async {
     await clearSummaries();
+    await clearVoice();
     final support = await supportDirectory();
     final mediaPath = p.join(support.path, 'note_backgrounds');
     final type = await FileSystemEntity.type(mediaPath, followLinks: false);

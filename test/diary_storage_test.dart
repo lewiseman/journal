@@ -47,6 +47,27 @@ void main() {
     directory.deleteSync(recursive: true);
   });
 
+  test(
+    'a reviewed conversation cannot save duplicate diary items on retry',
+    () {
+      final date = DiaryRepository.formatDateKey(today);
+      final first = diary.addTimelineItem(
+        dateString: date,
+        content: 'Leo I walked home.',
+        itemUuid: 'conversation-id',
+      );
+      final duplicate = diary.addTimelineItem(
+        dateString: date,
+        content: 'Leo I walked home.',
+        itemUuid: 'conversation-id',
+      );
+      expect(first.itemUuid, duplicate.itemUuid);
+      expect(diary.getDay(date)!.items, hasLength(1));
+      expect(storage.pendingCreations, hasLength(1));
+      expect(duplicate.content, 'Leo I walked home.');
+    },
+  );
+
   Widget app(Widget home, {SyncDeviceRole role = SyncDeviceRole.primary}) =>
       ProviderScope(
         overrides: [

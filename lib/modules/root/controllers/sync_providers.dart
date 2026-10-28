@@ -1,3 +1,5 @@
+import 'package:journal/modules/voice/controllers/voice_store.dart';
+
 import 'dart:async';
 
 import 'package:journal/common.dart' hide NetworkService, NetworkType;
@@ -86,6 +88,7 @@ final accountResetLocalDataProvider = Provider<AccountResetLocalData>(
   (ref) => JournalAccountResetData(
     db: ref.watch(objectBoxProvider),
     clearSummaries: () => ref.read(summaryStoreProvider).clearAll(),
+    clearVoice: () => VoiceStore().clearAll(),
   ),
 );
 final accountResetProvider =

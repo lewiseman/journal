@@ -18,7 +18,18 @@ class ThoughtsRepository {
     this.onDataChanged,
   });
 
-  ThoughtEntity saveThought({required String content}) {
+  ThoughtEntity saveThought({required String content, String? uuid}) {
+    if (uuid != null) {
+      final previous = getThoughtByUuid(uuid);
+      if (previous != null) {
+        if (previous.content != content.trim()) {
+          throw StateError(
+            'This recording was already saved with different text. Start a new thought explicitly.',
+          );
+        }
+        return previous;
+      }
+    }
     final text = content.trim();
     if (text.isEmpty) {
       throw ArgumentError.value(content, 'content', 'Empty thought');
@@ -30,7 +41,7 @@ class ThoughtsRepository {
       isUtc: now.isUtc,
     );
     final thought = ThoughtEntity(
-      uuid: const Uuid().v4(),
+      uuid: uuid ?? const Uuid().v4(),
       content: text,
       createdAt: storedTime,
       lastEditedByDeviceId: device.deviceId,

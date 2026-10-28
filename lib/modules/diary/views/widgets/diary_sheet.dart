@@ -377,7 +377,8 @@ class _DiaryAddActions extends StatelessWidget {
         MediaQuery.disableAnimationsOf(context) ||
         MediaQuery.accessibleNavigationOf(context);
     context.nav.push<void>(
-      const VoiceSessionPage(
+      VoiceSessionPage(
+        date: date,
         mode: VoiceSessionMode.conversation,
         title: 'Your day, out loud',
       ),

@@ -16,6 +16,25 @@ class _FailingOutboxStore extends JournalSyncKeyValueStore {
 }
 
 void main() {
+  test(
+    'reviewed voice saves use one stable creation ID across retries',
+    () async {
+      final app = await SyncFixture.create(MemoryDrive(), 'phone');
+      final first = app.thoughts.saveThought(
+        content: 'Leo I walked home.',
+        uuid: 'voice-session',
+      );
+      final duplicate = app.thoughts.saveThought(
+        content: 'Leo I walked home.',
+        uuid: 'voice-session',
+      );
+      expect(duplicate.uuid, first.uuid);
+      expect(app.db.thoughtBox.count(), 1);
+      expect(app.storage.pendingCreations, hasLength(1));
+      expect(duplicate.content, 'Leo I walked home.');
+    },
+  );
+
   test('saving commits text and backup before notifying listeners', () async {
     final app = await SyncFixture.create(MemoryDrive(), 'phone');
     var notifications = 0;

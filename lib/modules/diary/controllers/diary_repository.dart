@@ -107,6 +107,7 @@ class DiaryRepository {
     String? mood,
     List<String> attachmentPaths = const [],
     DateTime? timestamp,
+    String? itemUuid,
   }) {
     if (!sync.canEdit && dateString != formatDateKey(sync.now())) {
       throw StateError('This device can only add diary items for today.');
@@ -114,10 +115,23 @@ class DiaryRepository {
     if (content.trim().isEmpty && attachmentPaths.isEmpty) {
       throw ArgumentError('A diary item needs text or an attachment.');
     }
+    if (itemUuid != null) {
+      final previous = getDay(dateString)?.items
+          .where((item) => item.itemUuid == itemUuid)
+          .firstOrNull;
+      if (previous != null) {
+        if (previous.isDeleted || previous.content != content) {
+          throw StateError(
+            'This conversation was already saved. Review its existing diary item before changing it.',
+          );
+        }
+        return previous;
+      }
+    }
     final now = sync.now();
 
     final newItem = DiaryItem(
-      itemUuid: const Uuid().v4(),
+      itemUuid: itemUuid ?? const Uuid().v4(),
       createdAt: timestamp ?? now,
       content: content,
       mood: mood,

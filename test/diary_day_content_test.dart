@@ -258,7 +258,7 @@ void main() {
           tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
           VoiceSessionMode.conversation,
         );
-        await tester.tap(find.text('Done'));
+        await tester.tap(find.byTooltip('Back'));
       } else if (tooltip == 'Add image entry') {
         await tester.pumpAndSettle();
         expect(

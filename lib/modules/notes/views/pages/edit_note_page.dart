@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:journal/modules/voice/controllers/voice_store.dart';
 
 import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
 
@@ -83,14 +84,15 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
     _contentFocusNode.requestFocus();
   }
 
-  void _openVoice() {
+  Future<void> _openVoice() async {
     if (_isPreviewMode || ModalRoute.of(context)?.isCurrent == false) return;
     if (_savedNote != null &&
         ref.read(syncDeviceRoleProvider) == SyncDeviceRole.secondary) {
       return;
     }
     FocusScope.of(context).unfocus();
-    context.nav.push<void>(
+    final before = _contentController.text;
+    final transcript = await context.nav.push<String>(
       const VoiceSessionPage(
         mode: VoiceSessionMode.transcription,
         title: 'Voice note',
@@ -101,6 +103,17 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
           ? NavTransition.none
           : NavTransition.fade,
     );
+    if (!mounted ||
+        transcript == null ||
+        _isPreviewMode ||
+        _contentController.text != before ||
+        ref.read(accountResetProvider).blocksDataAccess) {
+      return;
+    }
+    _contentController.text = before.isEmpty
+        ? transcript
+        : '$before\n$transcript';
+    await VoiceStore().consumed('note');
   }
 
   Future<void> _pickAttachments() async {

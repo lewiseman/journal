@@ -42,7 +42,7 @@ class MemoryThoughtsRepository extends Fake implements ThoughtsRepository {
   bool holdReads = false;
 
   @override
-  ThoughtEntity saveThought({required String content}) {
+  ThoughtEntity saveThought({required String content, String? uuid}) {
     if (failSaves) throw StateError('Disk unavailable');
     final thought = ThoughtEntity(
       id: thoughts.length + 1,

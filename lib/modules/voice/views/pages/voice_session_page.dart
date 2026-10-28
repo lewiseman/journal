@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+
+import 'voice_capture_page.dart';
+import 'diary_conversation_page.dart';
+
 import 'package:flutter/services.dart';
 import 'package:journal/modules/voice/controllers/voice_session_controller.dart';
 import 'package:journal/modules/voice/models/voice_session.dart';
 import 'package:journal/modules/voice/views/widgets/voice_ambient_background.dart';
 import 'package:journal/modules/voice/views/widgets/voice_transcript.dart';
 
-class VoiceSessionPage extends StatefulWidget {
-  const VoiceSessionPage({
-    super.key,
+class _PreviewVoiceSessionPage extends StatefulWidget {
+  const _PreviewVoiceSessionPage({
     required this.mode,
     required this.title,
     this.controller,
@@ -21,10 +24,10 @@ class VoiceSessionPage extends StatefulWidget {
   final VoiceSessionController? controller;
 
   @override
-  State<VoiceSessionPage> createState() => _VoiceSessionPageState();
+  State<_PreviewVoiceSessionPage> createState() => _VoiceSessionPageState();
 }
 
-class _VoiceSessionPageState extends State<VoiceSessionPage>
+class _VoiceSessionPageState extends State<_PreviewVoiceSessionPage>
     with WidgetsBindingObserver {
   late VoiceSessionController _controller;
   bool _reduced = false;
@@ -57,7 +60,7 @@ class _VoiceSessionPageState extends State<VoiceSessionPage>
   }
 
   @override
-  void didUpdateWidget(VoiceSessionPage oldWidget) {
+  void didUpdateWidget(_PreviewVoiceSessionPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller ||
         oldWidget.mode != widget.mode) {
@@ -334,4 +337,31 @@ class _SessionStatus extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Production routes always use real capture/conversation. Samples are available
+/// only through an explicitly injected controller in visual previews/tests.
+class VoiceSessionPage extends StatelessWidget {
+  const VoiceSessionPage({
+    super.key,
+    required this.mode,
+    required this.title,
+    this.controller,
+    this.target = 'note',
+    this.date,
+  });
+  final VoiceSessionMode mode;
+  final String title, target;
+  final DateTime? date;
+  final VoiceSessionController? controller;
+  @override
+  Widget build(BuildContext context) => controller != null
+      ? _PreviewVoiceSessionPage(
+          mode: mode,
+          title: title,
+          controller: controller,
+        )
+      : mode == VoiceSessionMode.conversation
+      ? DiaryConversationPage(date: date ?? DateTime.now(), talk: true)
+      : VoiceCapturePage(title: title, target: target);
 }
