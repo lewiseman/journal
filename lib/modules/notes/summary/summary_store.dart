@@ -7,6 +7,10 @@ import 'package:journal/objectbox/objectbox.g.dart';
 
 import 'summary_task_entity.dart';
 import '../transform/transform_contract.dart';
+import '../metadata/note_help_contract.dart';
+import '../images/note_image_contract.dart';
+import '../images/note_scan.dart';
+import '../images/note_background_gen.dart';
 import '../../presentation/presentation_contract.dart';
 import '../../diary/history/diary_history_contract.dart';
 import '../../diary/questions/daily_question_contract.dart';
@@ -55,6 +59,21 @@ class SummaryHandle {
 
   /// L01 Flow reflections. [noteId] holds the thought UUID.
   bool get isThoughtReflection => operation == thoughtReflectionOperation;
+
+  /// N02 title/tag suggestions for the saved note [noteId].
+  bool get isNoteMetadata => operation == noteMetadataOperation;
+
+  /// N02 starting ideas. [noteId] is [noteIdeasKey].
+  bool get isNoteIdeas => operation == noteIdeasOperation;
+
+  /// I03 question about one image attached to the saved note [noteId].
+  bool get isNoteImage => operation == noteImageOperation;
+
+  /// I04 transcription of a scanned page for the saved note [noteId].
+  bool get isNoteScan => operation == noteScanOperation;
+
+  /// I06 generated background for the saved note [noteId].
+  bool get isNoteBackground => operation == noteBackgroundOperation;
 
   /// Diary tasks keyed by a civil date rather than a note UUID.
   bool get isDiaryDay => isDiarySuggestion || isDailyQuestion || isDiaryAnswer;
@@ -132,8 +151,14 @@ class SummaryHandle {
     if ((!handle.isTransformation &&
             !handle.isPresentation &&
             !handle.isDiaryDay &&
+            !handle.isNoteMetadata &&
+            !handle.isNoteIdeas &&
+            !handle.isNoteImage &&
+            !handle.isNoteScan &&
+            !handle.isNoteBackground &&
             !handle.isThoughtReflection &&
             handle.operation != 'summarize-note') ||
+        (handle.isNoteIdeas && handle.noteId != noteIdeasKey) ||
         (handle.isDiaryDay &&
             !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(handle.noteId)) ||
         !RegExp(r'^[a-zA-Z0-9_-]{8,80}$').hasMatch(handle.id) ||
@@ -162,6 +187,28 @@ class SummaryHandle {
             handle.noteId) {
           throw const FormatException('Mismatched source');
         }
+      } else if (handle.isNoteMetadata) {
+        if (NoteMetadataSource.decode(handle.localSource!).noteId !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
+      } else if (handle.isNoteImage) {
+        if (NoteImageRequest.decode(handle.localSource!).noteId !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
+      } else if (handle.isNoteBackground) {
+        if (NoteBackgroundRequest.decode(handle.localSource!).noteId !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
+      } else if (handle.isNoteScan) {
+        if (NoteScanRequest.decode(handle.localSource!).noteId !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
+      } else if (handle.isNoteIdeas) {
+        NoteIdeaSource.decode(handle.localSource!);
       } else if (handle.isDiaryAnswer) {
         if (DiaryHistorySelection.decode(handle.localSource!).today !=
             handle.noteId) {

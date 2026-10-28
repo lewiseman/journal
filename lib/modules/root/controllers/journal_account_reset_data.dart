@@ -55,6 +55,14 @@ class JournalAccountResetData implements AccountResetLocalData {
         await Directory(mediaPath).delete(recursive: true);
       }
     }
+    // I04 scan copies and their original transcriptions are app-owned too.
+    final scansPath = p.join(support.path, 'note_scans');
+    final scans = await FileSystemEntity.type(scansPath, followLinks: false);
+    if (scans == FileSystemEntityType.link) {
+      await Link(scansPath).delete();
+    } else if (scans == FileSystemEntityType.directory) {
+      await Directory(scansPath).delete(recursive: true);
+    }
     await clearCachedImages();
     db.store.runInTransaction(TxMode.write, () {
       db.noteBox.removeAll();

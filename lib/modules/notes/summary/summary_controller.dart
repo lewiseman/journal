@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,15 @@ import 'package:journal/modules/settings/companion/companion_protocol.dart';
 
 import 'summary_store.dart';
 import '../transform/transform_contract.dart';
+import '../metadata/note_help_contract.dart';
+import '../images/note_image_contract.dart';
+import '../images/note_scan.dart';
+import '../images/note_background_gen.dart';
+
+import 'package:journal/modules/notes/models/note_attachment.dart';
+
+import 'package:journal/modules/notes/models/note_tag.dart';
+
 import '../../presentation/presentation_contract.dart';
 import '../../presentation/presentation_repository.dart';
 
@@ -358,6 +369,51 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       return source != null &&
           await hexHash(utf8.encode(source.encode())) == handle.revision;
     }
+    if (handle.isNoteIdeas) return true;
+    if (handle.isNoteBackground) {
+      final request = handle.localSource == null
+          ? null
+          : NoteBackgroundRequest.decode(handle.localSource!);
+      final note = ref
+          .read(notesRepositoryProvider)
+          .getNoteByUuid(handle.noteId);
+      return request != null &&
+          note != null &&
+          !note.isDeleted &&
+          !note.isPermanentlyDeleted &&
+          canonicalBackground(note.background) ==
+              canonicalBackground(request.background);
+    }
+    if (handle.isNoteScan) {
+      final source = handle.localSource == null
+          ? null
+          : NoteScanRequest.decode(handle.localSource!);
+      final note = ref
+          .read(notesRepositoryProvider)
+          .getNoteByUuid(handle.noteId);
+      return source != null &&
+          note != null &&
+          !note.isDeleted &&
+          note.versionVectorJson == source.version &&
+          File(source.path).existsSync();
+    }
+    if (handle.isNoteImage) {
+      final source = handle.localSource == null
+          ? null
+          : NoteImageRequest.decode(handle.localSource!);
+      final note = ref
+          .read(notesRepositoryProvider)
+          .getNoteByUuid(handle.noteId);
+      return source != null &&
+          note?.versionVectorJson == source.version &&
+          noteImageAttachment(note, source.path) != null;
+    }
+    if (handle.isNoteMetadata) {
+      return handle.localSource != null &&
+          NoteMetadataSource.decode(handle.localSource!).matches(
+            ref.read(notesRepositoryProvider).getNoteByUuid(handle.noteId),
+          );
+    }
     if (handle.isPresentation) {
       final source = ref
           .read(presentationRepositoryProvider)
@@ -517,6 +573,9 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     required String operation,
     required String fallback,
     required String update,
+    String capabilityId = 'text',
+    String notReady = 'Load the writing model on your computer.',
+    String notReadyCode = 'NOT_READY',
   }) {
     final connection = ref.read(companionControllerProvider);
     final computer = connection.selected;
@@ -531,7 +590,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     final capabilities = connection.status?['capabilities'] as List? ?? [];
     final capability = capabilities
         .whereType<Map>()
-        .where((c) => c['id'] == 'text')
+        .where((c) => c['id'] == capabilityId)
         .firstOrNull;
     if (connection.status?['recovery'] != 1 ||
         capability?[contractKey] != contract ||
@@ -540,10 +599,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       throw CompanionFailure('INCOMPATIBLE_VERSION', update);
     }
     if (!['ready', 'busy'].contains(capability['status'])) {
-      throw CompanionFailure(
-        'NOT_READY',
-        'Load the writing model on your computer. $fallback',
-      );
+      throw CompanionFailure(notReadyCode, '$notReady $fallback');
     }
     return computer;
   }
@@ -647,6 +703,643 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
               : error,
         );
       }
+    }
+  }
+
+  /// N02: title and tag suggestions grounded in one saved note. Only its
+  /// title, body and tag names are sent; nothing is applied automatically.
+  Future<void> startNoteMetadata(String noteId) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final repository = ref.read(notesRepositoryProvider);
+      if (!repository.sync.canEdit) {
+        throw const CompanionFailure(
+          'READ_ONLY',
+          'Existing notes are read-only on this device, so suggestions could not be applied. Nothing was sent.',
+        );
+      }
+      final note = repository.getNoteByUuid(noteId);
+      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
+        throw const CompanionFailure(
+          'SOURCE_MISSING',
+          'This note is no longer available.',
+        );
+      }
+      final source = NoteMetadataSource.fromNote(note);
+      final input = source.request();
+      final computer = _capableComputer(
+        contractKey: 'noteHelpContract',
+        contract: noteHelpContract,
+        operation: noteMetadataOperation,
+        fallback: 'You can still edit the title and tags yourself.',
+        update: 'Update the companion to suggest titles and tags.',
+      );
+      final local = source.encode();
+      await _submitNew(
+        generation,
+        noteId: noteId,
+        local: local,
+        input: input,
+        operation: noteMetadataOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  /// N02: starting ideas from an optional topic and notes the user chose.
+  /// Creates nothing, so secondary devices may ask too.
+  Future<void> startNoteIdeas(NoteIdeaSource source) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final input = source.request();
+      final computer = _capableComputer(
+        contractKey: 'noteHelpContract',
+        contract: noteHelpContract,
+        operation: noteIdeasOperation,
+        fallback: 'The idea shuffle still works without it.',
+        update: 'Update the companion to suggest starting ideas.',
+      );
+      await _submitNew(
+        generation,
+        noteId: noteIdeasKey,
+        local: source.encode(),
+        input: input,
+        operation: noteIdeasOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  /// I03: one question about one image attached to a saved note. Only the
+  /// re-encoded image and {mode, question} are sent; nothing is applied.
+  Future<void> startNoteImage(
+    String noteId, {
+    required String path,
+    required String mode,
+    String question = '',
+  }) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      NoteImageRequest.validate(mode, question);
+      final note = ref.read(notesRepositoryProvider).getNoteByUuid(noteId);
+      final attachment = noteImageAttachment(note, path);
+      if (attachment == null) {
+        throw const CompanionFailure(
+          'SOURCE_MISSING',
+          'This image is no longer attached to the saved note.',
+        );
+      }
+      final computer = _capableComputer(
+        capabilityId: 'vision',
+        contractKey: 'visionContract',
+        contract: noteImageContract,
+        operation: noteImageOperation,
+        fallback: 'Your note and image are unchanged.',
+        update: 'Update the companion to ask about note images.',
+        notReady:
+            'Download Qwen3-VL and run the image self-test on your computer.',
+        notReadyCode: 'VISION_NOT_READY',
+      );
+      final image = await prepareNoteImage(attachment);
+      final source = NoteImageRequest(
+        noteId: noteId,
+        version: note!.versionVectorJson,
+        path: path,
+        mode: mode,
+        question: question.trim(),
+        imageSha: await hexHash(image),
+      );
+      await _submitNew(
+        generation,
+        noteId: noteId,
+        local: source.encode(),
+        input: source.request(),
+        operation: noteImageOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  /// I06: generate a background from the user's own description and tone.
+  /// No note text is sent; nothing changes until the preview is accepted.
+  Future<void> startNoteBackground(
+    String noteId, {
+    required String prompt,
+    required String tone,
+  }) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final repository = ref.read(notesRepositoryProvider);
+      if (!repository.sync.canEdit) {
+        throw const CompanionFailure(
+          'READ_ONLY',
+          'Existing notes are read-only on this device, so their background cannot change. Nothing was sent.',
+        );
+      }
+      final note = repository.getNoteByUuid(noteId);
+      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
+        throw const CompanionFailure(
+          'SOURCE_MISSING',
+          'This note is no longer available.',
+        );
+      }
+      final request = NoteBackgroundRequest(
+        noteId: noteId,
+        prompt: prompt.trim(),
+        tone: tone,
+        background: Map.of(note.background),
+      );
+      final input = request.request();
+      final computer = _capableComputer(
+        capabilityId: 'image',
+        contractKey: 'backgroundContract',
+        contract: noteBackgroundContract,
+        operation: noteBackgroundOperation,
+        fallback: 'You can still choose a color or photo background.',
+        update: 'Update the companion to generate backgrounds.',
+        notReady: 'Download, assign and test an image model on your computer.',
+        notReadyCode: 'IMAGE_NOT_READY',
+      );
+      await _submitNew(
+        generation,
+        noteId: noteId,
+        local: request.encode(),
+        input: input,
+        operation: noteBackgroundOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  /// Collects the finished image into a local preview, verifying its digest.
+  Future<void> _collectBackground(
+    SummaryHandle handle,
+    String text,
+    TrustedComputer computer,
+  ) async {
+    final store = ref.read(noteBackgroundStoreProvider);
+    if (await (await store.preview(handle.id)).exists()) return;
+    final result = NoteBackgroundResult.parse(text);
+    final response = await _client.authenticated(
+      computer,
+      'GET',
+      '/v1/image-jobs/${handle.id}/result',
+    );
+    final image = response['image'];
+    final bytes = image is String ? base64Decode(image) : Uint8List(0);
+    if (response['id'] != handle.id ||
+        !result.matches(bytes, await hexHash(bytes))) {
+      throw const CompanionFailure(
+        'INVALID_OUTPUT',
+        'The computer returned a different image than it described. Nothing was saved.',
+      );
+    }
+    await store.savePreview(handle.id, bytes);
+  }
+
+  /// The local preview of the current background task, once collected.
+  Future<File?> noteBackgroundPreview() async {
+    final handle = state.handle;
+    if (handle == null || !handle.isNoteBackground) return null;
+    final file = await ref.read(noteBackgroundStoreProvider).preview(handle.id);
+    return await file.exists() ? file : null;
+  }
+
+  /// Applies the previewed image as the note's background, keeping what it
+  /// replaced for [revertNoteBackground].
+  Future<bool> acceptNoteBackground() async {
+    final handle = state.handle, generation = _generation;
+    if (handle == null ||
+        !handle.isNoteBackground ||
+        handle.localSource == null ||
+        state.phase != 'completed' ||
+        state.busy ||
+        _working ||
+        _blocked) {
+      return false;
+    }
+    try {
+      if (await noteBackgroundPreview() == null) return false;
+      if (!await _matches(handle)) {
+        if (_alive(generation)) await refreshSource();
+        return false;
+      }
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      final request = NoteBackgroundRequest.decode(handle.localSource!);
+      final store = ref.read(noteBackgroundStoreProvider);
+      final accepted = await store.accept(
+        handle.id,
+        handle.noteId,
+        request.background,
+      );
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      ref
+          .read(notesRepositoryProvider)
+          .setNoteBackground(
+            uuid: handle.noteId,
+            expected: request.background,
+            background: accepted,
+          );
+      await clear();
+      await store.deletePreview(handle.id);
+      return true;
+    } catch (error) {
+      if (_alive(generation)) {
+        _show(
+          'completed',
+          text: state.text,
+          message: error is StateError
+              ? error.message.toString()
+              : 'Could not apply this background. Your note is unchanged.',
+        );
+      }
+      return false;
+    }
+  }
+
+  /// Restores the background a generated one replaced, if it is still current.
+  Future<void> revertNoteBackground(String noteId) async {
+    final repository = ref.read(notesRepositoryProvider);
+    final note = repository.getNoteByUuid(noteId);
+    if (note == null) throw StateError('This note is no longer available.');
+    final recovery = await ref
+        .read(noteBackgroundStoreProvider)
+        .recovery(noteId, note.background);
+    if (recovery == null) {
+      throw StateError('There is no earlier background to restore.');
+    }
+    repository.setNoteBackground(
+      uuid: noteId,
+      expected: recovery.accepted,
+      background: recovery.previous,
+    );
+  }
+
+  /// I04: transcribe an app-owned scan copy for the saved note [noteId].
+  /// Only the re-encoded page goes to the computer.
+  Future<void> startNoteScan(String noteId, {required String path}) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final repository = ref.read(notesRepositoryProvider);
+      if (!repository.sync.canEdit) {
+        throw const CompanionFailure(
+          'READ_ONLY',
+          'Existing notes are read-only on this device, so a scan could not be added. Nothing was sent.',
+        );
+      }
+      final note = repository.getNoteByUuid(noteId);
+      if (note == null || note.isDeleted || note.isPermanentlyDeleted) {
+        throw const CompanionFailure(
+          'SOURCE_MISSING',
+          'This note is no longer available.',
+        );
+      }
+      if (!await ref.read(noteScanStoreProvider).owns(path)) {
+        throw const CompanionFailure(
+          'INVALID_IMAGE',
+          'Take or choose the page again.',
+        );
+      }
+      final computer = _capableComputer(
+        capabilityId: 'vision',
+        contractKey: 'scanContract',
+        contract: noteScanContract,
+        operation: noteScanOperation,
+        fallback: 'Your note is unchanged.',
+        update: 'Update the companion to scan pages.',
+        notReady:
+            'Download Qwen3-VL and run the image self-test on your computer.',
+        notReadyCode: 'VISION_NOT_READY',
+      );
+      final image = await prepareNoteImage(
+        NoteAttachment(path: path, type: 'image/*'),
+      );
+      final request = NoteScanRequest(
+        noteId: noteId,
+        version: note.versionVectorJson,
+        path: path,
+        imageSha: await hexHash(image),
+      );
+      await _submitNew(
+        generation,
+        noteId: noteId,
+        local: request.encode(),
+        input: noteScanPrompt,
+        operation: noteScanOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) _failure(error);
+    }
+  }
+
+  NoteScanResult? noteScanResult() {
+    final handle = state.handle, text = state.text;
+    if (handle == null || !handle.isNoteScan || text == null) return null;
+    try {
+      return NoteScanResult.parse(text);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Appends the reviewed transcription and attaches the scan, keeping the
+  /// unedited transcription beside the scan and a prior-body recovery copy.
+  Future<bool> acceptNoteScan(String text) async {
+    final handle = state.handle, generation = _generation;
+    final result = noteScanResult();
+    if (handle == null ||
+        !handle.isNoteScan ||
+        handle.localSource == null ||
+        result == null ||
+        state.phase != 'completed' ||
+        state.busy ||
+        _working ||
+        _blocked) {
+      return false;
+    }
+    try {
+      if (!await _matches(handle)) {
+        if (_alive(generation)) await refreshSource();
+        return false;
+      }
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      final request = NoteScanRequest.decode(handle.localSource!);
+      await ref
+          .read(noteScanStoreProvider)
+          .writeOriginal(request.path, handle.noteId, result.text);
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      ref
+          .read(notesRepositoryProvider)
+          .appendToNote(
+            taskId: handle.id,
+            uuid: handle.noteId,
+            expectedVersion: request.version,
+            operation: noteScanOperation,
+            text: text,
+            attachment: NoteAttachment.fromPath(request.path).toMap(),
+          );
+      await clear();
+      return true;
+    } catch (error) {
+      if (_alive(generation)) {
+        _show(
+          'completed',
+          text: state.text,
+          message: error is StateError
+              ? error.message.toString()
+              : 'Could not insert the scan. Your note is unchanged.',
+        );
+      }
+      return false;
+    }
+  }
+
+  /// Re-reads and re-encodes the attachment for (re)submission; refuses if it
+  /// no longer matches what the user asked about.
+  Future<Uint8List> _noteImageUpload(SummaryHandle handle) async {
+    if (handle.isNoteScan) {
+      final request = NoteScanRequest.decode(handle.localSource!);
+      final image = await prepareNoteImage(
+        NoteAttachment(path: request.path, type: 'image/*'),
+      );
+      if (await hexHash(image) != request.imageSha) {
+        throw const CompanionFailure(
+          'SOURCE_CHANGED',
+          'The scanned page changed since you asked. Nothing was sent; clear this request and scan again.',
+        );
+      }
+      return image;
+    }
+    final source = NoteImageRequest.decode(handle.localSource!);
+    final attachment = noteImageAttachment(
+      ref.read(notesRepositoryProvider).getNoteByUuid(handle.noteId),
+      source.path,
+    );
+    if (attachment == null) {
+      throw const CompanionFailure(
+        'SOURCE_CHANGED',
+        'The image is no longer attached. Nothing was sent.',
+      );
+    }
+    final image = await prepareNoteImage(attachment);
+    if (await hexHash(image) != source.imageSha) {
+      throw const CompanionFailure(
+        'SOURCE_CHANGED',
+        'The image file changed since you asked. Nothing was sent; clear this request and ask again.',
+      );
+    }
+    return image;
+  }
+
+  NoteImageAnswer? noteImageAnswer() {
+    final handle = state.handle, text = state.text;
+    if (handle == null || !handle.isNoteImage || text == null) return null;
+    try {
+      return NoteImageAnswer.parse(text);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Appends the reviewed (possibly edited) [text] to the note body as an
+  /// explicit, version-checked edit with a local recovery copy.
+  Future<bool> acceptNoteImage(String text) async {
+    final handle = state.handle, generation = _generation;
+    if (handle == null ||
+        !handle.isNoteImage ||
+        handle.localSource == null ||
+        state.phase != 'completed' ||
+        state.busy ||
+        _working ||
+        _blocked ||
+        state.text == null) {
+      return false;
+    }
+    try {
+      if (!await _matches(handle)) {
+        if (_alive(generation)) await refreshSource();
+        return false;
+      }
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      ref
+          .read(notesRepositoryProvider)
+          .appendToNote(
+            taskId: handle.id,
+            uuid: handle.noteId,
+            expectedVersion: NoteImageRequest.decode(handle.localSource!)
+                .version,
+            operation: noteImageOperation,
+            text: text,
+          );
+      await clear();
+      return true;
+    } catch (error) {
+      if (_alive(generation)) {
+        _show(
+          'completed',
+          text: state.text,
+          message: error is StateError
+              ? error.message.toString()
+              : 'Could not insert the text. Your note is unchanged.',
+        );
+      }
+      return false;
+    }
+  }
+
+  /// Persists the retry identity and bounded input before any submission.
+  Future<void> _submitNew(
+    int generation, {
+    required String noteId,
+    required String local,
+    required String input,
+    required String operation,
+    required TrustedComputer computer,
+  }) async {
+    final handle = SummaryHandle(
+      id: const Uuid().v4(),
+      noteId: noteId,
+      revision: await hexHash(utf8.encode(local)),
+      computerId: computer.id,
+      deviceId: computer.deviceId,
+      created: DateTime.now().millisecondsSinceEpoch,
+      pendingText: input,
+      operation: operation,
+      localSource: local,
+    );
+    if (!_alive(generation)) return;
+    await _save(handle);
+    if (!_alive(generation)) return;
+    _show('submitting', handle: handle, busy: true);
+    await retry();
+  }
+
+  /// The current metadata result after the phone's convention checks.
+  NoteMetadataSuggestions? noteMetadataSuggestions({
+    Iterable<NoteTag> library = const [],
+  }) {
+    final handle = state.handle, text = state.text;
+    if (handle == null ||
+        !handle.isNoteMetadata ||
+        handle.localSource == null ||
+        text == null) {
+      return null;
+    }
+    try {
+      return NoteMetadataSuggestions.parse(
+        text,
+        NoteMetadataSource.decode(handle.localSource!),
+        library: library,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<String>? noteIdeas() {
+    final handle = state.handle, text = state.text;
+    if (handle == null || !handle.isNoteIdeas || text == null) return null;
+    try {
+      return parseNoteIdeas(text);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Applies only the explicitly chosen title and added tags. Existing tags
+  /// are kept; the repository rechecks role and the exact version.
+  Future<bool> acceptNoteMetadata({
+    String? title,
+    List<NoteTag> tags = const [],
+  }) async {
+    final handle = state.handle, generation = _generation;
+    if (handle == null ||
+        !handle.isNoteMetadata ||
+        handle.localSource == null ||
+        state.phase != 'completed' ||
+        state.busy ||
+        _working ||
+        _blocked ||
+        state.text == null ||
+        (title == null && tags.isEmpty)) {
+      return false;
+    }
+    try {
+      if (!await _matches(handle)) {
+        if (_alive(generation)) await refreshSource();
+        return false;
+      }
+      if (!_alive(generation) || state.handle?.id != handle.id) return false;
+      final source = NoteMetadataSource.decode(handle.localSource!);
+      final current = {for (final tag in source.parsedTags) tag.key};
+      ref
+          .read(notesRepositoryProvider)
+          .updateNoteMetadata(
+            uuid: handle.noteId,
+            expectedVersion: source.version,
+            title: title ?? source.title,
+            tags: [
+              ...source.tags,
+              for (final tag in tags)
+                if (current.add(tag.key)) tag.encoded,
+            ],
+          );
+      await clear();
+      return true;
+    } catch (error) {
+      if (_alive(generation)) {
+        _show(
+          'completed',
+          text: state.text,
+          message: error is StateError
+              ? error.message.toString()
+              : 'Could not apply these suggestions. Your note is unchanged.',
+        );
+      }
+      return false;
     }
   }
 
@@ -1041,15 +1734,20 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           );
         }
         if (!_alive(generation)) return;
+        final image = handle.isNoteImage || handle.isNoteScan
+            ? await _noteImageUpload(handle)
+            : null;
+        if (!_alive(generation)) return;
         job = await _client.authenticated(
           computer,
           'POST',
-          '/v1/jobs',
+          image == null ? '/v1/jobs' : '/v1/image-jobs',
           body: {
             'id': handle.id,
             'operation': handle.operation,
             'prompt': handle.pendingText,
             'expires': handle.expires,
+            if (image != null) 'image': base64Encode(image),
           },
         );
       }
@@ -1126,6 +1824,33 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (phase == 'completed' &&
         job['acknowledged'] != true &&
         !invalidOutput &&
+        (handle.isNoteMetadata ||
+            handle.isNoteIdeas ||
+            handle.isNoteImage ||
+            handle.isNoteScan ||
+            handle.isNoteBackground)) {
+      try {
+        if (handle.isNoteBackground) {
+          NoteBackgroundResult.parse(job['text'] as String);
+        } else if (handle.isNoteScan) {
+          NoteScanResult.parse(job['text'] as String);
+        } else if (handle.isNoteImage) {
+          NoteImageAnswer.parse(job['text'] as String);
+        } else if (handle.isNoteIdeas) {
+          parseNoteIdeas(job['text'] as String);
+        } else {
+          NoteMetadataSuggestions.parse(
+            job['text'] as String,
+            NoteMetadataSource.decode(handle.localSource!),
+          );
+        }
+      } catch (_) {
+        invalidOutput = true;
+      }
+    }
+    if (phase == 'completed' &&
+        job['acknowledged'] != true &&
+        !invalidOutput &&
         handle.isDiaryAnswer) {
       try {
         DiaryHistoryAnswer.parse(
@@ -1195,8 +1920,19 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       }
       text = output.trim();
     }
+    if (text != null && handle.isNoteBackground) {
+      await _collectBackground(accepted, text, computer);
+      if (!_alive(generation)) return;
+    }
     final matches = await _matches(accepted);
     if (!_alive(generation)) return;
+    final progress = switch (job['progress']) {
+      {'step': final int step, 'total': final int total} => (
+        step: step,
+        total: total,
+      ),
+      _ => null,
+    };
     _show(
       phase,
       handle: accepted,
@@ -1204,6 +1940,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       stale: !matches,
       message: switch (phase) {
         'queued' => 'Accepted by the computer. Waiting for the writing model.',
+        'running' when progress != null =>
+          'Generating on your computer: step ${progress.step} of ${progress.total}. You can close this page and return later.',
         'running' => 'Running on your computer. You can close this preview and return later.',
         'failed' =>
           job['error'] == 'INVALID_OUTPUT'
@@ -1242,6 +1980,14 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             ? dailyQuestionOutputBytes
             : handle.isDiaryAnswer
             ? historyOutputBytes
+            : handle.isNoteMetadata || handle.isNoteIdeas
+            ? noteHelpOutputBytes
+            : handle.isNoteImage
+            ? noteImageOutputBytes
+            : handle.isNoteScan
+            ? noteScanOutputBytes
+            : handle.isNoteBackground
+            ? 1024
             : handle.isThoughtReflection
             ? thoughtReflectionOutputBytes
             : summaryOutputBytes,
@@ -1349,6 +2095,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         'UNAUTHORIZED' ||
         'IDENTITY_CHANGED' ||
         'INVALID_RESPONSE' ||
+        'SOURCE_CHANGED' ||
         'ID_CONFLICT' => 'failed',
         _ => 'error',
       },
@@ -1384,6 +2131,11 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (handle == null ||
         (handle.isTransformation ||
             handle.isPresentation ||
+            handle.isNoteMetadata ||
+            handle.isNoteIdeas ||
+            handle.isNoteImage ||
+            handle.isNoteScan ||
+            handle.isNoteBackground ||
             handle.isDiaryDay ||
             handle.isThoughtReflection) ||
         !state.terminal ||

@@ -258,9 +258,14 @@ class PinnedCompanionTransport implements CompanionTransport {
         const Duration(seconds: 7),
       );
       final bytes = <int>[];
+      // Only a generated background (I06) is larger than ordinary responses.
+      final limit =
+          RegExp(r'^/v1/image-jobs/[A-Za-z0-9_-]+/result$').hasMatch(route)
+          ? 6 * 1024 * 1024
+          : 65536;
       await for (final chunk in response.timeout(const Duration(seconds: 7))) {
         bytes.addAll(chunk);
-        if (bytes.length > 65536) {
+        if (bytes.length > limit) {
           throw const CompanionFailure(
             'INVALID_RESPONSE',
             'The computer sent an oversized response.',

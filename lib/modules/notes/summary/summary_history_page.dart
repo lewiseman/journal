@@ -113,6 +113,16 @@ class SummaryHistoryPage extends ConsumerWidget {
                                   ? 'Flow reflection'
                                   : task.isPresentation
                                   ? 'Presentation'
+                                  : task.isNoteMetadata
+                                  ? 'Title & tag ideas'
+                                  : task.isNoteIdeas
+                                  ? 'Starting ideas'
+                                  : task.isNoteImage
+                                  ? 'Image question'
+                                  : task.isNoteScan
+                                  ? 'Page scan'
+                                  : task.isNoteBackground
+                                  ? 'Generated background'
                                   : transformOperations[task.operation] ?? 'Note summary'} · ${summaryPhaseLabel(phase)}',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
