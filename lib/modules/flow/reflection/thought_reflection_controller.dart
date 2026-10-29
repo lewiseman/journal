@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:journal/modules/local_ai/core/ai_router.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/modules/flow/controllers/thoughts_providers.dart';
 import 'package:journal/modules/flow/models/thought_entity.dart';
@@ -17,9 +19,11 @@ final thoughtReflectionStoreProvider = Provider<ThoughtReflectionStore>(
 /// Whether to offer reflections at all: only once a computer is paired, so
 /// Flow stays exactly as it was for everyone else.
 final thoughtReflectionAvailableProvider = Provider<bool>(
-  (ref) => ref.watch(
-    companionControllerProvider.select((s) => s.computers.isNotEmpty),
-  ),
+  (ref) =>
+      ref.watch(
+        companionControllerProvider.select((s) => s.computers.isNotEmpty),
+      ) ||
+      ref.watch(aiOperationAvailableProvider(thoughtReflectionOperation)),
 );
 
 class ThoughtReflectionView {

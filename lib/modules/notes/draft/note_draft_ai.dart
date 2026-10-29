@@ -5,10 +5,10 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/modules/notes/models/note_attachment.dart';
-import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/settings/companion/companion_protocol.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../local_ai/core/ai_router.dart';
 import '../images/note_background_gen.dart';
 import '../images/note_image_contract.dart';
 import '../images/note_scan.dart';
@@ -62,18 +62,18 @@ final noteDraftAiProvider =
     );
 
 class NoteDraftAiController extends Notifier<NoteDraftAiState> {
-  ({String id, String operation, TrustedComputer computer, int expires})? _job;
+  ({String id, String operation, AiJobProvider computer, int expires})? _job;
   Timer? _poll;
   int _generation = 0;
 
-  late CompanionClient _client;
+  late AiJobClient _client;
 
   // Disposal may not read [state] or [ref], so the last state is mirrored.
   NoteDraftAiState _last = const NoteDraftAiState();
 
   @override
   NoteDraftAiState build() {
-    _client = CompanionClient(ref.read(companionTransportProvider));
+    _client = ref.read(aiJobClientProvider);
     listenSelf((_, next) => _last = next);
     ref.onDispose(() {
       _generation++;
@@ -92,8 +92,8 @@ class NoteDraftAiController extends Notifier<NoteDraftAiState> {
         return (
           input: input,
           image: null,
-          computer: capableComputer(
-            ref.read(companionControllerProvider),
+          computer: capableProvider(
+            ref,
             contractKey: 'noteHelpContract',
             contract: noteHelpContract,
             operation: noteTemplateOperation,
@@ -111,8 +111,8 @@ class NoteDraftAiController extends Notifier<NoteDraftAiState> {
         'Take or choose the page again.',
       );
     }
-    final computer = capableComputer(
-      ref.read(companionControllerProvider),
+    final computer = capableProvider(
+      ref,
       capabilityId: 'vision',
       contractKey: 'scanContract',
       contract: noteScanContract,
@@ -141,8 +141,8 @@ class NoteDraftAiController extends Notifier<NoteDraftAiState> {
         return (
           input: input,
           image: null,
-          computer: capableComputer(
-            ref.read(companionControllerProvider),
+          computer: capableProvider(
+            ref,
             capabilityId: 'image',
             contractKey: 'backgroundContract',
             contract: noteBackgroundContract,
@@ -166,7 +166,7 @@ class NoteDraftAiController extends Notifier<NoteDraftAiState> {
 
   Future<void> _start(
     NoteDraftTool tool,
-    Future<({String input, Uint8List? image, TrustedComputer computer})>
+    Future<({String input, Uint8List? image, AiJobProvider computer})>
     Function()
     prepare, {
     String? page,
@@ -336,7 +336,7 @@ class NoteDraftAiController extends Notifier<NoteDraftAiState> {
   }
 
   Future<File> _collectBackground(
-    ({String id, String operation, TrustedComputer computer, int expires}) job,
+    ({String id, String operation, AiJobProvider computer, int expires}) job,
     String text,
   ) async {
     final result = NoteBackgroundResult.parse(text);
@@ -387,7 +387,7 @@ class NoteDraftAiController extends Notifier<NoteDraftAiState> {
   }
 
   void _cancel(
-    ({String id, String operation, TrustedComputer computer, int expires}) job,
+    ({String id, String operation, AiJobProvider computer, int expires}) job,
   ) => unawaited(
     _client
         .authenticated(
@@ -400,7 +400,7 @@ class NoteDraftAiController extends Notifier<NoteDraftAiState> {
   );
 
   void _acknowledge(
-    ({String id, String operation, TrustedComputer computer, int expires}) job,
+    ({String id, String operation, AiJobProvider computer, int expires}) job,
   ) => unawaited(
     _client
         .authenticated(job.computer, 'POST', '/v1/jobs/${job.id}/ack', body: {})

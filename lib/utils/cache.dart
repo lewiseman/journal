@@ -72,6 +72,17 @@ const replyVoiceKey = CacheKey<Map<String, dynamic>>(
   'replyVoice',
 );
 
+const aiModeKey = CacheKey<String>(CacheNamespace.app, 'aiMode');
+const aiTaskOverridesKey = CacheKey<Map<String, dynamic>>(
+  CacheNamespace.app,
+  'aiTaskOverrides',
+);
+const aiModelAssignmentsKey = CacheKey<Map<String, dynamic>>(
+  CacheNamespace.app,
+  'aiModelAssignments',
+);
+const aiWifiOnlyKey = CacheKey<bool>(CacheNamespace.app, 'aiWifiOnly');
+
 // ─────────────────────────────────────────────
 // Storage abstraction
 // ─────────────────────────────────────────────

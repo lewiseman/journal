@@ -136,7 +136,7 @@ class SummaryHistoryPage extends ConsumerWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '${DateFormat.yMMMd().add_jm().format(DateTime.fromMillisecondsSinceEpoch(task.created))} · ${owner?.name ?? 'Original computer unavailable'}',
+                              '${DateFormat.yMMMd().add_jm().format(DateTime.fromMillisecondsSinceEpoch(task.created))} · ${task.provider == 'device' ? 'This phone' : owner?.name ?? 'Original computer unavailable'}',
                             ),
                             Text('Task ${task.id.substring(0, 8)}'),
                             if (active && current.message != null)

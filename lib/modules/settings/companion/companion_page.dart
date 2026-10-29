@@ -7,6 +7,10 @@ import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
 import 'package:journal/modules/voice/views/pages/reply_voice_page.dart';
 
+import '../../local_ai/core/ai_settings.dart';
+import '../../local_ai/core/engine_registry.dart';
+import '../../local_ai/ui/device_mode_selector.dart';
+import '../../local_ai/ui/device_task_card.dart';
 import 'companion_connection_guide.dart';
 import 'companion_controller.dart';
 import 'companion_detail_pages.dart';
@@ -33,6 +37,9 @@ class CompanionNavigationTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final connection = ref.watch(companionControllerProvider);
     final colors = context.colors;
+    final mode = ref.watch(onDeviceEngineProvider) == null
+        ? AiMode.companion
+        : ref.watch(aiSettingsProvider).mode;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       leading: Container(
@@ -42,14 +49,29 @@ class CompanionNavigationTile extends ConsumerWidget {
           color: colors.primaryContainer,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Icon(Icons.computer_rounded, color: colors.primary, size: 22),
+        child: Icon(
+          switch (mode) {
+            AiMode.device => Icons.phone_iphone_rounded,
+            AiMode.auto => Icons.swap_horiz_rounded,
+            AiMode.companion => Icons.computer_rounded,
+          },
+          color: colors.primary,
+          size: 22,
+        ),
       ),
       title: Text(
-        'Local QVAC',
+        'Local AI',
         style: TextStyle(color: colors.onSurface, fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
-        companionPhaseLabel(connection.phase),
+        switch (mode) {
+          AiMode.device => 'On this phone',
+          AiMode.auto =>
+            connection.phase == CompanionPhase.connected
+                ? 'Auto · Companion connected'
+                : 'Auto · Phone when ready',
+          AiMode.companion => companionPhaseLabel(connection.phase),
+        },
         style: TextStyle(
           color: colors.onSurfaceVariant,
           fontSize: 12,
@@ -111,9 +133,15 @@ class CompanionPage extends ConsumerWidget {
 
   Widget _buildPage(BuildContext context, WidgetRef ref) {
     final state = ref.watch(companionControllerProvider);
-    final controller = ref.read(companionControllerProvider.notifier);
+    final hasEngine = ref.watch(onDeviceEngineProvider) != null;
+    final mode = hasEngine
+        ? ref.watch(aiSettingsProvider).mode
+        : AiMode.companion;
+    final connected = state.phase == CompanionPhase.connected;
+    final phoneFirst =
+        mode == AiMode.device || (mode == AiMode.auto && !connected);
     return Scaffold(
-      appBar: AppBar(title: const Text('Local QVAC')),
+      appBar: AppBar(title: const Text('Local AI')),
       body: SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -124,38 +152,58 @@ class CompanionPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  CompanionConnectionGuide(
-                    connection: state,
-                    onScan: () => _pair(context, ref),
-                    onReconnect: () => state.selected?.enabled == false
-                        ? controller.disconnect(resume: true)
-                        : controller.reconnect(),
-                    onCancel: controller.cancelPairing,
-                  ),
-                  if (state.message != null &&
-                      state.phase != CompanionPhase.pairing) ...[
-                    const SizedBox(height: 16),
-                    _connectionMessage(context, state),
-                  ],
-                  if (state.phase == CompanionPhase.connected) ...[
-                    const SizedBox(height: 24),
-                    CompanionReadinessStrip(state: state),
-                  ],
-                  if (state.computers.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    Text(
-                      'Your computers',
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(color: context.colors.onSurfaceVariant),
+                  const DeviceModeSelector(),
+                  const SizedBox(height: 24),
+                  if (mode == AiMode.auto) ...[
+                    Container(
+                      key: const ValueKey('ai-auto-status'),
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: context.colors.primaryContainer.withValues(
+                          alpha: .4,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        connected
+                            ? 'Your computer is connected. Auto prefers Companion; set up phone models below for when you’re away.'
+                            : 'Your computer is offline. Auto can use the phone models you set up below.',
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(height: 1.5),
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    CompanionComputerCard(
-                      state: state,
-                      onTap: () => _openDevices(context, ref),
+                  ],
+                  if (phoneFirst) ...[
+                    const DeviceAiSection(key: ValueKey('ai-phone-setup')),
+                    const SizedBox(height: 20),
+                    _alternativeSetup(
+                      context,
+                      id: 'companion',
+                      icon: Icons.desktop_mac_rounded,
+                      title: 'Companion extras',
+                      subtitle: 'Search by meaning, voice & scans still need your computer.',
+                      status: connected ? 'Connected' : null,
+                      builder: (context) =>
+                          _companionSetup(context, ref, state),
                     ),
                   ] else ...[
-                    const SizedBox(height: 12),
-                    _fallbackControls(context, ref, state),
+                    _companionSetup(context, ref, state),
+                    if (hasEngine) ...[
+                      const SizedBox(height: 20),
+                      _alternativeSetup(
+                        context,
+                        id: 'device',
+                        icon: Icons.phone_iphone_rounded,
+                        title: 'Take AI with you',
+                        subtitle: 'Prepare phone models for offline writing & images.',
+                        builder: (_) => const DeviceAiSection(),
+                      ),
+                    ],
+                  ],
+                  if (hasEngine) ...[
+                    const SizedBox(height: 8),
+                    const AiTaskPreferences(),
                   ],
                   const SizedBox(height: 24),
                   CompanionShortcuts(
@@ -178,40 +226,122 @@ class CompanionPage extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 12,
-                    runSpacing: 4,
-                    children: [
-                      TextButton.icon(
-                        key: const ValueKey('companion-help'),
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const CompanionHelpPage(),
-                          ),
-                        ),
-                        icon: const Icon(Icons.help_outline_rounded, size: 19),
-                        label: const Text('Need help?'),
-                      ),
-                      TextButton.icon(
-                        key: const ValueKey('companion-connection-details'),
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const CompanionPrivacyPage(),
-                          ),
-                        ),
-                        icon: const Icon(Icons.shield_outlined, size: 19),
-                        label: const Text('Connection details'),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _alternativeSetup(
+    BuildContext context, {
+    required String id,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required WidgetBuilder builder,
+    String? status,
+  }) => Container(
+    decoration: BoxDecoration(
+      border: Border.all(
+        color: context.colors.outlineVariant.withValues(alpha: .65),
+      ),
+      borderRadius: BorderRadius.circular(22),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: ExpansionTile(
+      key: ValueKey('ai-alternative-$id'),
+      leading: Icon(icon, color: context.colors.primary),
+      tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      shape: const Border(),
+      collapsedShape: const Border(),
+      title: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall
+            ?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        '${status == null ? '' : '$status · '}$subtitle',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.4),
+      ),
+      children: [Builder(builder: builder)],
+    ),
+  );
+
+  Widget _companionSetup(
+    BuildContext context,
+    WidgetRef ref,
+    CompanionState state,
+  ) {
+    final controller = ref.read(companionControllerProvider.notifier);
+    return Column(
+      key: const ValueKey('ai-companion-setup'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        CompanionConnectionGuide(
+          connection: state,
+          onScan: () => _pair(context, ref),
+          onReconnect: () => state.selected?.enabled == false
+              ? controller.disconnect(resume: true)
+              : controller.reconnect(),
+          onCancel: controller.cancelPairing,
+        ),
+        if (state.message != null && state.phase != CompanionPhase.pairing) ...[
+          const SizedBox(height: 16),
+          _connectionMessage(context, state),
+        ],
+        if (state.phase == CompanionPhase.connected) ...[
+          const SizedBox(height: 24),
+          CompanionReadinessStrip(state: state),
+        ],
+        if (state.computers.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            'Your computers',
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(color: context.colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 10),
+          CompanionComputerCard(
+            state: state,
+            onTap: () => _openDevices(context, ref),
+          ),
+        ] else ...[
+          const SizedBox(height: 12),
+          _fallbackControls(context, ref, state),
+        ],
+        const SizedBox(height: 12),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            TextButton.icon(
+              key: const ValueKey('companion-help'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const CompanionHelpPage(),
+                ),
+              ),
+              icon: const Icon(Icons.help_outline_rounded, size: 19),
+              label: const Text('Need help?'),
+            ),
+            TextButton.icon(
+              key: const ValueKey('companion-connection-details'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const CompanionPrivacyPage(),
+                ),
+              ),
+              icon: const Icon(Icons.shield_outlined, size: 19),
+              label: const Text('Connection details'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

@@ -14,7 +14,7 @@ import 'package:journal/modules/notes/summary/summary_page.dart';
 import 'package:journal/modules/notes/transform/transform_page.dart';
 import 'package:journal/modules/presentation/note_presentation_page.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
-import 'package:journal/modules/settings/companion/companion_controller.dart';
+import 'package:journal/modules/local_ai/core/ai_router.dart';
 import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
 
 enum _NoteTool {
@@ -194,11 +194,17 @@ class _NoteAssistantMenu extends ConsumerWidget {
           (entry) => NoteAttachment.tryFromMap(entry)?.isImage == true,
         ) ??
         false;
-    final phase = ref.watch(
-      companionControllerProvider.select((state) => state.phase),
-    );
     final theme = Theme.of(context);
-    final connected = phase == CompanionPhase.connected;
+    final draftReady = {
+      for (final tool in _NoteTool.draft)
+        tool: ref.watch(
+          aiOperationAvailableProvider(switch (tool) {
+            _NoteTool.template => 'suggest-note-template',
+            _NoteTool.background => 'generate-note-background',
+            _ => 'scan-note-image',
+          }),
+        ),
+    };
     final tools = draft
         ? _NoteTool.draft
         : [
@@ -210,7 +216,7 @@ class _NoteAssistantMenu extends ConsumerWidget {
                 tool,
           ];
     bool enabled(_NoteTool tool) => draft
-        ? available && connected
+        ? available && (draftReady[tool] ?? false)
         : canUse && (tool != _NoteTool.summary || hasText);
     final paper = noteAiPaper(context);
     final narrow =

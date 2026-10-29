@@ -1,3 +1,6 @@
+import '../local_ai/core/ai_router.dart';
+import '../local_ai/core/ai_settings.dart';
+
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter, lerpDouble;
 
@@ -359,11 +362,29 @@ class _FloatingAssistantState extends State<_FloatingAssistant>
   }
 }
 
+bool _usesDevice(WidgetRef ref) {
+  try {
+    return ref.watch(aiRouterProvider).select('summarize-note') ==
+        AiProviderKind.device;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// One reading of the companion phase, shared by the sticker and the sheet.
 ({bool connected, bool checking, Color color, String short}) _qvacStatus(
   CompanionPhase phase,
-  ColorScheme colors,
-) {
+  ColorScheme colors, {
+  bool onDevice = false,
+}) {
+  if (onDevice) {
+    return (
+      connected: true,
+      checking: false,
+      color: const Color(0xff619476),
+      short: 'On this phone',
+    );
+  }
   final connected = phase == CompanionPhase.connected;
   final checking = switch (phase) {
     CompanionPhase.loading ||
@@ -416,8 +437,11 @@ class QvacAssistantButton extends ConsumerWidget {
     final (:connected, :checking, :color, short: _) = _qvacStatus(
       phase,
       colors,
+      onDevice: _usesDevice(ref),
     );
-    final label = companionPhaseLabel(phase);
+    final label = _usesDevice(ref)
+        ? 'On this phone'
+        : companionPhaseLabel(phase);
     return Semantics(
       key: const ValueKey('qvac-assistant-button'),
       button: true,
@@ -877,7 +901,7 @@ class _SettingsTag extends ConsumerWidget {
     final phase = ref.watch(
       companionControllerProvider.select((state) => state.phase),
     );
-    final status = _qvacStatus(phase, colors);
+    final status = _qvacStatus(phase, colors, onDevice: _usesDevice(ref));
     return Semantics(
       key: const ValueKey('qvac-local-ai-settings'),
       button: true,

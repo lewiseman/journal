@@ -61,6 +61,7 @@ objectbox:
 flutter:
   uses-material-design: true
   assets:
+    - assets/ai/
     - assets/videos/
     - assets/images/
     - assets/images/navigation/

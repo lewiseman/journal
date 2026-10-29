@@ -1,0 +1,20 @@
+// Delete this file and its apply line to remove QVAC from Android.
+def qvacReady = file('src/qvac/libs/bare-kit.jar').exists()
+if (qvacReady) project.ext.set('disable-abi-filtering', true)
+android {
+    sourceSets {
+        main {
+            if (qvacReady) {
+                jniLibs.srcDir 'src/qvac/jniLibs'
+                assets.srcDir 'src/qvac/assets'
+            } else { java.exclude '**/qvac/**' }
+        }
+    }
+    if (qvacReady) {
+        defaultConfig {
+            minSdkVersion 29
+            ndk { abiFilters.clear(); abiFilters.add('arm64-v8a') }
+        }
+    }
+}
+if (qvacReady) dependencies { implementation files('src/qvac/libs/bare-kit.jar') }

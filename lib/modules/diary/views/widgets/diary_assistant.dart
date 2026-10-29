@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:journal/modules/local_ai/core/ai_router.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/config/diary_typography.dart';
@@ -91,6 +93,12 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
       companionControllerProvider.select((state) => state.phase),
     );
     final connected = phase == CompanionPhase.connected;
+    final writingReady = ref.watch(
+      aiOperationAvailableProvider('suggest-diary-day'),
+    );
+    final questionReady = ref.watch(
+      aiOperationAvailableProvider('ask-diary-question'),
+    );
     final day = DiaryRepository.formatDateKey(widget.date);
     final today =
         day ==
@@ -107,7 +115,7 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
         24 + MediaQuery.paddingOf(context).bottom,
       ),
       children: [
-        if (!connected) _OfflineNote(phase: phase),
+        if (!connected && !writingReady) _OfflineNote(phase: phase),
         const SizedBox(height: 12),
         Center(
           child: DiaryInkAction(
@@ -130,14 +138,14 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
           ),
         ),
         const SizedBox(height: 28),
-        if (today) _DailyQuestionLine(day: day, connected: connected),
+        if (today) _DailyQuestionLine(day: day, connected: questionReady),
         _RuledLine(
           key: const ValueKey('diary-assistant-details'),
           seed: 2,
-          enabled: connected,
+          enabled: writingReady,
           margin: const _Doodle(_DoodleKind.sparkle, size: 22),
           trailing: const _Doodle(_DoodleKind.arrow, size: 22),
-          onTap: connected ? () => _open(_DiaryTool.details) : null,
+          onTap: writingReady ? () => _open(_DiaryTool.details) : null,
           label: 'Day details',
           child: Text('Day details', style: hand.copyWith(fontSize: 25)),
         ),

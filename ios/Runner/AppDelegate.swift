@@ -12,5 +12,7 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let plugin = NSClassFromString("QvacWorklet") as? FlutterPlugin.Type, let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "QvacWorklet") { plugin.register(with: registrar) }
+    LocalAiStorage.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "LocalAiStorage")!)
   }
 }

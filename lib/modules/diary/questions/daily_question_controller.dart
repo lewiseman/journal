@@ -5,7 +5,7 @@ import 'package:journal/modules/diary/controllers/diary_repository.dart';
 import 'package:journal/modules/diary/questions/daily_question_contract.dart';
 import 'package:journal/modules/diary/questions/daily_question_store.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
-import 'package:journal/modules/settings/companion/companion_controller.dart';
+import 'package:journal/modules/local_ai/core/ai_router.dart';
 
 /// Device-local opt-in. Not synced: each phone decides for itself.
 const dailyQuestionsKey = CacheKey<bool>(CacheNamespace.app, 'dailyQuestions');
@@ -109,11 +109,11 @@ class DailyQuestionController extends Notifier<DailyQuestionState> {
       }),
       fireImmediately: true,
     );
-    ref.listen(companionControllerProvider.select((state) => state.phase), (
+    ref.listen(aiOperationAvailableProvider(dailyQuestionOperation), (
       previous,
       next,
     ) {
-      if (next == CompanionPhase.connected && previous != next) {
+      if (next && previous != next) {
         _attempted.clear();
       }
       ensure();
@@ -131,8 +131,7 @@ class DailyQuestionController extends Notifier<DailyQuestionState> {
 
   Future<void> _auto() async {
     if (!state.enabled ||
-        ref.read(companionControllerProvider).phase !=
-            CompanionPhase.connected) {
+        !ref.read(aiOperationAvailableProvider(dailyQuestionOperation))) {
       return;
     }
     final summary = ref.read(noteSummaryProvider);

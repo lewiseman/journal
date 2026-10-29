@@ -9,6 +9,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
+import 'package:journal/modules/local_ai/core/ai_settings.dart';
+import 'package:journal/modules/local_ai/core/engine_registry.dart';
+import 'package:journal/modules/local_ai/core/on_device_engine.dart';
+import 'package:journal/modules/local_ai/models/model_catalog.dart';
+import 'package:journal/modules/local_ai/models/model_storage.dart';
+import 'package:journal/modules/local_ai/ui/device_models_page.dart';
+
+import 'local_ai/fake_engine.dart';
+
 import 'package:journal/modules/recall/recall_indexer.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
@@ -68,6 +77,55 @@ class _Connection extends CompanionController {
   @override
   Future<void> forget(String id) async => forgets++;
 }
+
+class _PageAiSettings extends AiSettingsController {
+  _PageAiSettings(this.initial);
+  final AiSettings initial;
+  @override
+  AiSettings build() => initial;
+  @override
+  Future<void> setMode(AiMode mode) async => state = AiSettings(
+    mode: mode,
+    assignments: state.assignments,
+    overrides: state.overrides,
+  );
+  @override
+  Future<void> setOverride(AiTask task, AiMode mode) async =>
+      state = AiSettings(
+        mode: state.mode,
+        assignments: state.assignments,
+        overrides: {...state.overrides, task: mode},
+      );
+}
+
+const _phoneModels = [
+  CatalogModel(
+    id: 'writing-test',
+    name: 'Qwen2.5 · 0.5B Instruct',
+    task: AiTask.writing,
+    format: 'gguf',
+    repository: 'Qwen/test',
+    revision: '',
+    file: 'writing.gguf',
+    bytes: 491400032,
+    sha256: '',
+    minRamBytes: 4294967296,
+    license: 'Apache 2.0',
+  ),
+  CatalogModel(
+    id: 'image-test',
+    name: 'Stable Diffusion · 2.1',
+    task: AiTask.image,
+    format: 'gguf',
+    repository: 'Qwen/test',
+    revision: '',
+    file: 'image.gguf',
+    bytes: 2322705024,
+    sha256: '',
+    minRamBytes: 8589934592,
+    license: 'CreativeML Open RAIL++-M',
+  ),
+];
 
 class _Voice implements CompanionGuideVoice {
   final spoken = <String>[];
@@ -189,6 +247,8 @@ Future<({_Connection connection, _Voice voice})> _mount(
   bool dark = false,
   bool reduced = false,
   CompanionState? initial,
+  AiSettings? aiSettings,
+  Set<String> installed = const {},
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -199,6 +259,22 @@ Future<({_Connection connection, _Voice voice})> _mount(
   final voice = _Voice();
   final scope = ProviderContainer.test(
     overrides: [
+      onDeviceEngineProvider.overrideWithValue(
+        aiSettings == null ? null : FakeOnDeviceEngine(),
+      ),
+      if (aiSettings != null) ...[
+        aiSettingsProvider.overrideWith(() => _PageAiSettings(aiSettings)),
+        modelCatalogProvider.overrideWith((ref) async => _phoneModels),
+        installedModelsProvider.overrideWith((ref) async => installed),
+        partialModelsProvider.overrideWith((ref) async => const {}),
+        deviceResourcesProvider.overrideWith(
+          (ref) async => const DeviceResources(
+            freeBytes: 4100000000,
+            ramBytes: 12884901888,
+            wifi: true,
+          ),
+        ),
+      ],
       companionControllerProvider.overrideWith(_Connection.new),
       companionGuideVoiceProvider.overrideWithValue(voice),
       recallIndexerProvider.overrideWith(_Recall.new),
@@ -278,6 +354,158 @@ void main() {
           .load();
     }
   });
+
+  testWidgets(
+    'phone mode leads with models and keeps companion setup folded away',
+    (tester) async {
+      final app = await _mount(
+        tester,
+        aiSettings: const AiSettings(mode: AiMode.device),
+      );
+      expect(find.text('Your offline setup'), findsOneWidget);
+      expect(find.text('Let’s connect your computer'), findsNothing);
+      expect(
+        find.textContaining('Search by meaning, voice & scans still need'),
+        findsOneWidget,
+      );
+      expect(find.byType(DropdownButtonFormField<AiMode>), findsNothing);
+      await _capture(tester, 'local-ai-phone');
+      await tester.ensureVisible(_key('ai-alternative-companion'));
+      await tester.tap(find.text('Companion extras'));
+      await tester.pumpAndSettle();
+      expect(find.text('Let’s connect your computer'), findsOneWidget);
+      final scope = ProviderScope.containerOf(
+        tester.element(find.byType(CompanionPage)),
+      );
+      expect(scope.read(aiSettingsProvider).mode, AiMode.device);
+      expect(app.connection.pairs, 0);
+      expect(app.connection.scans, 0);
+    },
+  );
+
+  testWidgets(
+    'changing the main provider preserves model choices and task exceptions',
+    (tester) async {
+      final app = await _mount(
+        tester,
+        aiSettings: const AiSettings(
+          mode: AiMode.device,
+          assignments: {AiTask.writing: 'writing-test'},
+          overrides: {AiTask.image: AiMode.companion},
+        ),
+        installed: {'writing-test'},
+      );
+      await _capture(tester, 'local-ai-ready');
+      await tester.tap(_key('ai-mode-companion'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your offline setup'), findsNothing);
+      expect(find.text('Let’s connect your computer'), findsOneWidget);
+      expect(find.text('1 custom task choice'), findsOneWidget);
+      final scope = ProviderScope.containerOf(
+        tester.element(find.byType(CompanionPage)),
+      );
+      expect(
+        scope.read(aiSettingsProvider).assignments[AiTask.writing],
+        'writing-test',
+      );
+      expect(
+        scope.read(aiSettingsProvider).overrides[AiTask.image],
+        AiMode.companion,
+      );
+      expect(app.connection.retries, 0);
+      await _capture(tester, 'local-ai-companion');
+      await tester.ensureVisible(_key('ai-mode-device'));
+      await tester.tap(_key('ai-mode-device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your offline setup'), findsOneWidget);
+      expect(find.text('Qwen2.5 · 0.5B Instruct'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Auto shows the relevant setup as the companion comes online', (
+    tester,
+  ) async {
+    final app = await _mount(
+      tester,
+      aiSettings: const AiSettings(mode: AiMode.auto),
+    );
+    expect(find.text('Your offline setup'), findsOneWidget);
+    expect(find.textContaining('Your computer is offline.'), findsOneWidget);
+    await _capture(tester, 'local-ai-auto-away');
+    app.connection.update(_connected());
+    await tester.pumpAndSettle();
+    expect(find.text('Your offline setup'), findsNothing);
+    expect(find.text('You’re connected!'), findsOneWidget);
+    expect(
+      find.textContaining('Your computer is connected. Auto'),
+      findsOneWidget,
+    );
+    await _capture(tester, 'local-ai-auto-connected');
+  });
+
+  testWidgets(
+    'task exceptions are editable under Advanced without changing the overall mode',
+    (tester) async {
+      await _mount(tester, aiSettings: const AiSettings(mode: AiMode.device));
+      await tester.ensureVisible(_key('ai-task-preferences'));
+      await tester.tap(find.text('Advanced'));
+      await tester.pumpAndSettle();
+      final writing = find.byType(DropdownButtonFormField<AiMode>).first;
+      await tester.ensureVisible(writing);
+      await tester.tap(writing);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Companion').last);
+      await tester.pumpAndSettle();
+      final scope = ProviderScope.containerOf(
+        tester.element(find.byType(CompanionPage)),
+      );
+      expect(scope.read(aiSettingsProvider).mode, AiMode.device);
+      expect(
+        scope.read(aiSettingsProvider).overrides[AiTask.writing],
+        AiMode.companion,
+      );
+      expect(find.text('1 custom task choice'), findsOneWidget);
+    },
+  );
+
+  testWidgets('getting an image model opens a focused catalog', (tester) async {
+    await _mount(tester, aiSettings: const AiSettings(mode: AiMode.device));
+    await tester.ensureVisible(_key('device-get-model-image'));
+    await tester.tap(_key('device-get-model-image'));
+    await tester.pumpAndSettle();
+    expect(find.text('Image models'), findsOneWidget);
+    expect(find.text('Stable Diffusion · 2.1'), findsOneWidget);
+    expect(find.text('Qwen2.5 · 0.5B Instruct'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final layout in [
+    (name: 'dark', size: const Size(390, 844), scale: 1.0, dark: true),
+    (name: 'large-text', size: const Size(320, 740), scale: 2.0, dark: false),
+    (name: 'landscape', size: const Size(844, 390), scale: 1.0, dark: false),
+  ]) {
+    testWidgets(
+      'phone setup fits ${layout.name} and keeps advanced controls reachable',
+      (tester) async {
+        await _mount(
+          tester,
+          aiSettings: const AiSettings(mode: AiMode.device),
+          size: layout.size,
+          scale: layout.scale,
+          dark: layout.dark,
+          reduced: true,
+          installed: {'writing-test'},
+        );
+        await _capture(tester, 'local-ai-phone-${layout.name}');
+        await tester.ensureVisible(_key('ai-task-preferences'));
+        await tester.tap(find.text('Advanced'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Device engine: Fake engine'));
+        expect(find.byType(DropdownButtonFormField<AiMode>), findsNWidgets(2));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'visual steps are explorable without claiming trust or starting a connection',

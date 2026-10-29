@@ -33,6 +33,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        runCatching { Class.forName("com.lewiseman.journal.qvac.QvacWorklet").getMethod("register", android.app.Activity::class.java, FlutterEngine::class.java).invoke(null, this, flutterEngine) }
+        LocalAiStorage.register(this, flutterEngine.dartExecutor.binaryMessenger)
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, "journal/pcm_events").setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink) { sink = events }
             override fun onCancel(arguments: Any?) { stopCapture(); sink = null }

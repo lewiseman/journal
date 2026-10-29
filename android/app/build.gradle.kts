@@ -56,3 +56,5 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+if (file("qvac.gradle").exists()) apply(from = "qvac.gradle")

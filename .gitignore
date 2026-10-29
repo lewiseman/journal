@@ -50,3 +50,15 @@ app.*.map.json
 env.json
 # Local native runtime used by ObjectBox integration tests.
 /lib/libobjectbox.dylib
+
+# QVAC-generated native resources (build before packaging a device release).
+/native/qvac/node_modules/
+/native/qvac/qvac/
+/native/qvac/cache/
+/android/app/src/qvac/
+/ios/Frameworks/Qvac/
+/ios/Runner/Qvac/worker.bundle
+
+/android/.kotlin/
+
+/ios/Runner/Qvac/licenses/

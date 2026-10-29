@@ -27,6 +27,7 @@ class SummaryHandle {
     required this.revision,
     required this.computerId,
     required this.created,
+    this.provider = 'companion',
     this.pendingText,
     this.operation = 'summarize-note',
     this.localSource,
@@ -38,6 +39,7 @@ class SummaryHandle {
     this.acknowledged = false,
   });
   final String id, noteId, revision, computerId;
+  final String provider;
   final int created;
   final String? pendingText;
   final bool accepted, cancelWanted;
@@ -105,6 +107,7 @@ class SummaryHandle {
     bool dropSource = false,
   }) => SummaryHandle(
     id: id,
+    provider: provider,
     operation: operation,
     localSource: dropSource ? null : localSource,
     noteId: noteId,
@@ -123,6 +126,7 @@ class SummaryHandle {
   SummaryHandle cancelling() => copyWith(cancelWanted: true);
   Map<String, dynamic> toJson() => {
     'id': id,
+    'provider': provider,
     'operation': operation,
     'noteId': noteId,
     'revision': revision,
@@ -140,6 +144,7 @@ class SummaryHandle {
   factory SummaryHandle.fromJson(Map<String, dynamic> json) {
     final handle = SummaryHandle(
       id: json['id'] as String,
+      provider: json['provider'] as String? ?? 'companion',
       operation: json['operation'] as String? ?? 'summarize-note',
       localSource: json['localSource'] as String?,
       noteId: json['noteId'] as String,
@@ -154,7 +159,8 @@ class SummaryHandle {
       ackPending: json['ackPending'] as bool? ?? false,
       acknowledged: json['acknowledged'] as bool? ?? false,
     );
-    if ((!handle.isTransformation &&
+    if (!{'companion', 'device'}.contains(handle.provider) ||
+        (!handle.isTransformation &&
             !handle.isNoteWebsite &&
             !handle.isRetiredPresentation &&
             !handle.isDiaryDay &&

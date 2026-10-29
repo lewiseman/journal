@@ -12,6 +12,7 @@ import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/settings/companion/companion_protocol.dart';
 
+import '../../local_ai/core/ai_router.dart';
 import 'summary_store.dart';
 import '../transform/transform_contract.dart';
 import '../metadata/note_help_contract.dart';
@@ -81,44 +82,6 @@ bool _wellFormed(String text) {
   }
 }
 
-/// The connected computer when it advertises [operation] at [contract].
-TrustedComputer capableComputer(
-  CompanionState connection, {
-  required String contractKey,
-  required int contract,
-  required String operation,
-  required String fallback,
-  required String update,
-  String capabilityId = 'text',
-  String notReady = 'Load the writing model on your computer.',
-  String notReadyCode = 'NOT_READY',
-}) {
-  final computer = connection.selected;
-  if (computer == null ||
-      !computer.enabled ||
-      connection.phase != CompanionPhase.connected) {
-    throw CompanionFailure(
-      'UNAVAILABLE',
-      'Connect your trusted computer in More → Local QVAC. $fallback',
-    );
-  }
-  final capabilities = connection.status?['capabilities'] as List? ?? [];
-  final capability = capabilities
-      .whereType<Map>()
-      .where((c) => c['id'] == capabilityId)
-      .firstOrNull;
-  if (connection.status?['recovery'] != 1 ||
-      capability?[contractKey] != contract ||
-      capability?['operations'] is! List ||
-      !(capability!['operations'] as List).contains(operation)) {
-    throw CompanionFailure('INCOMPATIBLE_VERSION', update);
-  }
-  if (!['ready', 'busy'].contains(capability['status'])) {
-    throw CompanionFailure(notReadyCode, '$notReady $fallback');
-  }
-  return computer;
-}
-
 class NoteSummaryState {
   const NoteSummaryState({
     this.handle,
@@ -164,8 +127,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
   Future<void>? _restoration;
   bool get _blocked => ref.read(accountResetProvider).blocksDataAccess;
   SummaryStore get _store => ref.read(summaryStoreProvider);
-  CompanionClient get _client =>
-      CompanionClient(ref.read(companionTransportProvider));
+  AiJobClient get _client => ref.read(aiJobClientProvider);
   @override
   NoteSummaryState build() {
     _foreground =
@@ -522,7 +484,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         description: description,
       );
       final input = request.request();
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         contractKey: 'websiteContract',
         contract: noteWebsiteContract,
         operation: noteWebsiteOperation,
@@ -572,7 +534,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         );
       }
       final input = source.request();
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         contractKey: 'diaryContract',
         contract: diarySuggestionContract,
         operation: diarySuggestionOperation,
@@ -584,6 +546,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         noteId: dateString,
         revision: await hexHash(utf8.encode(source.encode())),
         computerId: computer.id,
+        provider: computer.kind.name,
         deviceId: computer.deviceId,
         created: DateTime.now().millisecondsSinceEpoch,
         pendingText: input,
@@ -606,7 +569,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     }
   }
 
-  TrustedComputer _capableComputer({
+  AiJobProvider _capableProvider({
     required String contractKey,
     required int contract,
     required String operation,
@@ -615,8 +578,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     String capabilityId = 'text',
     String notReady = 'Load the writing model on your computer.',
     String notReadyCode = 'NOT_READY',
-  }) => capableComputer(
-    ref.read(companionControllerProvider),
+  }) => capableProvider(
+    ref,
     contractKey: contractKey,
     contract: contract,
     operation: operation,
@@ -646,7 +609,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           'The selected excerpts exceed 2,000 UTF-8 bytes. Nothing was sent.',
         );
       }
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         contractKey: 'historyContract',
         contract: historyContract,
         operation: historyOperation,
@@ -659,6 +622,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         noteId: selection.today,
         revision: await hexHash(utf8.encode(local)),
         computerId: computer.id,
+        provider: computer.kind.name,
         deviceId: computer.deviceId,
         created: DateTime.now().millisecondsSinceEpoch,
         pendingText: input,
@@ -701,7 +665,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           'The selected excerpts exceed 2,000 UTF-8 bytes. Nothing was sent.',
         );
       }
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         contractKey: kind.questionContractKey,
         contract: recallQuestionContract,
         operation: kind.questionOperation,
@@ -714,6 +678,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         noteId: selection.today,
         revision: await hexHash(utf8.encode(local)),
         computerId: computer.id,
+        provider: computer.kind.name,
         deviceId: computer.deviceId,
         created: DateTime.now().millisecondsSinceEpoch,
         pendingText: input,
@@ -760,7 +725,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           'The selected entries exceed 2,000 UTF-8 bytes. Nothing was sent.',
         );
       }
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         contractKey: 'questionContract',
         contract: dailyQuestionContract,
         operation: dailyQuestionOperation,
@@ -773,6 +738,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         noteId: source.date,
         revision: await hexHash(utf8.encode(local)),
         computerId: computer.id,
+        provider: computer.kind.name,
         deviceId: computer.deviceId,
         created: DateTime.now().millisecondsSinceEpoch,
         pendingText: input,
@@ -818,7 +784,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       }
       final source = NoteMetadataSource.fromNote(note);
       final input = source.request();
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         contractKey: 'noteHelpContract',
         contract: noteHelpContract,
         operation: noteMetadataOperation,
@@ -853,7 +819,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     _show('submitting', busy: true, stale: false);
     try {
       final input = source.request();
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         contractKey: 'noteHelpContract',
         contract: noteHelpContract,
         operation: noteIdeasOperation,
@@ -900,7 +866,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           'This image is no longer attached to the saved note.',
         );
       }
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         capabilityId: 'vision',
         contractKey: 'visionContract',
         contract: noteImageContract,
@@ -954,7 +920,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     final generation = ++_generation;
     _show('submitting', busy: true, stale: false);
     try {
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         capabilityId: 'vision',
         contractKey: 'photoContract',
         contract: diaryPhotoQuestionContract,
@@ -1044,7 +1010,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         background: Map.of(note.background),
       );
       final input = request.request();
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         capabilityId: 'image',
         contractKey: 'backgroundContract',
         contract: noteBackgroundContract,
@@ -1077,7 +1043,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
   Future<void> _collectBackground(
     SummaryHandle handle,
     String text,
-    TrustedComputer computer,
+    AiJobProvider computer,
   ) async {
     final store = ref.read(noteBackgroundStoreProvider);
     if (await (await store.preview(handle.id)).exists()) return;
@@ -1204,7 +1170,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           'Take or choose the page again.',
         );
       }
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         capabilityId: 'vision',
         contractKey: 'scanContract',
         contract: noteScanContract,
@@ -1400,13 +1366,14 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     required String local,
     required String input,
     required String operation,
-    required TrustedComputer computer,
+    required AiJobProvider computer,
   }) async {
     final handle = SummaryHandle(
       id: id ?? const Uuid().v4(),
       noteId: noteId,
       revision: await hexHash(utf8.encode(local)),
       computerId: computer.id,
+      provider: computer.kind.name,
       deviceId: computer.deviceId,
       created: DateTime.now().millisecondsSinceEpoch,
       pendingText: input,
@@ -1528,7 +1495,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           'This thought is longer than 2,000 UTF-8 bytes. Nothing was sent or shortened.',
         );
       }
-      final computer = _capableComputer(
+      final computer = _capableProvider(
         contractKey: 'reflectionContract',
         contract: thoughtReflectionContract,
         operation: thoughtReflectionOperation,
@@ -1540,6 +1507,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         noteId: uuid,
         revision: thoughtRevision(thought),
         computerId: computer.id,
+        provider: computer.kind.name,
         deviceId: computer.deviceId,
         created: DateTime.now().millisecondsSinceEpoch,
         pendingText: input,
@@ -1725,46 +1693,19 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
               : 'Choose a nonempty saved note of at most 2,000 UTF-8 bytes, including title and body. This note was not sent; longer notes are never truncated.',
         );
       }
-      final connection = ref.read(companionControllerProvider);
-      final computer = connection.selected;
-      if (computer == null ||
-          !computer.enabled ||
-          connection.phase != CompanionPhase.connected) {
-        throw const CompanionFailure(
-          'UNAVAILABLE',
-          'Connect your trusted computer in More → Local QVAC, then retry.',
-        );
-      }
-      if (connection.status?['recovery'] != 1) {
-        throw const CompanionFailure(
-          'INCOMPATIBLE_VERSION',
-          'Update the desktop companion to enable recoverable task history.',
-        );
-      }
-      final capabilities = connection.status?['capabilities'] as List? ?? [];
-      final capability = capabilities
-          .whereType<Map>()
-          .where((c) => c['id'] == 'text')
-          .firstOrNull;
-      if (capability == null ||
-          capability['operations'] is! List ||
-          !(capability['operations'] as List).contains(operation)) {
-        throw const CompanionFailure(
-          'INCOMPATIBLE_VERSION',
-          'Update the companion to a version that supports this note operation.',
-        );
-      }
-      if (!['ready', 'busy'].contains(capability['status'])) {
-        throw const CompanionFailure(
-          'NOT_READY',
-          'The writing model is unavailable. Download, assign and load it on the computer, then retry.',
-        );
-      }
+      final computer = _capableProvider(
+        contractKey: '', // These legacy operations advertise support by name.
+        contract: 1,
+        operation: operation,
+        fallback: 'Your note is unchanged.',
+        update: 'Update the companion to support this note operation.',
+      );
       final handle = SummaryHandle(
         id: const Uuid().v4(),
         noteId: noteId,
         revision: await summaryRevision(note),
         computerId: computer.id,
+        provider: computer.kind.name,
         deviceId: computer.deviceId,
         created: DateTime.now().millisecondsSinceEpoch,
         pendingText: text,
@@ -1782,7 +1723,10 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     }
   }
 
-  TrustedComputer _computer(SummaryHandle handle) {
+  AiJobProvider _computer(SummaryHandle handle) {
+    if (handle.provider == 'device') {
+      return AiJobProvider.device(handle.operation, accepted: handle.accepted);
+    }
     final computer = ref
         .read(companionControllerProvider)
         .computers
@@ -1806,7 +1750,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         'This task belongs to an earlier phone pairing. It cannot be submitted with new credentials. Its desktop copy expires within 24 hours.',
       );
     }
-    return computer;
+    return AiJobProvider.companion(computer, handle.operation);
   }
 
   Future<void> retry() async {
@@ -1911,6 +1855,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             'id': handle.id,
             'operation': handle.operation,
             'prompt': handle.pendingText,
+            'localSource': handle.localSource,
             'expires': handle.expires,
             if (image != null) 'image': base64Encode(image),
           },
@@ -1946,7 +1891,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
   Future<void> _consume(
     SummaryHandle handle,
     Map<String, dynamic> job,
-    TrustedComputer computer,
+    AiJobProvider computer,
     int generation,
   ) async {
     final phase = job['state'];
@@ -2111,17 +2056,26 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       text: text,
       stale: !matches,
       message: switch (phase) {
-        'queued' => 'Accepted by the computer. Waiting for the writing model.',
+        'queued' =>
+          handle.provider == 'device'
+              ? 'Preparing the model on this phone…'
+              : 'Accepted by the computer. Waiting for the writing model.',
         'running' when progress != null =>
-          'Generating on your computer: step ${progress.step} of ${progress.total}. You can close this page and return later.',
-        'running' => 'Running on your computer. You can close this preview and return later.',
+          'Generating ${handle.provider == 'device' ? 'on this phone' : 'on your computer'}: step ${progress.step} of ${progress.total}.',
+        'running' =>
+          handle.provider == 'device'
+              ? 'Running on this phone. Keep Journal open.'
+              : 'Running on your computer. You can close this preview and return later.',
+        'failed' when handle.provider == 'device' && job['message'] is String =>
+          job['message'] as String,
         'failed' =>
           job['error'] == 'INVALID_OUTPUT'
               ? 'The model returned an invalid result. Clear this preview to retry explicitly.'
               : job['error'] == 'OUTPUT_LIMIT'
               ? 'The result reached its output limit. No partial result was returned. Clear this preview and try a shorter note.'
               : 'The computer could not finish. Check its writing model and clear this preview to retry explicitly.',
-        'interrupted' => 'The desktop stopped during generation. Clear this preview to retry explicitly.',
+        'interrupted' =>
+          'Generation was interrupted. Clear this preview to retry explicitly.',
         'cancelled' => 'Task cancelled. Your note is unchanged.',
         'expired' => 'The desktop result expired. Clear this preview before starting explicitly.',
         'completed' when accepted.acknowledged => 'Result acknowledged and removed from the desktop. Your note is unchanged.',
