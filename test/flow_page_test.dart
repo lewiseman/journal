@@ -11,6 +11,7 @@ import 'package:journal/modules/flow/reflection/thought_reflection_controller.da
 import 'package:journal/components/transparent_video_player.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/flow/views/pages/flow_page.dart';
+import 'package:journal/modules/flow/views/pages/flow_thought_page.dart';
 import 'package:journal/modules/flow/views/widgets/flow_opening.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
@@ -470,17 +471,30 @@ void main() {
     );
   });
 
-  testWidgets('cards reveal their full text', (tester) async {
+  testWidgets('cards open their full text on a page of their own', (
+    tester,
+  ) async {
     await _mount(tester);
+    await tester.enterText(find.byType(TextField), 'A draft in progress.');
+    await tester.pumpAndSettle();
     // The frontmost card is fully tappable even in the scattered arrangement.
     final text = tester.widget<FlowThoughtCard>(_card(3)).thought.content;
     await tester.tap(_card(3));
     await tester.pumpAndSettle();
+    expect(find.byType(FlowThoughtPage), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
     expect(find.widgetWithText(SelectableText, text), findsOneWidget);
     expect(find.text('YOUR THOUGHT'), findsOneWidget);
     await _capture(tester, 'detail');
-    Navigator.of(tester.element(find.byType(SelectableText))).pop();
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
+    expect(find.byType(FlowThoughtPage), findsNothing);
+    expect(_card(3).hitTestable(), findsOneWidget);
+    // Flow keeps its state while the thought is open.
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'A draft in progress.',
+    );
     expect(tester.takeException(), isNull);
   });
 

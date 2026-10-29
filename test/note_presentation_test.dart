@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/notes/models/note_entity.dart';
+import 'package:journal/modules/notes/views/pages/edit_note_page.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_store.dart';
 import 'package:journal/modules/presentation/note_presentation_page.dart';
@@ -366,5 +367,45 @@ void main() {
     expect(find.byKey(const ValueKey('note-markdown-start')), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     app.container.dispose();
+  });
+
+  testWidgets('a website note is previewed on its own page', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          syncDeviceRoleProvider.overrideWithValue(SyncDeviceRole.unknown),
+        ],
+        child: MaterialApp(
+          home: EditNotePage(
+            existingNote: NoteEntity(
+              uuid: 'site',
+              title: 'Garden title',
+              content: 'Tomatoes',
+              website: _page,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('note-website-view')), findsOneWidget);
+    // The bar names the note and flags text edited after the site was made.
+    expect(find.text('Garden title'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('note-website-page-stale')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Edit note'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('note-website-view')), findsNothing);
+    expect(find.text('Garden title'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Close editor'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('note-website-view')), findsOneWidget);
+    expect(find.byTooltip('Edit note'), findsOneWidget);
   });
 }

@@ -27,7 +27,7 @@ import 'package:journal/modules/notes/views/widgets/note_paint_timing.dart';
 import 'package:journal/modules/notes/views/widgets/note_tag_picker.dart';
 import 'package:journal/modules/notes/views/widgets/unsaved_note_sheet.dart';
 import 'package:journal/modules/notes/metadata/note_help_pages.dart';
-import 'package:journal/modules/presentation/note_website_view.dart';
+import 'package:journal/modules/notes/views/pages/note_website_page.dart';
 
 class EditNotePage extends ConsumerStatefulWidget {
   const new({super.key, this.existingNote, this.starterTitle});
@@ -329,6 +329,8 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
     FocusScope.of(context).unfocus();
     if (!_isPreviewMode) setState(() => _isPreviewMode = true);
     _paperController.collapse();
+    // A website preview replaces the paper before it can report folding.
+    if (_savedNote?.website.isNotEmpty == true) _paperExpansion.value = 0;
   }
 
   void _finishEditing() {
@@ -493,6 +495,33 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
             policy: ResizeImagePolicy.fit,
           );
 
+    // A generated website is previewed on its own page; the text stays and
+    // returns in the paper editor.
+    final saved = _savedNote;
+    if (_isPreviewMode && saved != null && saved.website.isNotEmpty) {
+      return QvacAssistantPage(
+        label: 'Note',
+        child: _withAssistant(
+          available: !_hasUnsavedChanges,
+          child: NoteWebsitePage(
+            note: saved,
+            colors: colors,
+            onEdit: canModifySaved ? _editWebsiteNote : null,
+            actions: canModifySaved
+                ? NoteActionsMenu(
+                    isPinned: saved.isPinned,
+                    onTogglePin: _togglePin,
+                    onBackground: _pickBackground,
+                    onTags: _pickTags,
+                    onDelete: _deleteNote,
+                    style: NoteWebsitePage.buttonStyle(colors),
+                  )
+                : null,
+          ),
+        ),
+      );
+    }
+
     final page = EditNotepageBg(
       seed: _noteArtworkSeed,
       animationDuration: _artworkDuration,
@@ -514,7 +543,6 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                     Brightness.dark
               // The crossover where black has better contrast than white.
               : headerColor.computeLuminance() < .179;
-          final noteId = _savedNote?.uuid;
           final content = PopScope(
             canPop: _isPreviewMode && expansion == 0,
             onPopInvokedWithResult: (didPop, _) {
@@ -599,6 +627,7 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                 readOnly: !canModifySaved && _savedNote != null,
                 onExpansionChanged: (value) => _paperExpansion.value = value,
                 onEdit: () => setState(() => _isPreviewMode = false),
+
                 children: _noteSlivers(canEdit, colors),
               ),
               floatingActionButtonLocation:
@@ -643,27 +672,39 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                   : null,
             ),
           );
-          return QvacAssistantContent(
-            label: 'Note',
-            builder: (context, scrollController) => NoteAssistant(
-              noteId: noteId,
-              available:
-                  noteId == null ||
-                  (_isPreviewMode && expansion == 0 && !_hasUnsavedChanges),
-              draftTitle: noteId == null ? _titleController.text : null,
-              onDraftResult: noteId == null ? _applyDraft : null,
-              scrollController: scrollController,
-              onChanged: () {
-                if (noteId != null) _reloadSaved(noteId);
-              },
-              onMetadataApplied: _metadataApplied,
-            ),
+          return _withAssistant(
+            available: _isPreviewMode && expansion == 0 && !_hasUnsavedChanges,
             child: content,
           );
         },
       ),
     );
     return QvacAssistantPage(label: 'Note', child: page);
+  }
+
+  Widget _withAssistant({required bool available, required Widget child}) {
+    final noteId = _savedNote?.uuid;
+    return QvacAssistantContent(
+      label: 'Note',
+      builder: (context, scrollController) => NoteAssistant(
+        noteId: noteId,
+        available: noteId == null || available,
+        draftTitle: noteId == null ? _titleController.text : null,
+        onDraftResult: noteId == null ? _applyDraft : null,
+        scrollController: scrollController,
+        onChanged: () {
+          if (noteId != null) _reloadSaved(noteId);
+        },
+        onMetadataApplied: _metadataApplied,
+      ),
+      child: child,
+    );
+  }
+
+  /// The paper editor mounts already flat, so it never reports the unfold.
+  void _editWebsiteNote() {
+    _paperExpansion.value = 1;
+    setState(() => _isPreviewMode = false);
   }
 
   List<Widget> _noteSlivers(bool canEdit, NoteColors colors) {
@@ -786,12 +827,6 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
                 ),
               )
             // The paper's CustomScrollView already handles scrolling.
-            // A generated website replaces the text preview; the text stays.
-            : _savedNote?.website.isNotEmpty == true
-            ? SizedBox(
-                height: MediaQuery.sizeOf(context).height * .7,
-                child: NoteWebsiteView(html: _savedNote!.website),
-              )
             : MarkdownBody(
                 key: const ValueKey('note-content-preview'),
                 data: _contentController.text,

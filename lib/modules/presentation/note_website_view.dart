@@ -77,7 +77,7 @@ class _NoteWebsiteViewState extends State<NoteWebsiteView> {
           ? const SizedBox.expand()
           : WebViewWidget(
               controller: controller,
-              // The page scrolls itself inside the note's scrolling paper.
+              // The page scrolls itself, even inside a scrolling parent.
               gestureRecognizers: {
                 Factory<VerticalDragGestureRecognizer>(
                   VerticalDragGestureRecognizer.new,

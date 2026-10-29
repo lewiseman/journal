@@ -22,6 +22,7 @@ class EditNoteCardBg extends StatefulWidget {
     required this.children,
     required this.isPreviewMode,
     required this.onEdit,
+
     this.readOnly = false,
     this.onExpansionChanged,
     this.controller,
@@ -33,6 +34,7 @@ class EditNoteCardBg extends StatefulWidget {
 
   final Color color;
   final List<Widget> children;
+
   final bool isPreviewMode;
   final bool readOnly;
   final VoidCallback onEdit;

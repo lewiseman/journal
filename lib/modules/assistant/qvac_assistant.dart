@@ -277,7 +277,7 @@ class _FloatingAssistantState extends State<_FloatingAssistant>
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    _reduced = media.disableAnimations || media.accessibleNavigation;
+    _reduced = media.disableAnimations;
     return LayoutBuilder(
       builder: (context, constraints) {
         _size = constraints.biggest;
@@ -483,10 +483,7 @@ class QvacAssistantButton extends ConsumerWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: colors.surface, width: 2),
                 ),
-                child:
-                    checking &&
-                        !MediaQuery.disableAnimationsOf(context) &&
-                        !MediaQuery.accessibleNavigationOf(context)
+                child: checking && !MediaQuery.disableAnimationsOf(context)
                     ? const SizedBox.square(
                         dimension: 11,
                         child: CircularProgressIndicator(
@@ -727,9 +724,9 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
 
   final _sheet = DraggableScrollableController();
 
-  bool get _reduced =>
-      MediaQuery.disableAnimationsOf(context) ||
-      MediaQuery.accessibleNavigationOf(context);
+  // Only reduced motion: Android reports accessible navigation for any
+  // accessibility service, not only screen readers.
+  bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
   void _resize(double size) {
     if (!_sheet.isAttached) return;

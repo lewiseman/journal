@@ -9,6 +9,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/notes/images/note_scan.dart';
 import 'package:journal/modules/notes/images/note_scan_page.dart';
+import 'package:journal/modules/notes/images/note_scan_parts.dart';
+import 'package:journal/modules/notes/images/note_scan_stage.dart';
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_store.dart';
 import 'package:journal/modules/root/controllers/journal_account_reset_data.dart';
@@ -343,10 +346,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
-        tester
-            .widget<FilledButton>(find.byKey(const ValueKey('note-scan-start')))
-            .onPressed,
-        isNull,
+        find.byKey(const ValueKey('note-scan-start')),
+        findsNothing,
+        reason: 'Read text appears once there is a page',
       );
       await tester.runAsync(() async {
         await tester.tap(find.byKey(const ValueKey('note-scan-gallery')));
@@ -390,6 +392,141 @@ void main() {
         isNull,
       );
       expect(app.notes.getNoteByUuid('chosen')!.content, 'Body.');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  /// Opens the scan page and starts reading a page the computer holds in
+  /// 'running' until the test says otherwise.
+  Future<ProviderContainer> startReading(
+    WidgetTester tester, {
+    required bool reduced,
+    bool accessibleNavigation = false,
+  }) async {
+    tester.view
+      ..physicalSize = const Size(800, 3000)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final app = await tester.runAsync(
+      () => SyncFixture.create(MemoryDrive(), 'phone'),
+    );
+    app!.notes.saveNote(uuid: 'chosen', title: 'T', content: 'Body.');
+    final picked = await tester.runAsync(
+      () async => (File(
+        '${dir.path}/p.png',
+      )..writeAsBytesSync(await png(64, 64, Colors.white))).path,
+    );
+    final store = summary.MemorySummaries();
+    final wire = ImageTransport(store)
+      ..output = scan('Hello')
+      ..phase = 'running';
+    final container = scanContainer(
+      app,
+      store,
+      wire,
+      scans,
+      picker: (_) async => picked,
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              disableAnimations: reduced,
+              accessibleNavigation: accessibleNavigation,
+            ),
+            child: child!,
+          ),
+          home: const NoteScanPage(noteId: 'chosen'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(NoteScanEmpty), findsOneWidget);
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const ValueKey('note-scan-gallery')));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    });
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const ValueKey('note-scan-start')));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    return container;
+  }
+
+  NoteScanPainter painter(WidgetTester tester) =>
+      tester
+              .widget<CustomPaint>(
+                find.byKey(const ValueKey('note-scan-analyzing')),
+              )
+              .painter!
+          as NoteScanPainter;
+
+  void expectPageBeingRead(WidgetTester tester) {
+    final stage = find.byKey(const ValueKey('note-scan-stage'));
+    expect(
+      find.descendant(of: stage, matching: find.byType(Image)),
+      findsOneWidget,
+      reason: 'the page itself stays on screen while it is read',
+    );
+    expect(find.byType(NoteScanReading), findsOneWidget);
+    expect(find.byType(NoteAiLoading), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text('Reading'), findsOneWidget);
+  }
+
+  testWidgets(
+    'a page being read stays on screen under a moving scan line and can be stopped',
+    (tester) async {
+      final container = await startReading(tester, reduced: false);
+      expectPageBeingRead(tester);
+      expect(painter(tester).moving, isTrue);
+      final before = painter(tester).sweep.value;
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(painter(tester).sweep.value, isNot(before));
+      expect(tester.hasRunningAnimations, isTrue);
+      await tester.runAsync(() async {
+        await tester.tap(find.byTooltip('Stop'));
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pumpAndSettle();
+      expect(find.byType(NoteScanReading), findsNothing);
+      expect(container.read(noteSummaryProvider).phase, 'cancelled');
+      expect(tester.hasRunningAnimations, isFalse);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'an accessibility service reading the screen does not stop the scan line',
+    (tester) async {
+      // Android reports accessible navigation for any accessibility service,
+      // not only screen readers; only reduced motion keeps the page still.
+      await startReading(tester, reduced: false, accessibleNavigation: true);
+      expectPageBeingRead(tester);
+      expect(painter(tester).moving, isTrue);
+      final before = painter(tester).sweep.value;
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(painter(tester).sweep.value, isNot(before));
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'reduced motion shows the page being read still, without a line',
+    (tester) async {
+      await startReading(tester, reduced: true);
+      expectPageBeingRead(tester);
+      expect(painter(tester).moving, isFalse);
+      expect(tester.hasRunningAnimations, isFalse);
+      await tester.pumpAndSettle();
+      expectPageBeingRead(tester);
       await tester.pumpWidget(const SizedBox());
     },
   );

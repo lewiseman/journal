@@ -317,6 +317,36 @@ void main() {
     },
   );
 
+  testWidgets(
+    'scan opens with motion on while only its list holds the sheet scroll',
+    (tester) async {
+      final app = await _mount(tester, reducedMotion: false);
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      await _open(tester, 'scan');
+      expect(find.byType(NoteScanPage), findsOneWidget);
+      final list = find.descendant(
+        of: find.byType(NoteScanPage),
+        matching: find.byType(ListView),
+      );
+      expect(
+        PrimaryScrollController.of(tester.element(list)).positions.length,
+        1,
+      );
+      expect(
+        tester
+            .widget<DraggableScrollableSheet>(
+              find.byType(DraggableScrollableSheet),
+            )
+            .controller!
+            .size,
+        closeTo(1, .01),
+      );
+      expect(tester.takeException(), isNull);
+      await _unmount(tester, app);
+    },
+  );
+
   testWidgets('opening a feature animates the compact sheet to full height', (
     tester,
   ) async {

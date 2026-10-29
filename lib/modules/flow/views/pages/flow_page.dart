@@ -1,12 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:intl/intl.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/flow/views/widgets/flow_composer.dart';
 import 'package:journal/modules/flow/reflection/thought_reflection_controller.dart';
 import 'package:journal/modules/flow/views/widgets/flow_opening.dart';
-import 'package:journal/modules/flow/views/widgets/flow_reflection.dart';
+import 'package:journal/modules/flow/views/pages/flow_thought_page.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/flow/views/widgets/flow_assistant.dart';
@@ -103,40 +102,11 @@ class _FlowPageState extends ConsumerState<FlowPage> {
 
   void _openThought(ThoughtEntity thought) {
     _focus.unfocus();
-    final paper = flowThoughtColors(thought, context.colors);
-    _showSheet(
-      color: paper.background,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'YOUR THOUGHT',
-            style: TextStyle(
-              color: paper.secondary,
-              fontSize: 10,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            DateFormat('EEEE, MMMM d · h:mm a').format(thought.createdAt),
-            style: TextStyle(color: paper.secondary, fontSize: 12),
-          ),
-          const SizedBox(height: 24),
-          SelectableText(
-            thought.content,
-            style: TextStyle(
-              fontSize: 23,
-              height: 1.5,
-              letterSpacing: -.4,
-              color: paper.foreground,
-            ),
-          ),
-          const SizedBox(height: 24),
-          FlowReflection(thought: thought, paper: paper),
-        ],
-      ),
+    context.nav.push<void>(
+      FlowThoughtPage(thought: thought),
+      transition: MediaQuery.disableAnimationsOf(context)
+          ? NavTransition.none
+          : null,
     );
   }
 
@@ -155,32 +125,6 @@ class _FlowPageState extends ConsumerState<FlowPage> {
               MediaQuery.accessibleNavigationOf(context)
           ? NavTransition.none
           : NavTransition.fade,
-    );
-  }
-
-  void _showSheet({required Widget child, Color? color}) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: color ?? context.colors.surface,
-      showDragHandle: true,
-      useSafeArea: true,
-      isScrollControlled: true,
-      constraints: const BoxConstraints(maxWidth: 640),
-      sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
-          ? AnimationStyle.noAnimation
-          : null,
-      builder: (context) => SafeArea(
-        top: false,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * .75,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 8, 28, 28),
-            child: child,
-          ),
-        ),
-      ),
     );
   }
 

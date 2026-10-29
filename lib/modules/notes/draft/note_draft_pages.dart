@@ -12,6 +12,8 @@ import 'package:path/path.dart' as p;
 import '../images/note_background_gen.dart';
 import '../images/note_scan.dart';
 import '../images/note_scan_page.dart';
+import '../images/note_scan_parts.dart';
+import '../images/note_scan_stage.dart';
 import '../metadata/note_help_contract.dart';
 import 'note_draft_ai.dart';
 
@@ -238,107 +240,138 @@ class _NoteDraftScanPageState extends ConsumerState<NoteDraftScanPage> {
       _text.text = result.text;
     }
     final readable = result != null && !result.empty && result.readable;
-    return _DraftScaffold(
-      title: 'Scan a page',
-      tool: NoteDraftTool.scan,
-      children: [
-        if (page != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(page),
-                key: ValueKey(page),
-                height: readable ? 160 : 260,
-                fit: BoxFit.contain,
-                cacheHeight: 780,
-                errorBuilder: (_, _, _) =>
-                    const Text('This page image is no longer available.'),
+    final analyzing = mine && state.busy && page != null;
+    final idle = !_working && !state.busy;
+    return NoteScanEntrance(
+      child: _DraftScaffold(
+        title: 'Scan a page',
+        tool: NoteDraftTool.scan,
+        ownProgress: page != null,
+        header: const SizedBox.shrink(),
+        children: [
+          NoteScanStage(
+            page: page,
+            analyzing: analyzing,
+            compact: readable,
+            empty: result == null
+                ? NoteScanEmpty(
+                    cameraKey: const ValueKey('note-draft-scan-camera'),
+                    galleryKey: const ValueKey('note-draft-scan-gallery'),
+                    onCamera: idle ? () => _pick(ImageSource.camera) : null,
+                    onGallery: idle ? () => _pick(ImageSource.gallery) : null,
+                  )
+                : null,
+            overlay: analyzing
+                ? NoteScanReading(
+                    key: const ValueKey('note-draft-progress'),
+                    phase: state.phase,
+                    onStop: controller.reset,
+                    stopKey: const ValueKey('note-draft-cancel'),
+                  )
+                : result == null && page != null
+                ? NoteScanToolbar(
+                    key: const ValueKey('tools'),
+                    children: [
+                      NoteScanTool(
+                        key: const ValueKey('note-draft-scan-camera'),
+                        icon: Icons.photo_camera_outlined,
+                        tooltip: 'Retake',
+                        onPressed: idle
+                            ? () => _pick(ImageSource.camera)
+                            : null,
+                      ),
+                      NoteScanTool(
+                        key: const ValueKey('note-draft-scan-gallery'),
+                        icon: Icons.photo_library_outlined,
+                        tooltip: 'Choose image',
+                        onPressed: idle
+                            ? () => _pick(ImageSource.gallery)
+                            : null,
+                      ),
+                      NoteScanTool(
+                        icon: Icons.rotate_90_degrees_cw_outlined,
+                        tooltip: 'Rotate',
+                        onPressed: idle ? () => _rotate(page) : null,
+                      ),
+                    ],
+                  )
+                : null,
+          ),
+          NoteScanSteps(
+            child: Column(
+              key: ValueKey(
+                analyzing
+                    ? 'analyzing'
+                    : result == null
+                    ? 'pick'
+                    : readable
+                    ? 'result'
+                    : 'unreadable',
               ),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (analyzing)
+                  const SizedBox.shrink()
+                else if (result == null) ...[
+                  if (page != null)
+                    FilledButton.icon(
+                      key: const ValueKey('note-draft-scan-start'),
+                      onPressed: idle ? () => controller.scan(page) : null,
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: const Text('Read text'),
+                    ),
+                ] else if (!readable) ...[
+                  const NoteScanCallout(
+                    'No legible text found',
+                    key: ValueKey('note-draft-scan-unreadable'),
+                    tone: NoteScanTone.caution,
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () {
+                      controller.reset();
+                      setState(() => _page = page);
+                    },
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Try again'),
+                  ),
+                ] else ...[
+                  NoteScanReview(
+                    result: result,
+                    controller: _text,
+                    onChanged: () => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    key: const ValueKey('note-draft-scan-insert'),
+                    onPressed: _text.text.trim().isEmpty
+                        ? null
+                        : () {
+                            final scan = DraftScanResult(
+                              text: _text.text.trim(),
+                              path: page!,
+                              original: result!.text,
+                            );
+                            controller.reset();
+                            Navigator.of(context).pop(scan);
+                          },
+                    icon: const Icon(Icons.note_add_rounded),
+                    label: const Text('Add to note'),
+                  ),
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  NoteScanCallout(
+                    _error!,
+                    key: const ValueKey('note-draft-scan-error'),
+                    tone: NoteScanTone.error,
+                  ),
+                ],
+              ],
             ),
           ),
-        if (result == null) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                key: const ValueKey('note-draft-scan-camera'),
-                onPressed: _working || state.busy
-                    ? null
-                    : () => _pick(ImageSource.camera),
-                icon: const Icon(Icons.photo_camera_outlined),
-                label: Text(page == null ? 'Take photo' : 'Retake'),
-              ),
-              OutlinedButton.icon(
-                key: const ValueKey('note-draft-scan-gallery'),
-                onPressed: _working || state.busy
-                    ? null
-                    : () => _pick(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library_outlined),
-                label: const Text('Choose image'),
-              ),
-              if (page != null)
-                OutlinedButton.icon(
-                  onPressed: _working || state.busy
-                      ? null
-                      : () => _rotate(page),
-                  icon: const Icon(Icons.rotate_90_degrees_cw_outlined),
-                  label: const Text('Rotate'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            key: const ValueKey('note-draft-scan-start'),
-            onPressed: page == null || _working || state.busy
-                ? null
-                : () => controller.scan(page),
-            icon: const Icon(Icons.document_scanner_outlined),
-            label: const Text('Read text'),
-          ),
-        ] else if (!readable) ...[
-          const Text(
-            'No legible text was found. Try a sharper, brighter photo with the page upright.',
-            key: ValueKey('note-draft-scan-unreadable'),
-          ),
-          TextButton(
-            onPressed: () {
-              controller.reset();
-              setState(() => _page = page);
-            },
-            child: const Text('Try again'),
-          ),
-        ] else ...[
-          NoteScanReview(
-            result: result,
-            controller: _text,
-            onChanged: () => setState(() {}),
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            key: const ValueKey('note-draft-scan-insert'),
-            onPressed: _text.text.trim().isEmpty
-                ? null
-                : () {
-                    final scan = DraftScanResult(
-                      text: _text.text.trim(),
-                      path: page!,
-                      original: result!.text,
-                    );
-                    controller.reset();
-                    Navigator.of(context).pop(scan);
-                  },
-            child: const Text('Add to note'),
-          ),
         ],
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(_error!, key: const ValueKey('note-draft-scan-error')),
-          ),
-      ],
+      ),
     );
   }
 }
@@ -473,10 +506,16 @@ class _DraftScaffold extends ConsumerWidget {
     required this.title,
     required this.tool,
     required this.children,
+    this.ownProgress = false,
+    this.header,
   });
   final String title;
   final NoteDraftTool tool;
   final List<Widget> children;
+
+  /// The page shows its own progress among [children] instead.
+  final bool ownProgress;
+  final Widget? header;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -486,7 +525,8 @@ class _DraftScaffold extends ConsumerWidget {
     final mine = state.tool == tool;
     return NoteAiScaffold(
       tool: NoteAiTool.values.byName(tool.name),
-      loading: mine && state.busy
+      header: header,
+      loading: mine && state.busy && !ownProgress
           ? NoteAiLoading(
               key: const ValueKey('note-draft-progress'),
               tool: NoteAiTool.values.byName(tool.name),

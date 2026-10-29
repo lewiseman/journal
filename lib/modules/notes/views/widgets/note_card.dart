@@ -32,22 +32,45 @@ class NoteCard extends StatelessWidget {
         displayColor: colors.foreground,
       ),
     );
+    // Tiles read as a uniform, compact excerpt: emphasis and headings use the
+    // body style and blocks sit flush. Lists and tasks keep their markers.
+    final body = previewTheme.textTheme.bodyMedium;
+    const plain = TextStyle(
+      fontWeight: FontWeight.normal,
+      fontStyle: FontStyle.normal,
+      decoration: TextDecoration.none,
+    );
     final markdownStyle = MarkdownStyleSheet.fromTheme(previewTheme).copyWith(
-      a: TextStyle(color: colors.foreground, decoration: TextDecoration.none),
-      blockquoteDecoration: BoxDecoration(
-        color: colors.foreground.withValues(alpha: .05),
-        borderRadius: BorderRadius.circular(4),
-        border: Border(
-          left: BorderSide(
-            color: colors.foreground.withValues(alpha: .25),
-            width: 3,
-          ),
-        ),
-      ),
-      codeblockDecoration: BoxDecoration(
-        color: colors.foreground.withValues(alpha: .05),
-        borderRadius: BorderRadius.circular(4),
-      ),
+      p: body,
+      h1: body,
+      h2: body,
+      h3: body,
+      h4: body,
+      h5: body,
+      h6: body,
+      strong: plain,
+      em: plain,
+      del: plain,
+      a: plain.copyWith(color: colors.foreground),
+      code: body?.copyWith(backgroundColor: Colors.transparent),
+      blockquote: body,
+      listBullet: body,
+      tableHead: plain,
+      tableBody: body,
+      blockSpacing: 0,
+      pPadding: EdgeInsets.zero,
+      h1Padding: EdgeInsets.zero,
+      h2Padding: EdgeInsets.zero,
+      h3Padding: EdgeInsets.zero,
+      h4Padding: EdgeInsets.zero,
+      h5Padding: EdgeInsets.zero,
+      h6Padding: EdgeInsets.zero,
+      blockquotePadding: EdgeInsets.zero,
+      blockquoteDecoration: const BoxDecoration(),
+      codeblockPadding: EdgeInsets.zero,
+      codeblockDecoration: const BoxDecoration(),
+      tablePadding: EdgeInsets.zero,
+      tableCellsPadding: EdgeInsets.zero,
       tableBorder: TableBorder.all(
         color: colors.foreground.withValues(alpha: .15),
       ),

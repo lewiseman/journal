@@ -69,9 +69,11 @@ class _NoteAiLoadingState extends State<NoteAiLoading>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Not tied to accessible navigation: Android reports it whenever any
+    // accessibility service reads the screen, not only screen readers, and
+    // the illustration is excluded from semantics.
     final animate =
         !MediaQuery.disableAnimationsOf(context) &&
-        !MediaQuery.accessibleNavigationOf(context) &&
         TickerMode.valuesOf(context).enabled;
     if (animate) {
       if (!_motion.isAnimating) _motion.repeat();

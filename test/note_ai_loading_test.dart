@@ -7,6 +7,7 @@ import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 Widget _page({
   bool reduced = true,
   bool active = true,
+  bool accessibleNavigation = false,
   bool dark = false,
   double scale = 1,
   String phase = 'running',
@@ -17,6 +18,7 @@ Widget _page({
   builder: (context, child) => MediaQuery(
     data: MediaQuery.of(context).copyWith(
       disableAnimations: reduced,
+      accessibleNavigation: accessibleNavigation,
       textScaler: TextScaler.linear(scale),
     ),
     child: TickerMode(enabled: active, child: child!),
@@ -87,6 +89,19 @@ void main() {
       expect(stops, 1);
       expect(retries, 1);
       semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'an accessibility service reading the screen keeps the loader moving',
+    (tester) async {
+      // Android reports accessible navigation for any accessibility service.
+      await tester.pumpWidget(
+        _page(reduced: false, accessibleNavigation: true),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.binding.transientCallbackCount, greaterThan(0));
+      await tester.pumpWidget(const SizedBox.shrink());
     },
   );
 

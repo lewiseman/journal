@@ -13,6 +13,7 @@ class NoteActionsMenu extends StatelessWidget {
     required this.onBackground,
     required this.onTags,
     required this.onDelete,
+    this.style,
   });
 
   final bool isPinned;
@@ -20,6 +21,9 @@ class NoteActionsMenu extends StatelessWidget {
   final VoidCallback onBackground;
   final VoidCallback onTags;
   final VoidCallback onDelete;
+
+  /// Replaces the button's default surface style, e.g. to match a coloured bar.
+  final ButtonStyle? style;
 
   @override
   Widget build(BuildContext context) {
@@ -33,11 +37,13 @@ class NoteActionsMenu extends StatelessWidget {
     return PopupMenuButton<_NoteAction>(
       tooltip: 'Note options',
       icon: const Icon(Icons.more_horiz_rounded),
-      style: IconButton.styleFrom(
-        backgroundColor: colors.surface,
-        foregroundColor: colors.onSurface,
-        minimumSize: const Size.square(48),
-      ),
+      style:
+          style ??
+          IconButton.styleFrom(
+            backgroundColor: colors.surface,
+            foregroundColor: colors.onSurface,
+            minimumSize: const Size.square(48),
+          ),
       position: PopupMenuPosition.under,
       offset: const Offset(0, 8),
       requestFocus: true,
