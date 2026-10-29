@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:journal/modules/more/views/widgets/more_material.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 
+import 'people_artwork.dart' show friendsArtworkAsset;
+
 enum MoreEntryArtwork {
   appearance('assets/images/more_appearance.png'),
-  qvac('assets/images/more_local_qvac.png');
+  qvac('assets/images/more_local_qvac.png'),
+  friends(friendsArtworkAsset);
 
   const MoreEntryArtwork(this.asset);
 

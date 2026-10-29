@@ -91,8 +91,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
     builder: (context, _) => Semantics(
       label: naming
           ? 'Your journal cover'
-          : '${onboardingFeatures[widget.page].name}, ${widget.page + 1} of 6',
-      onIncrease: touring && widget.page < 5 ? () => widget.onFlip(1) : null,
+          : '${onboardingFeatures[widget.page].name}, ${widget.page + 1} of ${onboardingFeatures.length}',
+      onIncrease: touring && widget.page < onboardingFeatures.length - 1
+          ? () => widget.onFlip(1)
+          : null,
       onDecrease: touring && widget.page > 0 ? () => widget.onFlip(-1) : null,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -239,7 +241,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: const Text(
-                  'Your all in one space for notes, diary, tasks, reminders, bucket lists, movies and birthdays',
+                  'Your space for notes, diary and passing thoughts, with optional local AI.',
                   key: ValueKey('onboarding-description'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -364,7 +366,7 @@ class _OnboardingPageHints extends StatelessWidget {
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(
-          6,
+          onboardingFeatures.length,
           (i) => AnimatedContainer(
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero

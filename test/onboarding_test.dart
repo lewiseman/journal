@@ -224,19 +224,20 @@ void main() {
     },
   );
 
-  testWidgets('tour advances through all features and stops on Movies', (
+  testWidgets('tour advances through all features and stops on Sync', (
     tester,
   ) async {
     await mount(tester);
     expect(book(tester).page, 0);
-    for (var i = 1; i <= 5; i++) {
+    for (var i = 1; i < onboardingFeatures.length; i++) {
       await tester.pump(const Duration(seconds: 5));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 900));
       expect(book(tester).page, i);
     }
     await tester.pump(const Duration(seconds: 20));
-    expect(book(tester).page, 5);
+    expect(book(tester).page, onboardingFeatures.length - 1);
+    expect(onboardingFeatures[book(tester).page].name, 'Sync');
     await stop(tester);
   });
   testWidgets(
@@ -290,14 +291,20 @@ void main() {
           await tester.pumpAndSettle();
           expect(book(tester).page, 0);
 
-          for (var page = 1; page <= 5; page++) {
+          for (var page = 1; page < onboardingFeatures.length; page++) {
             await tapPage(tester, left: false);
             await tester.pumpAndSettle();
             expect(book(tester).page, page);
           }
           await tapPage(tester, left: false);
           await tester.pumpAndSettle();
-          expect(book(tester).page, 5);
+          expect(book(tester).page, onboardingFeatures.length - 1);
+          expect(
+            find.bySemanticsLabel(
+              'Sync. Your words, backed up. Text sync with Google Drive.',
+            ),
+            findsOneWidget,
+          );
           expect(book(tester).turn, 0);
           await stop(tester);
         } finally {
@@ -439,10 +446,10 @@ void main() {
   }
   testWidgets('all spreads fit narrow screens with large text', (tester) async {
     await mount(tester, size: const Size(320, 568), scale: 1.5, reduced: true);
-    for (var i = 0; i < 6; i++) {
+    for (var i = 0; i < onboardingFeatures.length; i++) {
       expect(book(tester).page, i);
       expect(tester.takeException(), isNull);
-      if (i < 5) {
+      if (i < onboardingFeatures.length - 1) {
         await tester.ensureVisible(find.byType(OnboardingBook));
         await tester.drag(find.byType(OnboardingBook), const Offset(-250, 0));
         await tester.pumpAndSettle();
@@ -919,7 +926,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(book(tester).page, 1);
     await capture('diary');
-    for (final name in ['ai', 'tasks', 'birthdays', 'movies']) {
+    for (final name in ['ai', 'flow', 'people', 'appearance', 'sync']) {
       await tester.drag(find.byType(OnboardingBook), const Offset(-250, 0));
       await tester.pumpAndSettle();
       await capture(name);

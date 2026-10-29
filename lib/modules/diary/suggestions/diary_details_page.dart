@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/models/diary_calendar_day.dart';
 import 'package:journal/modules/diary/models/diary_day_entity.dart';
+import 'package:journal/modules/local_ai/core/ai_router.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
@@ -150,6 +151,9 @@ class _DiaryDetailsPageState extends ConsumerState<DiaryDetailsPage> {
         DiaryDayEntity(dateString: widget.dateString);
     final canEdit =
         ref.watch(syncDeviceRoleProvider) != SyncDeviceRole.secondary;
+    final suggestionsReady = ref.watch(
+      aiOperationAvailableProvider('suggest-diary-day'),
+    );
     final state = ref.watch(noteSummaryProvider);
     final controller = ref.read(noteSummaryProvider.notifier);
     final handle = state.handle;
@@ -205,22 +209,28 @@ class _DiaryDetailsPageState extends ConsumerState<DiaryDetailsPage> {
             ),
           const Divider(height: 32),
           Text(
-            'Suggestions from your computer',
+            'Optional AI suggestions',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           const Text(
-            'Only this day’s saved entry text goes to your trusted computer: no date, other days, photos or existing details. Suggestions are optional, can be wrong, and nothing is saved unless you accept it.',
+            'Only this day’s saved entry text is used for suggestions: no date, other days, photos or existing details. Suggestions are optional, can be wrong, and nothing is saved unless you accept it.',
           ),
           const SizedBox(height: 12),
           if (handle == null) ...[
             if (!hasEntries)
               const Text('Write an entry for this day to get suggestions.'),
+            if (!suggestionsReady)
+              const Text(
+                'Connect your computer or set up a model on this phone to get suggestions.',
+                key: ValueKey('diary-suggest-unavailable'),
+              ),
             FilledButton.icon(
               key: const ValueKey('diary-suggest'),
               icon: const Icon(Icons.auto_awesome_outlined),
               label: const Text('Suggest title, mood and themes'),
-              onPressed: canEdit && hasEntries && !state.busy
+              onPressed:
+                  canEdit && hasEntries && suggestionsReady && !state.busy
                   ? () => controller.startDiarySuggestion(widget.dateString)
                   : null,
             ),

@@ -247,7 +247,11 @@ void main() {
       expect(find.text('Local QVAC'), findsOneWidget);
       expect(find.text('No computer connected'), findsOneWidget);
       expect(find.text('Tasks'), findsNothing);
-      expect(find.text('People'), findsOneWidget);
+      expect(find.text('Friends'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Friends')).dy,
+        greaterThan(tester.getTopLeft(find.text('Local QVAC')).dy),
+      );
       expect(find.text('View all tasks'), findsNothing);
       expect(find.text('COMING SOON'), findsNothing);
       await _capture(tester, 'account');
@@ -261,8 +265,8 @@ void main() {
       expect(find.text('Settings'), findsNothing);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('People'));
-      await tester.tap(find.text('People'));
+      await tester.ensureVisible(find.text('Friends'));
+      await tester.tap(find.text('Friends'));
       await tester.pumpAndSettle();
       expect(find.byType(PeoplePage), findsOneWidget);
       expect(find.text('Add friend'), findsOneWidget);

@@ -215,9 +215,7 @@ class PeopleController extends Notifier<PeopleState> {
 
   Future<void> connect() async {
     if (!state.supported) {
-      throw const PeopleFailure(
-        'People is available on Android phones for now.',
-      );
+      throw const PeopleFailure('Friends works on Android phones for now.');
     }
     await restore();
     if (!_loaded || !state.foreground || _blocked) {

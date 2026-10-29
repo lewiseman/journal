@@ -23,7 +23,7 @@ const onboardingFeatures = [
   (
     name: 'Notes',
     artwork: 'assets/images/onboarding/notes.webp',
-    scene: 'Notes with a tiny idea and a reminder to take the scenic route.',
+    scene: 'Two paper note cards: A tiny idea. Take the scenic route.',
     title: 'Catch a\nthought.',
     detail: 'Little ideas.\nEndless possibilities.',
     accent: Color(0xFF517E71),
@@ -46,29 +46,36 @@ const onboardingFeatures = [
     accent: Color(0xFF8265B0),
   ),
   (
-    name: 'Tasks',
-    artwork: 'assets/images/onboarding/tasks.webp',
-    scene: 'A gentler to-do: Make time for me. Get some fresh air. Start something new. One thing at a time.',
-    title: 'Make room\nfor what\nmatters.',
-    detail: 'Small steps.\nA little more clarity.',
+    name: 'Flow',
+    artwork: 'assets/images/onboarding/flow.jpg',
+    scene: 'A stream of paper thought cards: A thought for today. Let it out.',
+    title: 'Let your\nthoughts\nflow.',
+    detail: 'A small thought.\nA little more room.',
     accent: Color(0xFF587BA0),
   ),
   (
-    name: 'Birthdays',
-    artwork: 'assets/images/onboarding/birthdays.webp',
-    scene: 'June 12, Maya’s birthday. Make a little magic.',
-    title: 'Remember\nyour people.',
-    detail: 'Their special days,\nheld close.',
+    name: 'People',
+    artwork: 'assets/images/onboarding/people.jpg',
+    scene: 'Two envelopes, a note saying Thinking of you, and an hourglass. Here for a moment.',
+    title: 'A little note.\nA shared\nmoment.',
+    detail: 'Temporary notes.\nBoth apps open.',
     accent: Color(0xFFAF6F84),
   ),
   (
-    name: 'Movies',
-    artwork: 'assets/images/onboarding/movies.webp',
-    scene:
-        'After the Sun, an illustrated movie poster and a movie night ticket.',
-    title: 'Save your\nnext movie\nnight.',
-    detail: 'Stories to get lost in.\nAll in one place.',
+    name: 'Appearance',
+    artwork: 'assets/images/onboarding/appearance.jpg',
+    scene: 'Paper color swatches, handwritten type, and theme cards: Light, Dark, Like my phone.',
+    title: 'Make it\nyours.',
+    detail: 'Colors, themes\nand fonts.',
     accent: Color(0xFFAA8146),
+  ),
+  (
+    name: 'Sync',
+    artwork: 'assets/images/onboarding/sync.jpg',
+    scene: 'Notes, Diary and Flow writing cards linked to a Google Drive cloud. Photos and files stay on this device.',
+    title: 'Your words,\nbacked up.',
+    detail: 'Text sync with\nGoogle Drive.',
+    accent: Color(0xFF5B8787),
   ),
 ];
 
@@ -106,14 +113,15 @@ class OnboardingBook extends StatelessWidget {
           leafSize: Size(leaf, h),
           progress: closing.clamp(0.0, 1.0),
         );
-        final pageProgress = (page + direction * turn) / 5;
+        final lastPage = onboardingFeatures.length - 1;
+        final pageProgress = (page + direction * turn) / lastPage;
         final leftDepth = 9 + 7 * pageProgress;
         final cacheWidth = onboardingImageCacheWidth(
           artworkWidth ?? constraints.maxWidth,
           MediaQuery.devicePixelRatioOf(context),
         );
         Widget sheet(int index, bool left) => _Leaf(
-          index: index.clamp(0, 5),
+          index: index.clamp(0, lastPage),
           left: left,
           cacheWidth: cacheWidth,
           onTap:
@@ -129,7 +137,7 @@ class OnboardingBook extends StatelessWidget {
           height: h,
           child: child,
         );
-        final next = (page + direction).clamp(0, 5);
+        final next = (page + direction).clamp(0, lastPage);
         final inside = CustomPaint(
           painter: BookLeafStack(
             left: true,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:journal/common.dart';
+import 'package:journal/modules/root/views/widgets/onboarding_book/onboarding_book.dart';
 import 'package:journal/modules/root/views/widgets/onboarding_content.dart';
 
 enum _Stage { touring, closing, naming, saving, opening }
@@ -29,6 +30,7 @@ class _OnboardingBodyState extends State<OnboardingBody>
   Timer? _timer;
   _Stage _stage = _Stage.touring;
   int _page = 0;
+  int get _lastPage => onboardingFeatures.length - 1;
   int _direction = 1;
   bool _turning = false;
   bool _dragging = false;
@@ -75,7 +77,7 @@ class _OnboardingBodyState extends State<OnboardingBody>
         !_active ||
         !_visible ||
         _paused ||
-        _page == 5) {
+        _page == _lastPage) {
       return;
     }
     _timer = Timer(const Duration(seconds: 5), () => _flip(1));
@@ -85,7 +87,7 @@ class _OnboardingBodyState extends State<OnboardingBody>
     if (_turning ||
         _stage != _Stage.touring ||
         _page + direction < 0 ||
-        _page + direction > 5) {
+        _page + direction > _lastPage) {
       return;
     }
     _timer?.cancel();
@@ -221,7 +223,7 @@ class _OnboardingBodyState extends State<OnboardingBody>
     if (!_dragging || _stage != _Stage.touring) return;
     if (!_turning) {
       final direction = delta < 0 ? 1 : -1;
-      if (_page + direction < 0 || _page + direction > 5) return;
+      if (_page + direction < 0 || _page + direction > _lastPage) return;
       setState(() {
         _direction = direction;
         _turning = true;

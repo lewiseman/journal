@@ -1,6 +1,10 @@
 # Onboarding book artwork
 
-Generated with the built-in image generation tool. Six full 4:3 spreads (two 2:3 leaves each) and a 4:5 cover. The WebP files are the production assets; the pages include their paper texture, lettering, illustrations and static shadows. The app adds the book geometry, page curl, moving lighting and the editable cover name.
+The current book uses Notes, Diary, AI, Flow, People, Appearance, and Sync. See
+[current artwork and final prompts](CURRENT_ARTWORK.md) for the replacement
+spreads and Sync chapter. Tasks, Birthdays, and Movies below document the retired source artwork.
+
+Generated with the built-in image generation tool. Seven full 4:3 spreads (two 2:3 leaves each) and a 4:5 cover. The WebP and JPEG files are the production assets; the pages include their paper texture, lettering, illustrations and static shadows. The app adds the book geometry, page curl, moving lighting and the editable cover name.
 
 Headings and descriptions remain available through Flutter semantics. Text inside the artwork does not reflow with system text size.
 

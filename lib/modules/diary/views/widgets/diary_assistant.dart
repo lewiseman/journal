@@ -27,8 +27,8 @@ bool _reducedMotion(BuildContext context) =>
 /// Opening the menu itself never creates a microphone or a conversation.
 ///
 /// The menu is a loose diary page: speaking is the inked centerpiece, and the
-/// quieter tools are written on its ruled lines. Every tool needs local AI,
-/// so all of them rest until the paired computer is connected.
+/// quieter tools are written on its ruled lines. Day details stays available
+/// for manual editing and reading, independently of local AI readiness.
 class DiaryAssistant extends ConsumerStatefulWidget {
   const DiaryAssistant({
     super.key,
@@ -141,10 +141,10 @@ class _DiaryAssistantState extends ConsumerState<DiaryAssistant> {
         _RuledLine(
           key: const ValueKey('diary-assistant-details'),
           seed: 2,
-          enabled: writingReady,
+          enabled: true,
           margin: const _Doodle(_DoodleKind.sparkle, size: 22),
           trailing: const _Doodle(_DoodleKind.arrow, size: 22),
-          onTap: writingReady ? () => _open(_DiaryTool.details) : null,
+          onTap: () => _open(_DiaryTool.details),
           label: 'Day details',
           child: Text('Day details', style: hand.copyWith(fontSize: 25)),
         ),

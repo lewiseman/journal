@@ -55,7 +55,7 @@ class _Status extends ConsumerWidget {
               Icon(Icons.phone_android_rounded, color: palette.clay),
               const SizedBox(width: 12),
               const Expanded(
-                child: Text('People is available on Android phones for now.'),
+                child: Text('Friends works on Android phones for now.'),
               ),
             ],
           ),
@@ -131,7 +131,7 @@ class PeoplePage extends ConsumerWidget {
     final unopened = state.notes.where((n) => !n.opened).toList();
     final canAdd = state.supported && !state.loading;
     return PeopleScaffold(
-      title: 'People',
+      title: 'Friends',
       children: [
         const _Status(),
         Row(
@@ -141,7 +141,7 @@ class PeoplePage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Your people', style: peopleHand(context, size: 38)),
+                  Text('Your friends', style: peopleHand(context, size: 38)),
                   const SizedBox(height: 4),
                   Text(
                     'A small note, just between you.\nKeep both apps open to exchange notes.',
@@ -1544,7 +1544,7 @@ class PeopleHost extends ConsumerWidget {
         SnackBar(
           content: Text('A note from $name'),
           action: SnackBarAction(
-            label: 'Open People',
+            label: 'Open Friends',
             onPressed: () {
               final context = navigatorKey.currentContext;
               if (context != null) context.nav.push(const PeoplePage());

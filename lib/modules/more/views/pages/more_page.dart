@@ -7,7 +7,6 @@ import 'package:journal/modules/more/views/widgets/more_material.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/settings/companion/companion_page.dart';
 import 'package:journal/modules/people/people_pages.dart';
-import 'package:journal/modules/more/views/widgets/people_artwork.dart';
 
 class MorePage extends ConsumerStatefulWidget {
   const new({super.key});
@@ -91,16 +90,7 @@ class _MorePageState extends ConsumerState<MorePage> {
                                     context.nav.push(const AppearancePage()),
                               ),
                               MoreIndexEntry(
-                                key: const ValueKey('more-people'),
-                                title: 'People',
-                                description: 'Friends and disappearing notes',
-                                illustration: const PeopleEntryArtwork(),
-                                onTap: () =>
-                                    context.nav.push(const PeoplePage()),
-                              ),
-                              MoreIndexEntry(
                                 title: 'Local QVAC',
-                                showDivider: false,
                                 status: companionPhaseLabel(connection.phase),
                                 connected:
                                     connection.phase ==
@@ -108,6 +98,15 @@ class _MorePageState extends ConsumerState<MorePage> {
                                 artwork: MoreEntryArtwork.qvac,
                                 onTap: () =>
                                     context.nav.push(const CompanionPage()),
+                              ),
+                              MoreIndexEntry(
+                                key: const ValueKey('more-friends'),
+                                title: 'Friends',
+                                description: 'Share disappearing notes',
+                                showDivider: false,
+                                artwork: MoreEntryArtwork.friends,
+                                onTap: () =>
+                                    context.nav.push(const PeoplePage()),
                               ),
                             ],
                           ),

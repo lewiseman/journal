@@ -253,7 +253,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('A note from Bob'), findsOneWidget);
       expect(find.text('Never preview this text'), findsNothing);
-      await tester.tap(find.text('Open People'));
+      await tester.tap(find.text('Open Friends'));
       await tester.pumpAndSettle();
       expect(find.byType(PeoplePage), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
@@ -410,7 +410,7 @@ void main() {
         ),
       );
       expect(
-        find.text('People is available on Android phones for now.'),
+        find.text('Friends works on Android phones for now.'),
         findsOneWidget,
       );
       expect(unsupported.transport.starts, 0);

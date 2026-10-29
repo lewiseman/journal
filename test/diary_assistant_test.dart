@@ -11,15 +11,18 @@ import 'package:journal/config/theme.dart';
 import 'package:journal/modules/assistant/qvac_assistant.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
+import 'package:journal/modules/diary/models/diary_calendar_day.dart';
 import 'package:journal/modules/diary/questions/daily_question_contract.dart';
 import 'package:journal/modules/diary/questions/daily_question_controller.dart';
 import 'package:journal/modules/diary/questions/daily_question_store.dart';
 import 'package:journal/modules/diary/suggestions/diary_details_page.dart';
+import 'package:journal/modules/diary/suggestions/diary_suggestion_contract.dart';
 import 'package:journal/modules/diary/views/pages/diary_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_assistant.dart';
 import 'package:journal/modules/diary/views/widgets/diary_calendar.dart';
 import 'package:journal/modules/diary/views/widgets/diary_ink_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_sheet.dart';
+import 'package:journal/modules/local_ai/core/ai_router.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_store.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
@@ -265,6 +268,89 @@ void main() {
     },
   );
 
+  for (final secondary in [false, true]) {
+    testWidgets(
+      'day details opens without AI and respects editing rights: secondary=$secondary',
+      (tester) async {
+        final app = await _mount(
+          tester,
+          secondary: secondary,
+          phase: CompanionPhase.idle,
+          overrides: [
+            ..._questions(enabled: false),
+            aiOperationAvailableProvider('suggest-diary-day')
+                .overrideWithValue(false),
+            aiOperationAvailableProvider('ask-diary-question')
+                .overrideWithValue(false),
+          ],
+        );
+        await _select(tester, 24);
+        await tester.tap(_button);
+        await tester.pumpAndSettle();
+        expect(tester.widget<DiaryInkAction>(_microphone).onPressed, isNull);
+        await tester.tap(find.text('Day details'));
+        await tester.pumpAndSettle();
+        expect(find.byType(DiaryDetailsPage), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('diary-suggest-unavailable')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<ButtonStyleButton>(
+                find.byKey(const ValueKey('diary-suggest')),
+              )
+              .onPressed,
+          isNull,
+        );
+
+        final edit = find.byKey(const ValueKey('diary-details-edit'));
+        if (secondary) {
+          expect(edit, findsNothing);
+          expect(
+            find.byKey(const ValueKey('diary-details-read-only')),
+            findsOneWidget,
+          );
+        } else {
+          await tester.tap(edit);
+          await tester.pumpAndSettle();
+          await tester.enterText(
+            find.byKey(const ValueKey('diary-manual-title')),
+            'A quiet afternoon',
+          );
+          await tester.tap(
+            find.byKey(const ValueKey('diary-manual-mood-calm')),
+          );
+          await tester.enterText(
+            find.byKey(const ValueKey('diary-manual-themes')),
+            'outdoors, rest',
+          );
+          await tester.tap(find.byKey(const ValueKey('diary-manual-save')));
+          await tester.pumpAndSettle();
+          final saved = app.diary.getDay('2026-10-24')!;
+          expect(saved.dayTitle, 'A quiet afternoon');
+          expect(decodeDayMood(saved.dayMood), DiaryCalendarMood.calm);
+          expect(saved.themes, ['outdoors', 'rest']);
+          // ObjectBox's native watch events arrive outside the fake frame clock.
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Title: A quiet afternoon'), findsOneWidget);
+          expect(find.text('Themes: outdoors, rest'), findsOneWidget);
+          final scope = ProviderScope.containerOf(
+            tester.element(find.byType(DiaryDetailsPage)),
+          );
+          expect(scope.read(noteSummaryProvider).handle, isNull);
+          await _capture(tester, 'diary-details-offline');
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        app.container.dispose();
+      },
+    );
+  }
+
   for (final layout in [
     (name: 'light', dark: false, scale: 1.0, size: const Size(390, 844)),
     (name: 'large-dark', dark: true, scale: 2.0, size: const Size(320, 568)),
@@ -356,7 +442,7 @@ void main() {
       );
       final another = find.byKey(const ValueKey('daily-question-another'));
       expect(tester.widget<DiaryInkAction>(another).label, 'Another question');
-      // Not connected: every action rests and the page offers to connect.
+      // Not connected: AI actions rest and the page offers to connect.
       expect(tester.widget<DiaryInkAction>(another).onPressed, isNull);
       expect(tester.widget<DiaryInkAction>(_microphone).onPressed, isNull);
       expect(
