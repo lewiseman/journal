@@ -3,6 +3,7 @@ import hashlib
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 import release_android as release
@@ -27,7 +28,7 @@ class FakeGitHub:
         if method == "PATCH":
             return {"id": 12, "html_url": "https://github.com/lewiseman/journal/releases/tag/v0.1.0+2"}
         if endpoint == "releases/latest":
-            return {"id": 12, "assets": [{"name": "journal.apk"}]}
+            return {"id": 12, "assets": [{"name": event[1]} for event in self.events if event[0] == "UPLOAD"]}
         raise AssertionError((method, endpoint))
 
     def upload(self, release_id, file):
@@ -51,12 +52,14 @@ class ReleaseTests(unittest.TestCase):
                    "sdkVersion:'29'\nnative-code: 'arm64-v8a'\n")
         with tempfile.TemporaryDirectory() as directory:
             apk = Path(directory) / "journal.apk"
-            apk.write_bytes(b"verified APK fixture")
+            with zipfile.ZipFile(apk, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("lib/arm64-v8a/libfixture.so", b"native library fixture" * 50)
             with patch.object(release, "run", side_effect=[signature, badging]):
                 info = release.inspect_apk(apk, Path(directory), "0.1.0", 2)
             self.assertEqual(info["sha256"], hashlib.sha256(apk.read_bytes()).hexdigest())
             self.assertEqual(info["architectures"], ["arm64-v8a"])
             self.assertEqual(info["minSdk"], 29)
+            self.assertTrue(info["nativeLibraryCompression"])
             self.assertEqual(info["sizeBytes"], apk.stat().st_size)
             for invalid in (badging.replace("versionCode='2'", "versionCode='1'"),
                             badging.replace("com.lewiseman.journal", "com.other.app"),
@@ -64,6 +67,11 @@ class ReleaseTests(unittest.TestCase):
                 with self.subTest(badging=invalid), patch.object(release, "run", side_effect=[signature, invalid]):
                     with self.assertRaises(release.ReleaseError):
                         release.inspect_apk(apk, Path(directory), "0.1.0", 2)
+            with zipfile.ZipFile(apk, "w", compression=zipfile.ZIP_STORED) as archive:
+                archive.writestr("lib/arm64-v8a/libfixture.so", b"uncompressed native library")
+            with patch.object(release, "run", side_effect=[signature, badging]):
+                with self.assertRaisesRegex(release.ReleaseError, "must be compressed"):
+                    release.inspect_apk(apk, Path(directory), "0.1.0", 2)
 
     def test_debug_key_is_rejected(self):
         with patch.object(release, "run", return_value="Signer #1 certificate DN: CN=Android Debug, O=Android"):

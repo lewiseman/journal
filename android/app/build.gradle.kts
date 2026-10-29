@@ -45,6 +45,14 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
+    // GitHub distributes APKs directly, without Play's download compression.
+    // Compress native libraries for transfer; Android extracts them on install.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 kotlin {

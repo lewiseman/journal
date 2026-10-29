@@ -1,5 +1,9 @@
 // Delete this file and its apply line to remove QVAC from Android.
 def qvacReady = file('src/qvac/libs/bare-kit.jar').exists()
+def splitPerAbi = project.findProperty('split-per-abi')?.toString()?.toBoolean() ?: false
+if (qvacReady && splitPerAbi && project.findProperty('target-platform')?.toString() != 'android-arm64') {
+    throw new GradleException('QVAC supports arm64-v8a only. Build with --split-per-abi --target-platform=android-arm64.')
+}
 if (qvacReady) project.ext.set('disable-abi-filtering', true)
 android {
     sourceSets {
@@ -13,7 +17,8 @@ android {
     if (qvacReady) {
         defaultConfig {
             minSdkVersion 29
-            ndk { abiFilters.clear(); abiFilters.add('arm64-v8a') }
+            // Gradle forbids NDK ABI filters alongside APK ABI splits.
+            ndk { abiFilters.clear(); if (!splitPerAbi) abiFilters.add('arm64-v8a') }
         }
     }
 }

@@ -18,10 +18,13 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "lewiseman/journal"
-DOWNLOAD_URL = f"https://github.com/{REPOSITORY}/releases/latest/download/journal.apk"
+APK_NAME = "journal-arm64-v8a.apk"
+DOWNLOAD_URL = f"https://github.com/{REPOSITORY}/releases/latest/download/{APK_NAME}"
+LEGACY_DOWNLOAD_URL = f"https://github.com/{REPOSITORY}/releases/latest/download/journal.apk"
 
 
 class ReleaseError(Exception):
@@ -131,12 +134,17 @@ def inspect_apk(apk, tools, version_name, build_number):
     abis = re.findall(r"'([^']+)'", native[1])
     if abis != ["arm64-v8a"]:
         raise ReleaseError(f"Expected the QVAC Android arm64 build, got {abis}.")
+    with zipfile.ZipFile(apk) as archive:
+        libraries = [entry for entry in archive.infolist()
+                     if entry.filename.startswith("lib/") and entry.filename.endswith(".so")]
+        if not libraries or any(entry.compress_type != zipfile.ZIP_DEFLATED for entry in libraries):
+            raise ReleaseError("Native libraries must be compressed for the direct-download APK.")
     hasher = hashlib.sha256()
     with apk.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             hasher.update(chunk)
     return {"sizeBytes": apk.stat().st_size, "sha256": hasher.hexdigest(),
-            "minSdk": int(sdk[1]), "architectures": abis,
+            "minSdk": int(sdk[1]), "architectures": abis, "nativeLibraryCompression": True,
             "signingCertificateSha256": certificate[1]}
 
 
@@ -167,7 +175,7 @@ def publish(client, tag, source_commit, files, notes):
     release = client.api("PATCH", f"releases/{release['id']}",
                          {"draft": False, "prerelease": False, "make_latest": "true", "body": notes})
     latest = client.api("GET", "releases/latest")
-    if latest["id"] != release["id"] or not any(a["name"] == "journal.apk" for a in latest["assets"]):
+    if latest["id"] != release["id"] or not {file.name for file in files}.issubset({a["name"] for a in latest["assets"]}):
         raise ReleaseError("Release published, but it is not the latest APK release. Check GitHub before deploying the website.")
     print(f"Published: {release['html_url']}")
 
@@ -227,11 +235,13 @@ def main():
     run("npm", "ci", cwd=ROOT / "native/qvac")
     run("npm", "run", "check", cwd=ROOT / "native/qvac")
     run("npm", "run", "build", "--", "--platform=android", cwd=ROOT / "native/qvac")
-    run("flutter", "build", "apk", "--release", "--target-platform=android-arm64",
+    run("flutter", "build", "apk", "--release", "--split-per-abi", "--target-platform=android-arm64",
+        "--android-project-arg=force-version-code-ignoring-abi=true",
         "--dart-define-from-file=env.json", f"--build-name={version_name}", f"--build-number={build_number}")
-    apk = ROOT / "build/app/outputs/flutter-apk/app-release.apk"
+    apk = ROOT / "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
     metadata = {"version": version_name, "buildNumber": build_number, "tag": tag,
-                "downloadUrl": DOWNLOAD_URL, "sourceCommit": source_commit,
+                "downloadUrl": DOWNLOAD_URL, "legacyDownloadUrl": LEGACY_DOWNLOAD_URL,
+                "artifactName": APK_NAME, "buildType": "split-per-abi", "sourceCommit": source_commit,
                 "sourceDirty": dirty, **inspect_apk(apk, tools, version_name, build_number)}
     if client and (run("git", "status", "--porcelain", capture=True)
                    or run("git", "rev-parse", "HEAD", capture=True) != source_commit):
@@ -240,26 +250,34 @@ def main():
         raise ReleaseError("Signing certificate differs from the latest release. Restore the original release key so users can update.")
     output = ROOT / "build/releases" / tag
     output.mkdir(parents=True, exist_ok=True)
-    artifact = output / "journal.apk"
+    artifact = output / APK_NAME
     shutil.copy2(apk, artifact)
-    checksum = output / "journal.apk.sha256"
-    checksum.write_text(f"{metadata['sha256']}  journal.apk\n")
+    checksum = output / f"{APK_NAME}.sha256"
+    checksum.write_text(f"{metadata['sha256']}  {APK_NAME}\n")
+    # Preserve permanent links from the first release. Both names are the same APK.
+    legacy_artifact = output / "journal.apk"
+    shutil.copy2(artifact, legacy_artifact)
+    legacy_checksum = output / "journal.apk.sha256"
+    legacy_checksum.write_text(f"{metadata['sha256']}  journal.apk\n")
     manifest = output / "release.json"
     manifest.write_text(json.dumps(metadata, indent=2) + "\n")
     notes = args.notes_file.read_text() if args.notes_file else (
         f"Journal {version_name} (build {build_number}) for Android.\n\n"
-        "Download **journal.apk** below and open it on your phone. Allow your browser or file manager to install apps if Android asks.\n\n"
+        f"Download **{APK_NAME}** below and open it on your phone. Allow your browser or file manager to install apps if Android asks.\n\n"
         f"- Android API {metadata['minSdk']}+; 64-bit ARM (arm64-v8a).\n"
         f"- Download: {metadata['sizeBytes'] / 1_000_000:.1f} MB.\n"
+        "- Built with ABI splitting and compressed native libraries for a smaller download. Android extracts the libraries at install time, using additional device storage.\n"
+        "- QVAC currently supports ARM64 only; ARM32 and x86_64 builds are unavailable.\n"
+        "- journal.apk is an identical compatibility copy for older download links; download only one APK.\n"
         "- Signed with Journal's existing release key; install future builds over this app to keep your journal.\n"
         "- AI model weights download separately when selected in the app.\n"
         "- Google Drive backup requires Google sign-in.\n\n"
         f"Source: `{source_commit}`.\n\n"
-        "Verify the download with `shasum -a 256 -c journal.apk.sha256`.\n")
+        f"Verify the download with `shasum -a 256 -c {APK_NAME}.sha256`.\n")
     (output / "release-notes.md").write_text(notes)
     print(f"Verified signed APK: {artifact}\nSHA-256: {metadata['sha256']}", flush=True)
     if client:
-        publish(client, tag, source_commit, [artifact, checksum, manifest], notes)
+        publish(client, tag, source_commit, [artifact, checksum, legacy_artifact, legacy_checksum, manifest], notes)
     # Build-only mode prepares the matching marketing change for review too.
     # Publish the APK before deploying these website files.
     if (args.site_dir / "src/site.js").is_file():

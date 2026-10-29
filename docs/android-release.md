@@ -1,14 +1,39 @@
 # Android releases
 
 Journal is distributed from the public `lewiseman/journal` GitHub repository.
-The permanent download URL is:
+The ARM64 download URL is:
 
-<https://github.com/lewiseman/journal/releases/latest/download/journal.apk>
+<https://github.com/lewiseman/journal/releases/latest/download/journal-arm64-v8a.apk>
 
-Every published release contains `journal.apk`, `journal.apk.sha256`, and
-`release.json`. The APK includes the native QVAC runtime and its license notices;
+Every published release contains `journal-arm64-v8a.apk`, its `.sha256` file,
+and `release.json`. Identical `journal.apk` and `journal.apk.sha256` compatibility
+copies preserve the original permanent download links; download only one APK.
+The APK includes the native QVAC runtime and its license notices;
 AI model weights download separately. This build supports **Android 10+ on
 64-bit ARM phones (arm64-v8a)**.
+
+## ABI splits and download size
+
+The script uses `--split-per-abi --target-platform=android-arm64`. The current
+QVAC/BareKit native runtime supports ARM64 only, so the build deliberately emits
+one supported split. ARM32 and x86_64 packages would be missing the AI runtime;
+the Gradle configuration rejects those split targets while QVAC is enabled.
+
+The first release was already ARM64-only. ABI splitting alone cannot remove
+more architectures from it. To reduce direct GitHub downloads, Gradle now
+compresses native `.so` libraries (`packaging.jniLibs.useLegacyPackaging = true`).
+Android extracts those libraries during installation. The transfer is smaller,
+but installed storage includes both the compressed APK and extracted libraries;
+this does not reduce the native runtime's memory use or model download sizes.
+The verified 0.1.1 build is **126.1 MB**, versus **333.5 MB** for 0.1.0
+(**62.2% smaller**). All 55 native libraries have identical uncompressed contents.
+
+The script passes
+`--android-project-arg=force-version-code-ignoring-abi=true` so Flutter's default
+per-ABI version-code offset does not change Journal's build-number scheme.
+For example, `0.1.1+3` stays Android version code **3** and updates `0.1.0+2`.
+Artifact validation checks the actual version code, architecture, signature,
+and that every packaged native library is compressed.
 
 ## Local prerequisites
 
@@ -43,7 +68,7 @@ python3 scripts/release_android.py
 
 This reads the version from `pubspec.yaml`, runs the app and sync tests,
 reinstalls the locked native dependencies, rebuilds QVAC for Android, and builds
-a signed release APK with `env.json`. It verifies the signature, rejects the
+a signed ARM64 split APK with `env.json`. It verifies the signature, rejects the
 Android debug key, checks package/version/architecture, and calculates SHA-256.
 
 Output goes to `build/releases/vVERSION+BUILD/`. If the sibling `bookflip/`
@@ -54,7 +79,7 @@ location. Deploy the marketing update **after** publishing the matching APK.
 For a build with a version override without editing `pubspec.yaml`:
 
 ```sh
-python3 scripts/release_android.py --version 0.1.1+3
+python3 scripts/release_android.py --version 0.1.2+4
 ```
 
 `--skip-tests` is available when the same source has already passed the tests.
@@ -64,7 +89,7 @@ but publishing requires a clean, pushed app commit.
 
 ## Publish the next update
 
-1. Set `version: 0.1.1+3` in `pubspec.yaml`. **Always increase the number after
+1. Set `version: 0.1.2+4` in `pubspec.yaml`. **Always increase the number after
    `+`**: Android uses it to determine whether an APK is an update.
 2. Commit the app changes and push the current branch to GitHub.
 3. Run:
@@ -74,9 +99,9 @@ but publishing requires a clean, pushed app commit.
    ```
 
 The script verifies that the exact source commit exists on GitHub, then builds
-and verifies the APK. It creates a draft tagged `v0.1.1+3`, uploads the APK,
-checksum and public metadata, and publishes it as **Latest** only when all
-three uploads succeed. An interrupted upload leaves a draft; rerun the same
+and verifies the APK. It creates a draft tagged `v0.1.2+4`, uploads the APK,
+checksum, compatibility copies and public metadata, and publishes it as **Latest**
+only when all five uploads succeed. An interrupted upload leaves a draft; rerun the same
 command from the same commit to retry. Published versions are never overwritten.
 The build number must exceed the last published build, and the signing
 certificate must match, so existing users can install the update.
@@ -98,7 +123,7 @@ instructions and release history.
 
 ## Install and verify
 
-Download `journal.apk` from the website or GitHub release and open it on an
+Download `journal-arm64-v8a.apk` from the website or GitHub release and open it on an
 Android phone. If prompted, allow installation from the browser or file manager.
 Install later versions over the existing app to retain its local journal; do
 not uninstall first. A development APK signed with a different key cannot be
@@ -107,7 +132,7 @@ updated by a release APK.
 Download the checksum alongside the APK and run:
 
 ```sh
-shasum -a 256 -c journal.apk.sha256
+shasum -a 256 -c journal-arm64-v8a.apk.sha256
 ```
 
 The script verifies build/signature metadata and automated behavior. Actual
@@ -116,4 +141,5 @@ release-device smoke test. OAuth client IDs are compiled into the app, as Androi
 OAuth requires; keystore credentials and GitHub tokens stay on the build machine.
 
 References: [Flutter Android distribution](https://docs.flutter.dev/deployment/android),
+[Android native-library packaging](https://developer.android.com/reference/tools/gradle-api/8.1/com/android/build/api/variant/JniLibsApkPackaging),
 [GitHub Releases API](https://docs.github.com/en/rest/releases/releases).
