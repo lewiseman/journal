@@ -21,7 +21,10 @@ import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
 /** Runs the QVAC worker in a BareKit worklet and passes its IPC bytes to Dart. */
-class QvacWorklet : FlutterPlugin, Application.ActivityLifecycleCallbacks, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
+open class QvacWorklet(
+    private val channel: String = "journal/qvac",
+    private val asset: String = "worker.bundle",
+) : FlutterPlugin, Application.ActivityLifecycleCallbacks, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     private lateinit var methods: MethodChannel
     private lateinit var events: EventChannel
     private lateinit var context: Context
@@ -34,6 +37,12 @@ class QvacWorklet : FlutterPlugin, Application.ActivityLifecycleCallbacks, Metho
     companion object {
         @JvmStatic fun register(activity: Activity, engine: FlutterEngine) {
             val plugin = QvacWorklet()
+            engine.plugins.add(plugin)
+            plugin.activity = activity
+            activity.application.registerActivityLifecycleCallbacks(plugin)
+        }
+        @JvmStatic fun registerPeople(activity: Activity, engine: FlutterEngine) {
+            val plugin: QvacWorklet = PeopleWorklet()
             engine.plugins.add(plugin)
             plugin.activity = activity
             activity.application.registerActivityLifecycleCallbacks(plugin)
@@ -71,9 +80,9 @@ class QvacWorklet : FlutterPlugin, Application.ActivityLifecycleCallbacks, Metho
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         attached = true
-        methods = MethodChannel(binding.binaryMessenger, "journal/qvac")
+        methods = MethodChannel(binding.binaryMessenger, channel)
         methods.setMethodCallHandler(this)
-        events = EventChannel(binding.binaryMessenger, "journal/qvac_ipc")
+        events = EventChannel(binding.binaryMessenger, "${channel}_ipc")
         events.setStreamHandler(this)
     }
 
@@ -155,8 +164,8 @@ class QvacWorklet : FlutterPlugin, Application.ActivityLifecycleCallbacks, Metho
         val worklet = Worklet(Worklet.Options())
         try {
             // Same argument shape as QVAC's Kotlin SDK: the JSON config must be third.
-            val args = arrayOf("journal/qvac", "worker.bundle", JSONObject().put("HOME_DIR", home).toString())
-            context.assets.open("worker.bundle").use { worklet.start("/worker.bundle", it, args) }
+            val args = arrayOf(channel, asset, JSONObject().put("HOME_DIR", home).toString())
+            context.assets.open(asset).use { worklet.start("/$asset", it, args) }
         } catch (e: Throwable) {
             worklet.terminate()
             throw e
@@ -231,3 +240,6 @@ class QvacWorklet : FlutterPlugin, Application.ActivityLifecycleCallbacks, Metho
         return out
     }
 }
+
+// FlutterEngine keys plugins by concrete class; these must be distinct plugins.
+class PeopleWorklet : QvacWorklet("journal/people", "people.bundle")

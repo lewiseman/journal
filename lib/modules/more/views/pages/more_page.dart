@@ -6,6 +6,8 @@ import 'package:journal/modules/more/views/widgets/more_index_entry.dart';
 import 'package:journal/modules/more/views/widgets/more_material.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/settings/companion/companion_page.dart';
+import 'package:journal/modules/people/people_pages.dart';
+import 'package:journal/modules/more/views/widgets/people_artwork.dart';
 
 class MorePage extends ConsumerStatefulWidget {
   const new({super.key});
@@ -87,6 +89,14 @@ class _MorePageState extends ConsumerState<MorePage> {
                                 artwork: MoreEntryArtwork.appearance,
                                 onTap: () =>
                                     context.nav.push(const AppearancePage()),
+                              ),
+                              MoreIndexEntry(
+                                key: const ValueKey('more-people'),
+                                title: 'People',
+                                description: 'Friends and disappearing notes',
+                                illustration: const PeopleEntryArtwork(),
+                                onTap: () =>
+                                    context.nav.push(const PeoplePage()),
                               ),
                               MoreIndexEntry(
                                 title: 'Local QVAC',

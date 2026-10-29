@@ -7,7 +7,9 @@
   },
   "scripts": {
     "build": "node build.mjs",
-    "check": "node --check entry.mjs && node --check build.mjs"
+    "check": "node --check entry.mjs && node --check build.mjs && node --check people/entry.mjs",
+    "test:people": "node --test people/*.test.mjs",
+    "test:people:bare": "bare people/bare-smoke.mjs"
   },
   "dependencies": {
     "@qvac/fabric-android-arm64": "0.22.0",
@@ -16,7 +18,10 @@
     "@qvac/sdk": "0.22.0",
     "bare-link": "4.0.1",
     "bare-pack": "2.0.1",
-    "bare-rpc": "1.3.2"
+    "bare-rpc": "1.3.2",
+    "hyperdht": "6.35.0",
+    "b4a": "1.9.0",
+    "sodium-universal": "5.0.1"
   },
   "overrides": {
     "zod": "4.6.6"

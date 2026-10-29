@@ -15,6 +15,11 @@ android {
         }
     }
     if (qvacReady) {
+        buildTypes {
+            release {
+                proguardFile project.file('barekit-rules.pro')
+            }
+        }
         defaultConfig {
             minSdkVersion 29
             // Gradle forbids NDK ABI filters alongside APK ABI splits.

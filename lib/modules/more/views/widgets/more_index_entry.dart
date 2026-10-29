@@ -17,16 +17,18 @@ class MoreIndexEntry extends StatelessWidget {
     super.key,
     required this.title,
     this.description,
-    required this.artwork,
+    this.artwork,
+    this.illustration,
     required this.onTap,
     this.status,
     this.connected = false,
     this.showDivider = true,
-  });
+  }) : assert(artwork != null || illustration != null);
 
   final String title;
   final String? description;
-  final MoreEntryArtwork artwork;
+  final MoreEntryArtwork? artwork;
+  final Widget? illustration;
   final VoidCallback onTap;
   final String? status;
   final bool connected;
@@ -155,12 +157,14 @@ class MoreIndexEntry extends StatelessWidget {
     );
   }
 
-  Widget _image() => Image.asset(
-    artwork.asset,
-    fit: BoxFit.contain,
-    filterQuality: FilterQuality.medium,
-    excludeFromSemantics: true,
-  );
+  Widget _image() =>
+      illustration ??
+      Image.asset(
+        artwork!.asset,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        excludeFromSemantics: true,
+      );
 }
 
 class _EntryWashPainter extends CustomPainter {

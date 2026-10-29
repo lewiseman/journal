@@ -22,6 +22,11 @@ on startup/manual primary sync or after reclaiming the primary role.
 
 ## More
 
+**People** opens friends, QR/text invitations, and disappearing P2P notes on
+Android. Both apps must be open. Notes exist in memory only and disappear after
+a text-length reading timer, on closing, or when Journal leaves the foreground.
+See [People setup, privacy and the device release gate](docs/people.md).
+
 More keeps the app's normal screen background, with bookcloth texture confined
 to the account card and subtle ink washes behind the illustrated
 entries for Appearance and Local QVAC. It opens directly on the account

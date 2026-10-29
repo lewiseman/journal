@@ -31,10 +31,19 @@ execFileSync(process.execPath, [path.join(root, 'node_modules/bare-pack/bin.js')
   ...platforms.flatMap(p => hosts[p]).flatMap(h => ['--host', h]), '--linked', '--imports', path.join(sdkPath, 'bare-imports.json'),
   '--out', bundleFile, path.join(root, 'entry.mjs')], { stdio: 'inherit' })
 const bundle = await readFile(bundleFile)
+// People shares BareKit and addon versions, but runs in an independent worklet.
+const peopleEntry = path.join(root, 'people/entry.mjs')
+const peopleBundle = path.join(root, 'qvac/people.bundle')
+execFileSync(process.execPath, [path.join(root, 'node_modules/bare-pack/bin.js'),
+  '--host', 'android-arm64', '--linked', '--imports', path.join(sdkPath, 'bare-imports.json'),
+  '--out', peopleBundle, peopleEntry], { stdio: 'inherit' })
 for (const platform of platforms) {
   const out = path.join(root, 'qvac', platform, 'addons')
   await rm(out, { recursive: true, force: true })
   for await (const _ of link(path.join(root, 'entry.mjs'), { hosts: hosts[platform], out }));
+  if (platform === 'android') {
+    for await (const _ of link(peopleEntry, { hosts: hosts.android, out }));
+  }
 }
 const url = 'https://github.com/holepunchto/bare-kit/releases/download/v2.5.5/prebuilds.zip'
 const expected = 'fc68740347c8532ba49d45bf61fae9ca1f1040dc7d6c99f2f92dc30c40e84e46'
@@ -57,6 +66,7 @@ await cp(path.join(kit, 'android/bare-kit/jni/arm64-v8a'), path.join(android, 'j
 await cp(path.join(kit, 'android/bare-kit/classes.jar'), path.join(android, 'libs/bare-kit.jar'))
 await mkdir(path.join(android, 'assets'), { recursive: true })
 await writeFile(path.join(android, 'assets/worker.bundle'), bundle)
+await cp(peopleBundle, path.join(android, 'assets/people.bundle'))
 if (platforms.includes('ios')) {
   const frameworks = path.join(app, 'ios/Frameworks/Qvac')
   await rm(frameworks, { recursive: true, force: true })

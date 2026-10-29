@@ -1,4 +1,5 @@
 import 'package:journal/modules/voice/controllers/voice_store.dart';
+import 'package:journal/modules/people/people_controller.dart';
 
 import 'dart:async';
 
@@ -89,6 +90,7 @@ final accountResetLocalDataProvider = Provider<AccountResetLocalData>(
     db: ref.watch(objectBoxProvider),
     clearSummaries: () => ref.read(summaryStoreProvider).clearAll(),
     clearVoice: () => VoiceStore().clearAll(),
+    clearPeople: () => ref.read(peopleControllerProvider.notifier).clear(),
   ),
 );
 final accountResetProvider =

@@ -41,6 +41,7 @@ dependencies:
   cryptography: 2.9.0
   flutter_secure_storage: 11.2.0
   mobile_scanner: 7.4.2
+  qr_flutter: 4.1.0
   bonsoir: 7.1.6
   flutter_tts: ^4.2.5
   webview_flutter: ^4.14.1
@@ -71,6 +72,7 @@ flutter:
   shaders:
     - shaders/wabi_sabi.frag
     - shaders/stacked_alpha.frag
+    - shaders/paper_burn.frag
   fonts:
     - family: Caveat
       fonts:

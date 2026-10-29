@@ -35,6 +35,15 @@ For example, `0.1.1+3` stays Android version code **3** and updates `0.1.0+2`.
 Artifact validation checks the actual version code, architecture, signature,
 and that every packaged native library is compressed.
 
+## Native worklets in release builds
+
+Release R8 optimization preserves the optional worklet registration methods,
+the distinct People plugin class, and BareKit's JNI classes/callbacks through
+`android/app/barekit-rules.pro`, applied by `qvac.gradle` when BareKit is bundled.
+Keep these rules when updating the adapter or runtime; a debug build does not
+exercise this shrinking boundary. Registration failures log only the feature
+and exception type under `JournalWorklet` (`adb logcat -s JournalWorklet`).
+
 ## Local prerequisites
 
 - Flutter matching `pubspec.lock` (currently Flutter 3.47.5 / Dart 3.13.4).

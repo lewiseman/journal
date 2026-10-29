@@ -12,6 +12,7 @@ import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/account/views/widgets/sync_card.dart';
 import 'package:journal/modules/account/views/pages/reset_account_page.dart';
 import 'package:journal/modules/more/views/pages/more_page.dart';
+import 'package:journal/modules/people/people_pages.dart';
 import 'package:journal/modules/more/views/widgets/more_index_entry.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
@@ -210,6 +211,8 @@ void main() {
     await _mount(tester, floatingAssistant: true);
     final button = find.byKey(const ValueKey('qvac-assistant-button'));
     await _collapseAccount(tester);
+    await tester.ensureVisible(find.text('Local QVAC'));
+    await tester.pumpAndSettle();
     expect(
       tester.getRect(button),
       tester.getRect(find.byType(QvacAssistantDock)),
@@ -244,7 +247,7 @@ void main() {
       expect(find.text('Local QVAC'), findsOneWidget);
       expect(find.text('No computer connected'), findsOneWidget);
       expect(find.text('Tasks'), findsNothing);
-      expect(find.text('People'), findsNothing);
+      expect(find.text('People'), findsOneWidget);
       expect(find.text('View all tasks'), findsNothing);
       expect(find.text('COMING SOON'), findsNothing);
       await _capture(tester, 'account');
@@ -256,6 +259,13 @@ void main() {
       expect(find.byType(AppearancePage), findsOneWidget);
       expect(find.text('Typography'), findsOneWidget);
       expect(find.text('Settings'), findsNothing);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('People'));
+      await tester.tap(find.text('People'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PeoplePage), findsOneWidget);
+      expect(find.text('Add friend'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Local QVAC'));

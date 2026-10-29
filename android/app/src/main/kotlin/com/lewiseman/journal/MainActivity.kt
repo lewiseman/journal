@@ -12,12 +12,14 @@ import android.os.Handler
 import android.os.Looper
 import android.net.Uri
 import android.provider.Settings
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileOutputStream
+import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : FlutterActivity() {
@@ -33,7 +35,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        runCatching { Class.forName("com.lewiseman.journal.qvac.QvacWorklet").getMethod("register", android.app.Activity::class.java, FlutterEngine::class.java).invoke(null, this, flutterEngine) }
+        registerWorklet(flutterEngine, "register", "QVAC")
+        registerWorklet(flutterEngine, "registerPeople", "People")
         LocalAiStorage.register(this, flutterEngine.dartExecutor.binaryMessenger)
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, "journal/pcm_events").setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink) { sink = events }
@@ -68,6 +71,19 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
+    private fun registerWorklet(engine: FlutterEngine, method: String, feature: String) {
+        runCatching {
+            Class.forName("com.lewiseman.journal.qvac.QvacWorklet")
+                .getMethod(method, android.app.Activity::class.java, FlutterEngine::class.java)
+                .invoke(null, this, engine)
+        }.onFailure { failure ->
+            val cause = if (failure is InvocationTargetException) failure.targetException else failure
+            // Fixed feature labels and exception type only: never log worker
+            // payloads, invitation secrets, peer keys or exception messages.
+            Log.e("JournalWorklet", "$feature registration failed (${cause.javaClass.simpleName})")
+        }
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 7301) {

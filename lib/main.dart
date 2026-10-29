@@ -10,6 +10,8 @@ import 'package:journal/modules/diary/photo_questions/diary_photo_question_contr
 import 'package:journal/modules/recall/recall_indexer.dart';
 import 'package:journal/modules/assistant/qvac_assistant.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
+import 'package:journal/modules/people/people_controller.dart';
+import 'package:journal/modules/people/people_pages.dart';
 
 final _assistantObserverProvider = Provider<NavigatorObserver>((ref) {
   // Account reset creates a new Navigator; its observer must be new as well.
@@ -23,7 +25,16 @@ void main() async {
   await CacheStorage.init();
   objectbox = await ObjectBox.create();
   await DeviceIdentityService.initialize();
-  runApp(ProviderScope(child: const Journal()));
+  runApp(
+    ProviderScope(
+      overrides: [
+        peopleAccessAllowedProvider.overrideWith(
+          (ref) => !ref.watch(accountResetProvider).blocksDataAccess,
+        ),
+      ],
+      child: const Journal(),
+    ),
+  );
 }
 
 class Journal extends ConsumerWidget {
@@ -32,6 +43,7 @@ class Journal extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(companionControllerProvider.select((_) => null));
+    ref.watch(peopleControllerProvider.select((_) => null));
     ref.watch(noteSummaryProvider.select((_) => null));
     // Opted in: keeps today's diary question requested while connected.
     if (ref.watch(dailyQuestionEnabledProvider)) {
@@ -66,7 +78,7 @@ class Journal extends ConsumerWidget {
           child: QvacAssistantHost(
             controller: assistant,
             navigatorKey: navigatorKey,
-            child: child!,
+            child: PeopleHost(navigatorKey: navigatorKey, child: child!),
           ),
         ),
       ),

@@ -1,4 +1,4 @@
-// Adapted from SebastianKumor/qvac_flutter (Apache-2.0). See ../LICENSE.
+// Adapted from SebastianKumor/qvac_flutter (Apache-2.0). See LICENSE in this directory.
 import 'dart:async';
 import 'dart:typed_data';
 
