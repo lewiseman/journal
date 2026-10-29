@@ -14,6 +14,7 @@ import '../images/note_background_gen.dart';
 import '../../presentation/website_contract.dart';
 import '../../diary/history/diary_history_contract.dart';
 import '../../diary/questions/daily_question_contract.dart';
+import '../../diary/photo_questions/diary_photo_question_contract.dart';
 import '../../diary/suggestions/diary_suggestion_contract.dart';
 import '../../flow/reflection/thought_reflection_contract.dart';
 
@@ -77,6 +78,9 @@ class SummaryHandle {
 
   /// I06 generated background for the saved note [noteId].
   bool get isNoteBackground => operation == noteBackgroundOperation;
+
+  /// I02 questions about one diary photo. [noteId] holds the photo's SHA-256.
+  bool get isDiaryPhoto => operation == diaryPhotoQuestionOperation;
 
   /// Diary tasks keyed by a civil date rather than a note UUID.
   bool get isDiaryDay => isDiarySuggestion || isDailyQuestion || isDiaryAnswer;
@@ -153,7 +157,10 @@ class SummaryHandle {
             !handle.isNoteScan &&
             !handle.isNoteBackground &&
             !handle.isThoughtReflection &&
+            !handle.isDiaryPhoto &&
             handle.operation != 'summarize-note') ||
+        (handle.isDiaryPhoto &&
+            !RegExp(r'^[a-f0-9]{64}$').hasMatch(handle.noteId)) ||
         (handle.isNoteIdeas && handle.noteId != noteIdeasKey) ||
         (handle.isDiaryDay &&
             !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(handle.noteId)) ||
@@ -204,6 +211,11 @@ class SummaryHandle {
         }
       } else if (handle.isNoteIdeas) {
         NoteIdeaSource.decode(handle.localSource!);
+      } else if (handle.isDiaryPhoto) {
+        if (DiaryPhotoQuestionSource.decode(handle.localSource!).photoSha !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
       } else if (handle.isDiaryAnswer) {
         if (DiaryHistorySelection.decode(handle.localSource!).today !=
             handle.noteId) {

@@ -1,3 +1,4 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -111,9 +112,19 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
             : NotePresentationMode.website);
     final readOnly =
         ref.watch(syncDeviceRoleProvider) == SyncDeviceRole.secondary;
+    final controller = ref.read(noteSummaryProvider.notifier);
     final busyElsewhere = handle != null && !websiteTask && !markdownTask;
     return NoteAiScaffold(
       tool: NoteAiTool.presentation,
+      loading: !busyElsewhere && noteAiIsLoading(state.phase, busy: state.busy)
+          ? NoteAiLoading(
+              tool: NoteAiTool.presentation,
+              phase: state.phase,
+              onCancel: handle != null && !state.busy && !state.terminal
+                  ? controller.cancel
+                  : null,
+            )
+          : null,
       step: state.text != null && !busyElsewhere
           ? 2
           : state.busy
@@ -273,7 +284,10 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
               if (snapshot.connectionState != ConnectionState.done) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: LinearProgressIndicator(),
+                  child: NoteAiLoading(
+                    tool: NoteAiTool.presentation,
+                    phase: 'preparing',
+                  ),
                 );
               }
               if (html == null) {
@@ -385,7 +399,6 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
   List<Widget> _taskControls(NoteSummaryState state) {
     final controller = ref.read(noteSummaryProvider.notifier);
     return [
-      if (state.busy) const LinearProgressIndicator(),
       if (state.message != null)
         Padding(
           padding: const EdgeInsets.only(top: 8),

@@ -47,6 +47,7 @@ class DiaryPhotoStories {
         DiaryPhotoDraft draft,
         String caption,
         List<DiaryPhotoReflection> reflections,
+        String seen,
       })
     >
     photos,
@@ -86,8 +87,11 @@ class DiaryPhotoStories {
                   DiaryPhotoReflection(
                     question: reflection.question,
                     answer: reflection.answer.trim(),
+                    group: reflection.group,
+                    fromPhoto: reflection.fromPhoto,
                   ),
             ],
+            seen: photo.seen.trim(),
           ),
         );
       }

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -10,39 +9,17 @@ import 'package:journal/config/theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
-import 'package:journal/modules/notes/transform/note_writing_voice.dart';
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/transform/transform_page.dart';
-import 'package:journal/modules/root/controllers/sync_providers.dart';
 
 import 'note_summary_test.dart' as summary;
 import 'note_transform_test.dart' show writingContainer;
 import 'support/sync_fixture.dart';
 
-class _Voice implements NoteWritingVoice {
-  final spoken = <String>[];
-  Completer<void>? reading;
-  int stops = 0;
-
-  @override
-  Future<void> speak(String text) {
-    spoken.add(text);
-    reading = Completer<void>();
-    return reading!.future;
-  }
-
-  @override
-  Future<void> stop() async {
-    stops++;
-    if (reading?.isCompleted == false) reading!.complete();
-    reading = null;
-  }
-}
-
 typedef _Harness = ({
   SyncFixture app,
   ProviderContainer scope,
   summary.SummaryTransport wire,
-  _Voice voice,
 });
 const _original = 'First sentence. second sentense. Last sentence.';
 const _replacement = 'First sentence. Second sentence. Last sentence.';
@@ -58,6 +35,7 @@ Future<_Harness> _mount(
   WidgetTester tester, {
   bool dark = false,
   double scale = 1,
+  String phase = 'completed',
 }) async {
   tester.view.physicalSize = scale > 1
       ? const Size(320, 568)
@@ -71,9 +49,10 @@ Future<_Harness> _mount(
   ))!;
   app.notes.saveNote(uuid: 'chosen', title: 'A note', content: _original);
   final store = summary.MemorySummaries();
-  final wire = summary.SummaryTransport(store)..output = _replacement;
+  final wire = summary.SummaryTransport(store)
+    ..output = _replacement
+    ..phase = phase;
   final scope = writingContainer(app, store, wire);
-  final voice = _Voice();
   scope.read(noteSummaryProvider);
   await tester.runAsync(summary.settle);
   await tester.pumpWidget(
@@ -98,8 +77,7 @@ Future<_Harness> _mount(
               body: TextButton(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) =>
-                        NoteTransformPage(noteId: 'chosen', voice: voice),
+                    builder: (_) => const NoteTransformPage(noteId: 'chosen'),
                   ),
                 ),
                 child: const Text('Open writing'),
@@ -117,7 +95,7 @@ Future<_Harness> _mount(
     scope.dispose();
     app.container.dispose();
   });
-  return (app: app, scope: scope, wire: wire, voice: voice);
+  return (app: app, scope: scope, wire: wire);
 }
 
 Future<void> _tap(WidgetTester tester, Finder target) async {
@@ -185,6 +163,7 @@ void main() {
       final h = await _mount(tester);
       await _capture(tester, 'choose');
       expect(find.byType(TextField), findsNothing);
+      expect(find.text('Listen'), findsNothing);
       expect(find.text('Choose part of the note'), findsNothing);
       await _tap(
         tester,
@@ -252,27 +231,6 @@ void main() {
     expect(h.app.notes.getNoteByUuid('chosen')!.content, _original);
   });
 
-  testWidgets(
-    'Listen reads choices and previews and stops when leaving the page',
-    (tester) async {
-      final h = await _mount(tester);
-      await _tap(tester, find.byKey(const ValueKey('writing-listen-choices')));
-      expect(h.voice.spoken.single, contains('Choose a picture'));
-      expect(find.text('Stop'), findsOneWidget);
-      await _tap(tester, find.byKey(const ValueKey('writing-listen-choices')));
-      expect(h.voice.reading, isNull);
-      await _preview(tester);
-      await _tap(tester, find.byKey(const ValueKey('writing-listen-preview')));
-      expect(h.voice.spoken.last, _replacement);
-      final stops = h.voice.stops;
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
-      expect(h.voice.stops, greaterThan(stops));
-      expect(h.voice.reading, isNull);
-      expect(h.app.notes.getNoteByUuid('chosen')!.content, _original);
-      expect(tester.takeException(), isNull);
-    },
-  );
   testWidgets('tone controls remain usable on a small screen with large text', (
     tester,
   ) async {
@@ -283,14 +241,25 @@ void main() {
     expect(find.byType(TextField), findsNothing);
     expect(tester.takeException(), isNull);
   });
-
-  testWidgets('account reset stops an active reading', (tester) async {
-    final h = await _mount(tester);
-    await _tap(tester, find.byKey(const ValueKey('writing-listen-choices')));
-    expect(h.voice.reading, isNotNull);
-    (h.scope.read(accountResetProvider.notifier) as summary.TestReset).block();
-    await tester.pumpAndSettle();
-    expect(h.voice.reading, isNull);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'a running preview uses the loading page and Stop keeps the original',
+    (tester) async {
+      final h = await _mount(tester, phase: 'running');
+      await _preview(tester);
+      expect(find.byType(NoteAiLoading), findsOneWidget);
+      expect(find.text('Listen'), findsNothing);
+      expect(find.byKey(const ValueKey('transform-output')), findsNothing);
+      await _capture(tester, 'loading');
+      final stop = find.widgetWithText(TextButton, 'Stop');
+      await tester.runAsync(() async {
+        await tester.tap(stop);
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+      });
+      await tester.pumpAndSettle();
+      expect(find.byType(NoteAiLoading), findsNothing);
+      expect(h.scope.read(noteSummaryProvider).phase, 'cancelled');
+      expect(h.app.notes.getNoteByUuid('chosen')!.content, _original);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

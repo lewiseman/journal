@@ -5,6 +5,7 @@ import 'package:journal/modules/root/views/widgets/account_reset_gate.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/diary/questions/daily_question_controller.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_controller.dart';
 import 'package:journal/modules/recall/recall_indexer.dart';
 import 'package:journal/modules/assistant/qvac_assistant.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
@@ -35,6 +36,8 @@ class Journal extends ConsumerWidget {
     if (ref.watch(dailyQuestionEnabledProvider)) {
       ref.watch(dailyQuestionProvider.select((_) => null));
     }
+    // Keeps finished diary photo questions even after their page closed.
+    ref.watch(diaryPhotoQuestionProvider.select((_) => null));
     // Keeps opted-in search-by-meaning vectors current while the app is open.
     ref.watch(recallIndexerProvider.select((_) => null));
     final themeMode = ref.watch(

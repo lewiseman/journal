@@ -14,6 +14,7 @@ import 'package:journal/modules/notes/transform/note_recovery_entity.dart';
 import 'package:journal/modules/notes/summary/summary_task_entity.dart';
 import 'package:journal/modules/diary/questions/daily_question_entity.dart';
 import 'package:journal/modules/diary/controllers/diary_photo_store.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_store.dart';
 import 'package:journal/modules/flow/reflection/thought_reflection_entity.dart';
 import 'package:journal/modules/recall/recall_vector_entity.dart';
 
@@ -46,7 +47,11 @@ class JournalAccountResetData implements AccountResetLocalData {
     await clearSummaries();
     await clearVoice();
     final support = await supportDirectory();
-    for (final folder in ['note_backgrounds', DiaryPhotoStore.folder]) {
+    for (final folder in [
+      'note_backgrounds',
+      DiaryPhotoStore.folder,
+      DiaryPhotoQuestionStore.folder,
+    ]) {
       final mediaPath = p.join(support.path, folder);
       final type = await FileSystemEntity.type(mediaPath, followLinks: false);
       if (type == FileSystemEntityType.link) {

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/assistant/qvac_assistant.dart';
@@ -345,6 +346,49 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       app.container.dispose();
     });
+
+    testWidgets(
+      'a running draft uses the shared loading view and can be stopped',
+      (tester) async {
+        final app = await mount(tester);
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('note-assistant-template')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const ValueKey('note-draft-template-topic')),
+          'Meeting notes',
+        );
+        await tester.pump();
+        final start = find.byKey(const ValueKey('note-draft-template-start'));
+        await tester.scrollUntilVisible(
+          start.hitTestable(),
+          100,
+          scrollable: find
+              .descendant(
+                of: find.byType(NoteDraftTemplatePage),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        await tester.runAsync(() async {
+          await tester.tap(start);
+          await Future<void>.delayed(const Duration(milliseconds: 60));
+        });
+        await tester.pumpAndSettle();
+        expect(find.byType(NoteAiLoading), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('note-draft-cancel')));
+        await tester.pumpAndSettle();
+        expect(find.byType(NoteAiLoading), findsNothing);
+        expect(
+          find.byKey(const ValueKey('note-draft-template-topic')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        app.container.dispose();
+      },
+    );
 
     testWidgets('a template fills the draft and is dropped when discarded', (
       tester,

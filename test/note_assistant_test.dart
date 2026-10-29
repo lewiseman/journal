@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
+import 'package:journal/modules/notes/summary/summary_store.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +37,21 @@ class _Connection extends CompanionController {
 class _Summary extends NoteSummaryController {
   @override
   NoteSummaryState build() => const NoteSummaryState();
+
+  void running(String operation) => state = NoteSummaryState(
+    phase: 'running',
+    handle: SummaryHandle(
+      id: 'loading-preview',
+      noteId: 'selected-note',
+      revision: 'a' * 64,
+      computerId: 'computer',
+      created: DateTime.now().millisecondsSinceEpoch,
+      operation: operation,
+      accepted: true,
+    ),
+  );
+
+  void idle() => state = const NoteSummaryState();
 }
 
 final _button = find.byKey(const ValueKey('qvac-assistant-button'));
@@ -249,6 +266,43 @@ void main() {
         await tester.pumpAndSettle();
         expect(_menu, findsOneWidget);
         expect(tester.takeException(), isNull);
+      }
+      await _unmount(tester, app);
+    },
+  );
+
+  testWidgets(
+    'every saved-note tool shares the loading view while its task runs',
+    (tester) async {
+      final app = await _mount(tester, withImage: true);
+      final scope = ProviderScope.containerOf(
+        tester.element(find.byType(EditNotePage)),
+        listen: false,
+      );
+      final tasks = scope.read(noteSummaryProvider.notifier) as _Summary;
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      for (final entry in {
+        'summary': 'summarize-note',
+        'writing': 'rewrite-note',
+        'metadata': 'suggest-note-metadata',
+        'image': 'ask-note-image',
+        'scan': 'scan-note-image',
+        'background': 'generate-note-background',
+        'presentation': 'present-website',
+      }.entries) {
+        await _open(tester, entry.key);
+        tasks.running(entry.value);
+        await tester.pumpAndSettle();
+        expect(find.byType(NoteAiLoading), findsOneWidget, reason: entry.key);
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+        expect(find.text('Listen'), findsNothing);
+        tasks.idle();
+        await tester.pumpAndSettle();
+        expect(find.byType(NoteAiLoading), findsNothing);
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: entry.key);
       }
       await _unmount(tester, app);
     },

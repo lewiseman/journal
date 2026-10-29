@@ -135,6 +135,17 @@ Future<Uint8List> prepareNoteImage(NoteAttachment attachment) async {
   } catch (_) {
     throw _missing;
   }
+  return prepareImageBytes(bytes);
+}
+
+/// Re-encodes in-memory image [bytes] the same way as [prepareNoteImage].
+Future<Uint8List> prepareImageBytes(Uint8List bytes) async {
+  if (bytes.isEmpty || bytes.length > noteImageSourceBytes) {
+    throw const CompanionFailure(
+      'INVALID_IMAGE',
+      'This image is empty or larger than 40 MB. Nothing was sent.',
+    );
+  }
   if (!_looksLikeImage(bytes)) {
     throw const CompanionFailure(
       'INVALID_IMAGE',

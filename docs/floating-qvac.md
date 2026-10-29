@@ -26,11 +26,20 @@ reflect the companion's live transport phase, not model readiness.
   Opening a note tool expands the sheet to full height, including draft tools;
   the toolbox initially opens at its compact height. Expansion respects reduced motion.
   Writing help uses illustrated actions, a Choose → Preview → Use stepper,
-  whole-note previews, and optional read-aloud controls. Tone uses presets,
-  with no typing or passage selection. Presentation modes use icon-led choices;
+  and whole-note previews. Tone uses presets, with no typing or passage selection. Presentation modes use icon-led choices;
   background scenes and template purposes offer visual starting points. The
   pages omit About and sharing disclosures and earlier-version actions. Results
   still require explicit acceptance, and title/tag Undo retains its behavior.
+- Note AI tools share `NoteAiLoading`: a loop of layered notebook paper, ink,
+  and a pencil, with a tool stamp and the actual task phase. It replaces the
+  form while submitting, queued, running, or retrieving, and during preview
+  preparation. Loading never estimates a percentage or advances task stages
+  on a timer. The animation stops for reduced motion or an inactive route.
+  Stop uses each tool's existing cancellation path; failures restore the
+  page's retry controls. Writing help has no speech controls. Feature pages
+  supply the widget through `NoteAiScaffold.loading`; `noteAiIsLoading` maps
+  controller phases while leaving completed, cancelled, and failed tasks in
+  their normal review or retry view.
 - Saved-note tools require the editor to be closed with the note saved. Scanning
   and background generation retain their primary-device restriction. Tool cards
   switch to a single column on narrow screens or with large text, and the note

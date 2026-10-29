@@ -125,6 +125,8 @@ class SummaryHistoryPage extends ConsumerWidget {
                                   ? 'Page scan'
                                   : task.isNoteBackground
                                   ? 'Generated background'
+                                  : task.isDiaryPhoto
+                                  ? 'Photo questions'
                                   : transformOperations[task.operation] ?? 'Note summary'} · ${summaryPhaseLabel(phase)}',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),

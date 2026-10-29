@@ -19,6 +19,7 @@ typedef _Photo = ({
   DiaryPhotoDraft draft,
   String caption,
   List<DiaryPhotoReflection> reflections,
+  String seen,
 });
 
 _Photo _photo(int seed, {String caption = '', String answer = ''}) => (
@@ -32,12 +33,14 @@ _Photo _photo(int seed, {String caption = '', String answer = ''}) => (
     if (answer.isNotEmpty)
       DiaryPhotoReflection(question: 'Sample?', answer: answer),
   ],
+  seen: '',
 );
 
 _Photo _kept(DiaryPhoto photo, {String? caption}) => (
   draft: DiaryPhotoDraft(id: photo.id, path: photo.path, bytes: Uint8List(1)),
   caption: caption ?? photo.caption,
   reflections: photo.reflections,
+  seen: photo.seen,
 );
 
 void main() {

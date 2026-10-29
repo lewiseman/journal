@@ -2,15 +2,16 @@
 
 Photo stories are saved to the diary and can be reopened. Before this, the photo
 flow was preview-only. The I01 milestone needs no image inference and makes no
-desktop or companion changes. The reflection questions are still fixed sample
-prompts. Real photo questions are milestone I02.
+desktop or companion changes. The reflection questions were fixed sample
+prompts; I02 adds questions from the photo, see
+[diary-photo-questions.md](diary-photo-questions.md).
 
 ## Use
 
 1. On the diary page, tap the image action and choose photos.
 2. Choose **Just the photos**, or **Generate questions**. The reflection page
-   says "Sample questions for now · not drawn from your photos, and nothing is
-   sent."
+   starts with the usual questions; since I02, **Generate questions** also
+   asks the paired computer about each photo, one at a time.
 3. Read the entry. Then choose **Save to diary**. Only this button writes
    anything. Closing with **Close without saving**, going back, or leaving
    while the picker is open saves nothing and creates no files.

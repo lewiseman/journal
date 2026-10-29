@@ -28,6 +28,8 @@ import '../../presentation/website_contract.dart';
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/history/diary_history_contract.dart';
 import 'package:journal/modules/diary/questions/daily_question_contract.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_contract.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_store.dart';
 import 'package:journal/modules/diary/suggestions/diary_suggestion_contract.dart';
 import 'package:journal/modules/flow/controllers/thoughts_providers.dart';
 import 'package:journal/modules/flow/reflection/thought_reflection_contract.dart';
@@ -316,7 +318,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     unawaited(_source?.cancel());
     _source = null;
     _watchedNote = key;
-    if (handle != null) {
+    if (handle != null && !handle.isDiaryPhoto) {
       final Stream<Object?> stream = handle.isThoughtReflection
           ? ref.read(thoughtsRepositoryProvider).watchThoughts()
           : handle.isDiaryDay
@@ -406,6 +408,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           await hexHash(utf8.encode(source.encode())) == handle.revision;
     }
     if (handle.isNoteIdeas) return true;
+    // The saved upload is the snapshot; it is checked against its hash on retry.
+    if (handle.isDiaryPhoto) return true;
     if (handle.isNoteBackground) {
       final request = handle.localSource == null
           ? null
@@ -849,6 +853,75 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     }
   }
 
+  /// I02: reflection questions about one diary photo the user chose. Only the
+  /// re-encoded photo and its caption are sent. It writes no synced data, so
+  /// secondary devices may ask too. [photo] is the photo's saved bytes.
+  Future<void> startDiaryPhotoQuestions({
+    required String date,
+    required String photoSha,
+    required Uint8List photo,
+    String caption = '',
+  }) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      final computer = _capableComputer(
+        capabilityId: 'vision',
+        contractKey: 'photoContract',
+        contract: diaryPhotoQuestionContract,
+        operation: diaryPhotoQuestionOperation,
+        fallback: 'The usual questions are still here.',
+        update: 'Update the companion to ask about diary photos.',
+        notReady:
+            'Download Qwen3-VL and run the image self-test on your computer.',
+        notReadyCode: 'VISION_NOT_READY',
+      );
+      final image = await prepareImageBytes(photo);
+      final source = DiaryPhotoQuestionSource(
+        date: date,
+        photoSha: photoSha,
+        imageSha: await hexHash(image),
+        caption: DiaryPhotoQuestionSource.validateCaption(caption),
+      );
+      final id = const Uuid().v4();
+      // The exact upload is kept until the task is cleared, so a retry after
+      // an interrupted submission can resend it without the unsaved story.
+      await ref.read(diaryPhotoQuestionStoreProvider).writeUpload(id, image);
+      await _submitNew(
+        generation,
+        id: id,
+        noteId: photoSha,
+        local: source.encode(),
+        input: source.request(),
+        operation: diaryPhotoQuestionOperation,
+        computer: computer,
+      );
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
+  Future<Uint8List> _diaryPhotoUpload(SummaryHandle handle) async {
+    final source = DiaryPhotoQuestionSource.decode(handle.localSource!);
+    final image = await ref
+        .read(diaryPhotoQuestionStoreProvider)
+        .readUpload(handle.id);
+    if (image == null || await hexHash(image) != source.imageSha) {
+      throw const CompanionFailure(
+        'SOURCE_CHANGED',
+        'The photo prepared for this request is no longer on this phone. Nothing was sent; ask about the photo again.',
+      );
+    }
+    return image;
+  }
+
   /// I06: generate a background from the user's own description and tone.
   /// No note text is sent; nothing changes until the preview is accepted.
   Future<void> startNoteBackground(
@@ -1232,6 +1305,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
   /// Persists the retry identity and bounded input before any submission.
   Future<void> _submitNew(
     int generation, {
+    String? id,
     required String noteId,
     required String local,
     required String input,
@@ -1239,7 +1313,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     required TrustedComputer computer,
   }) async {
     final handle = SummaryHandle(
-      id: const Uuid().v4(),
+      id: id ?? const Uuid().v4(),
       noteId: noteId,
       revision: await hexHash(utf8.encode(local)),
       computerId: computer.id,
@@ -1735,6 +1809,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         if (!_alive(generation)) return;
         final image = handle.isNoteImage || handle.isNoteScan
             ? await _noteImageUpload(handle)
+            : handle.isDiaryPhoto
+            ? await _diaryPhotoUpload(handle)
             : null;
         if (!_alive(generation)) return;
         job = await _client.authenticated(
@@ -1827,9 +1903,12 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             handle.isNoteIdeas ||
             handle.isNoteImage ||
             handle.isNoteScan ||
-            handle.isNoteBackground)) {
+            handle.isNoteBackground ||
+            handle.isDiaryPhoto)) {
       try {
-        if (handle.isNoteBackground) {
+        if (handle.isDiaryPhoto) {
+          DiaryPhotoQuestions.parse(job['text'] as String);
+        } else if (handle.isNoteBackground) {
           NoteBackgroundResult.parse(job['text'] as String);
         } else if (handle.isNoteScan) {
           NoteScanResult.parse(job['text'] as String);
@@ -1976,6 +2055,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             ? noteImageOutputBytes
             : handle.isNoteScan
             ? noteScanOutputBytes
+            : handle.isDiaryPhoto
+            ? diaryPhotoQuestionOutputBytes
             : handle.isNoteBackground
             ? 1024
             : handle.isThoughtReflection
@@ -2139,6 +2220,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             handle.isNoteImage ||
             handle.isNoteScan ||
             handle.isNoteBackground ||
+            handle.isDiaryPhoto ||
             handle.isDiaryDay ||
             handle.isThoughtReflection) ||
         !state.terminal ||

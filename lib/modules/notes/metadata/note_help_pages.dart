@@ -1,3 +1,4 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,7 +53,6 @@ class _TaskControls extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (state.busy) const LinearProgressIndicator(),
         if (state.message != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -127,6 +127,17 @@ class _NoteMetadataPageState extends ConsumerState<NoteMetadataPage> {
     ];
     return NoteAiScaffold(
       tool: NoteAiTool.metadata,
+      loading:
+          (handle == null || (mine && handle.noteId == widget.noteId)) &&
+              noteAiIsLoading(state.phase, busy: state.busy)
+          ? NoteAiLoading(
+              tool: NoteAiTool.metadata,
+              phase: state.phase,
+              onCancel: handle != null && !state.busy && !state.terminal
+                  ? controller.cancel
+                  : null,
+            )
+          : null,
       step: suggestions != null
           ? 2
           : state.busy
@@ -311,6 +322,17 @@ class _NoteIdeasPageState extends ConsumerState<NoteIdeasPage> {
     final ideas = mine ? controller.noteIdeas() : null;
     return NoteAiScaffold(
       tool: NoteAiTool.ideas,
+      loading:
+          (handle == null || mine) &&
+              noteAiIsLoading(state.phase, busy: state.busy)
+          ? NoteAiLoading(
+              tool: NoteAiTool.ideas,
+              phase: state.phase,
+              onCancel: handle != null && !state.busy && !state.terminal
+                  ? controller.cancel
+                  : null,
+            )
+          : null,
       step: ideas != null
           ? 2
           : state.busy

@@ -10,6 +10,10 @@ typedef DiaryPhotoStory = ({
   Uint8List bytes,
   String caption,
   List<({String question, String answer})> reflections,
+
+  /// What the computer saw, when the person chose to keep it. Shown
+  /// labelled and apart from their own words.
+  String seen,
 });
 
 class DiaryPhotoEntryBook extends StatefulWidget {
@@ -186,6 +190,48 @@ class _DiaryPhotoEntryBookState extends State<DiaryPhotoEntryBook> {
                 fontStyle: FontStyle.italic,
                 height: 1.6,
                 color: palette.ink,
+              ),
+            ),
+          ),
+        if (story.seen.isNotEmpty)
+          Padding(
+            key: ValueKey('diary-entry-seen-$index'),
+            padding: const EdgeInsets.fromLTRB(9, 6, 9, 14),
+            child: Semantics(
+              label:
+                  'Seen in the photo, described by your computer: ${story.seen}',
+              excludeSemantics: true,
+              child: Container(
+                padding: const EdgeInsetsDirectional.only(start: 12),
+                decoration: BoxDecoration(
+                  border: BorderDirectional(
+                    start: BorderSide(
+                      color: palette.muted.withValues(alpha: .5),
+                    ),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SEEN IN THE PHOTO · DESCRIBED BY YOUR COMPUTER',
+                      style: TextStyle(
+                        fontSize: 9,
+                        letterSpacing: .8,
+                        color: palette.muted,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      story.seen,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: palette.muted,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

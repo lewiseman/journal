@@ -1,5 +1,4 @@
-import 'dart:async';
-
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:journal/modules/diary/history/diary_answer_page.dart';
@@ -19,14 +18,12 @@ import '../summary/summary_controller.dart';
 import '../summary/summary_history_page.dart';
 import '../summary/summary_page.dart';
 import '../views/widgets/note_ai_widgets.dart';
-import 'note_writing_voice.dart';
 import 'note_writing_widgets.dart';
 import 'transform_contract.dart';
 
 class NoteTransformPage extends ConsumerStatefulWidget {
-  const NoteTransformPage({super.key, this.noteId, this.voice});
+  const NoteTransformPage({super.key, this.noteId});
   final String? noteId;
-  final NoteWritingVoice? voice;
 
   @override
   ConsumerState<NoteTransformPage> createState() => _NoteTransformPageState();
@@ -35,10 +32,7 @@ class NoteTransformPage extends ConsumerStatefulWidget {
 class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
   late final String _body;
   late final String? _version;
-  late final _voice = widget.voice ?? PhoneNoteWritingVoice();
   String _operation = 'rewrite-note', _tone = 'friendly';
-  String? _speaking;
-  int _speechGeneration = 0;
   bool _showBefore = false, _applying = false;
 
   @override
@@ -51,56 +45,7 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
     _version = note?.versionVectorJson;
   }
 
-  @override
-  void dispose() {
-    _speechGeneration++;
-    unawaited(_voice.stop());
-    super.dispose();
-  }
-
-  Future<void> _stopSpeech() async {
-    _speechGeneration++;
-    if (mounted && _speaking != null) setState(() => _speaking = null);
-    await _voice.stop();
-  }
-
-  Future<void> _read(String id, String text) async {
-    final stopping = _speaking == id;
-    final generation = ++_speechGeneration;
-    setState(() => _speaking = stopping ? null : id);
-    try {
-      await _voice.stop();
-      if (!mounted || generation != _speechGeneration || stopping) return;
-      await _voice.speak(text);
-    } catch (_) {
-      if (mounted && generation == _speechGeneration) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Could not read aloud. Check your phone’s speech settings.',
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted && generation == _speechGeneration) {
-        setState(() => _speaking = null);
-      }
-    }
-  }
-
-  Widget _listen(String id, String text) => OutlinedButton.icon(
-    key: ValueKey('writing-listen-$id'),
-    onPressed: () => _read(id, text),
-    icon: Icon(
-      _speaking == id ? Icons.stop_rounded : Icons.volume_up_outlined,
-      size: 21,
-    ),
-    label: Text(_speaking == id ? 'Stop' : 'Listen'),
-  );
-
   Future<void> _start() async {
-    await _stopSpeech();
     if (!mounted || widget.noteId == null) return;
     await ref
         .read(noteSummaryProvider.notifier)
@@ -114,14 +59,12 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
   }
 
   Future<void> _clear() async {
-    await _stopSpeech();
     if (!mounted) return;
     setState(() => _showBefore = false);
     await ref.read(noteSummaryProvider.notifier).clear();
   }
 
   Future<void> _accept() async {
-    await _stopSpeech();
     if (!mounted || _applying) return;
     setState(() => _applying = true);
     try {
@@ -136,9 +79,6 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(accountResetProvider, (_, next) {
-      if (next.blocksDataAccess) unawaited(_stopSpeech());
-    });
     if (ref.watch(accountResetProvider).blocksDataAccess) {
       return const Scaffold(
         body: Center(child: Text('Account reset in progress.')),
@@ -196,6 +136,19 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
         !_applying;
     return NoteAiScaffold(
       tool: NoteAiTool.writing,
+      loading: _applying
+          ? const NoteAiLoading(tool: NoteAiTool.writing, phase: 'saving')
+          : !otherNote &&
+                (handle == null || mine) &&
+                noteAiIsLoading(state.phase, busy: state.busy)
+          ? NoteAiLoading(
+              tool: NoteAiTool.writing,
+              phase: state.phase,
+              onCancel: handle != null && !state.busy && !state.terminal
+                  ? controller.cancel
+                  : null,
+            )
+          : null,
       header: NoteWritingSteps(
         step: _applying
             ? 2
@@ -204,25 +157,11 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
             : 0,
       ),
       children: [
-        if (_applying && handle == null) ...[
-          const LinearProgressIndicator(),
-          const SizedBox(height: 12),
-          const Center(child: Text('Saving…')),
-        ],
         if (!_applying && handle == null && state.phase == 'idle') ...[
           if (widget.noteId != null && _version != null) ...[
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: _listen(
-                'choices',
-                'Choose a picture. Rewrite says the same thing in new words. Fix words corrects spelling and grammar. Add detail makes the note fuller. Change tone makes it friendly, simple, or formal. Organize adds headings and lists. Then tap Preview. Your whole note is used. You choose whether to keep the result.',
-              ),
-            ),
-            const SizedBox(height: 8),
             NoteWritingChoices(
               selected: _operation,
               onChanged: (value) {
-                unawaited(_stopSpeech());
                 setState(() => _operation = value);
               },
             ),
@@ -276,8 +215,6 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 16),
-            if (state.busy || ['queued', 'running'].contains(state.phase))
-              const LinearProgressIndicator(),
           ],
           if (state.stale)
             const Text(
@@ -296,7 +233,6 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
               },
               selected: before ? 'before' : 'after',
               onChanged: (value) {
-                unawaited(_stopSpeech());
                 setState(() => _showBefore = value == 'before');
               },
             ),
@@ -315,14 +251,9 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: _listen('preview', reading!),
-                  ),
-                  const SizedBox(height: 8),
                   // Both versions are inert text, including any Markdown.
                   SelectableText(
-                    reading,
+                    reading!,
                     key: ValueKey(
                       before ? 'transform-original' : 'transform-output',
                     ),
@@ -370,7 +301,6 @@ class _NoteTransformPageState extends ConsumerState<NoteTransformPage> {
             ),
           ],
         ],
-        if (state.busy && handle == null) const LinearProgressIndicator(),
         if (state.message != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),

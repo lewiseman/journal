@@ -1,3 +1,4 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 
 import 'dart:io';
@@ -485,6 +486,15 @@ class _DraftScaffold extends ConsumerWidget {
     final mine = state.tool == tool;
     return NoteAiScaffold(
       tool: NoteAiTool.values.byName(tool.name),
+      loading: mine && state.busy
+          ? NoteAiLoading(
+              key: const ValueKey('note-draft-progress'),
+              tool: NoteAiTool.values.byName(tool.name),
+              phase: state.phase,
+              onCancel: controller.reset,
+              cancelKey: const ValueKey('note-draft-cancel'),
+            )
+          : null,
       step: mine && state.completed
           ? 2
           : mine && state.busy
@@ -499,20 +509,6 @@ class _DraftScaffold extends ConsumerWidget {
           TextButton(onPressed: controller.reset, child: const Text('Stop it')),
         ] else ...[
           ...children,
-          if (mine && state.busy) ...[
-            const SizedBox(height: 16),
-            const LinearProgressIndicator(key: ValueKey('note-draft-progress')),
-            const SizedBox(height: 8),
-            Text(state.message ?? 'Working on your computer…'),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton(
-                key: const ValueKey('note-draft-cancel'),
-                onPressed: controller.reset,
-                child: const Text('Cancel'),
-              ),
-            ),
-          ],
           if (mine && state.phase == 'failed' && state.message != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),

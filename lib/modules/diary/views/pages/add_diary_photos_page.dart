@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/diary/controllers/diary_photo_stories.dart';
 import 'package:journal/modules/diary/controllers/diary_photo_store.dart';
 import 'package:journal/modules/diary/models/diary_photo.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_contract.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_controller.dart';
+import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import 'package:journal/modules/diary/views/widgets/diary_photo_widgets.dart';
@@ -15,34 +20,27 @@ import 'package:journal/modules/diary/views/widgets/diary_reflection_desk.dart';
 
 enum _PhotoStage { photos, reflect, review }
 
-// These are deliberately sample prompts. No image analysis or AI call is made;
-// real photo questions arrive in I02.
-const _questionGroups = [
-  (
-    label: 'The moment',
-    questions: [
-      'What made you want to capture this moment?',
-      'What was happening just before you took this photo?',
-      'What happened after you put the camera away?',
-    ],
-  ),
-  (
-    label: 'The feeling',
-    questions: [
-      'What were you feeling that the photo doesn’t show?',
-      'How did this moment change the rhythm of your day?',
-      'If you could step back into this moment, how would it feel?',
-    ],
-  ),
-  (
-    label: 'The little things',
-    questions: [
-      'What’s one thing outside the frame you want to remember?',
-      'What could you hear, smell, or taste in this moment?',
-      'Who or what made this moment feel like yours?',
-    ],
-  ),
+// The usual questions, used until the person asks their computer about a
+// photo, and whenever it isn't available. Same order as [diaryPhotoGroups].
+const _usualQuestions = [
+  [
+    'What made you want to capture this moment?',
+    'What was happening just before you took this photo?',
+    'What happened after you put the camera away?',
+  ],
+  [
+    'What were you feeling that the photo doesn’t show?',
+    'How did this moment change the rhythm of your day?',
+    'If you could step back into this moment, how would it feel?',
+  ],
+  [
+    'What’s one thing outside the frame you want to remember?',
+    'What could you hear, smell, or taste in this moment?',
+    'Who or what made this moment feel like yours?',
+  ],
 ];
+
+typedef _Question = ({String text, bool fromPhoto});
 
 class _PhotoMoment {
   _PhotoMoment({required this.path, required this.draft, required int seed})
@@ -52,19 +50,59 @@ class _PhotoMoment {
   final String path;
   final DiaryPhotoDraft draft;
   Uint8List get bytes => draft.bytes;
+  String get sha => draft.sha256;
   final caption = TextEditingController();
+
+  /// What the computer saw, editable, saved only when [keepSeen] is on.
+  final seen = TextEditingController();
+  bool keepSeen = false;
   final answers = <String, TextEditingController>{};
+
+  /// Which group each question belongs to and where it came from, so
+  /// answers keep their place when questions change.
+  final meta = <String, ({int group, bool fromPhoto})>{};
   final List<int> variants;
   int group = 0;
 
-  String get question => _questionGroups[group].questions[variants[group]];
-  TextEditingController get answer =>
-      answers.putIfAbsent(question, TextEditingController.new);
+  /// The questions for each group: from the photo when the computer wrote
+  /// some, else the usual ones; answered questions are always kept.
+  List<List<_Question>> groups(DiaryPhotoQuestions? generated) => [
+    for (var g = 0; g < diaryPhotoGroups.length; g++)
+      () {
+        final base = <_Question>[
+          for (final text in generated?.groups[g] ?? _usualQuestions[g])
+            (text: text, fromPhoto: generated != null),
+        ];
+        final shown = {for (final q in base) q.text};
+        return [
+          ...base,
+          for (final answer in writtenAnswers)
+            if (meta[answer.key]?.group == g && !shown.contains(answer.key))
+              (text: answer.key, fromPhoto: meta[answer.key]!.fromPhoto),
+        ];
+      }(),
+  ];
+
+  _Question question(DiaryPhotoQuestions? generated) {
+    final list = groups(generated)[group];
+    return list[variants[group] % list.length];
+  }
+
+  TextEditingController answer(DiaryPhotoQuestions? generated) {
+    final q = question(generated);
+    meta.putIfAbsent(q.text, () => (group: group, fromPhoto: q.fromPhoto));
+    return answers.putIfAbsent(q.text, TextEditingController.new);
+  }
+
   Iterable<MapEntry<String, TextEditingController>> get writtenAnswers =>
       answers.entries.where((entry) => entry.value.text.trim().isNotEmpty);
 
+  bool groupHasWords(int g) =>
+      writtenAnswers.any((answer) => meta[answer.key]?.group == g);
+
   void dispose() {
     caption.dispose();
+    seen.dispose();
     for (final answer in answers.values) {
       answer.dispose();
     }
@@ -73,7 +111,7 @@ class _PhotoMoment {
 
 /// Builds or reopens a photo story. Only Save writes to the diary; closing
 /// or going back leaves the diary and its saved photos untouched.
-class AddDiaryPhotosPage extends StatefulWidget {
+class AddDiaryPhotosPage extends ConsumerStatefulWidget {
   const AddDiaryPhotosPage({
     super.key,
     required this.date,
@@ -92,10 +130,10 @@ class AddDiaryPhotosPage extends StatefulWidget {
   final Future<List<XFile>> Function()? imagePicker;
 
   @override
-  State<AddDiaryPhotosPage> createState() => _AddDiaryPhotosPageState();
+  ConsumerState<AddDiaryPhotosPage> createState() => _AddDiaryPhotosPageState();
 }
 
-class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
+class _AddDiaryPhotosPageState extends ConsumerState<AddDiaryPhotosPage> {
   final _moments = <_PhotoMoment>[];
   final _pages = PageController(keepPage: false);
   final _rail = ScrollController();
@@ -138,10 +176,15 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
     }
   }
 
-  DiaryPhotoStories get _stories => ProviderScope.containerOf(
-    context,
-    listen: false,
-  ).read(diaryPhotoStoriesProvider);
+  DiaryPhotoStories get _stories => ref.read(diaryPhotoStoriesProvider);
+
+  /// Generated questions for [moment], when the computer wrote some.
+  DiaryPhotoQuestions? _generated(_PhotoMoment moment) =>
+      _photoQuestions?.questions[moment.sha];
+
+  /// Watched only once the person reaches Reflect, so building or
+  /// reopening a story never starts the companion.
+  DiaryPhotoQuestionState? _photoQuestions;
 
   Future<void> _open() async {
     if (!mounted) return;
@@ -156,10 +199,27 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
           seed: index,
         );
         moment.caption.text = photo.caption;
+        moment.seen.text = photo.seen;
+        moment.keepSeen = photo.seen.isNotEmpty;
         for (final reflection in photo.reflections) {
           moment.answers[reflection.question] = TextEditingController(
             text: reflection.answer,
           );
+          final named = diaryPhotoGroups.indexWhere(
+            (group) => group.key == reflection.group,
+          );
+          // Answers saved before I02 carry no group: find their usual one.
+          final group = named >= 0
+              ? named
+              : _usualQuestions.indexWhere(
+                  (questions) => questions.contains(reflection.question),
+                );
+          if (group >= 0) {
+            moment.meta[reflection.question] = (
+              group: group,
+              fromPhoto: reflection.fromPhoto,
+            );
+          }
         }
         _moments.add(moment);
       }
@@ -188,8 +248,16 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
                     DiaryPhotoReflection(
                       question: answer.key,
                       answer: answer.value.text,
+                      group: switch (moment.meta[answer.key]?.group) {
+                        final int g => diaryPhotoGroups[g].key,
+                        null => '',
+                      },
+                      fromPhoto: moment.meta[answer.key]?.fromPhoto ?? false,
                     ),
               ],
+              seen: _includeReflections && moment.keepSeen
+                  ? moment.seen.text
+                  : '',
             ),
         ],
       );
@@ -389,7 +457,7 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
 
   void _advance() {
     FocusScope.of(context).unfocus();
-    if (_moment.group < _questionGroups.length - 1) {
+    if (_moment.group < diaryPhotoGroups.length - 1) {
       setState(() => _moment.group++);
     } else if (_selected < _moments.length - 1) {
       _selectPhoto(_selected + 1);
@@ -484,8 +552,41 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
     );
   }
 
+  void _listenForReasons() => ref.listen(
+    diaryPhotoQuestionProvider.select((state) => state.messages),
+    (previous, next) {
+      final mine = {for (final moment in _moments) moment.sha};
+      final fresh = next.entries
+          .where((e) => mine.contains(e.key) && previous?[e.key] != e.value)
+          .map((e) => e.value)
+          .toSet();
+      if (fresh.isNotEmpty) _showReason(fresh.first);
+    },
+  );
+
+  String? _shownReason;
+
+  /// Why some photos kept the usual questions, shown once per reason.
+  void _showReason(String reason) {
+    if (!mounted || reason == _shownReason) return;
+    _shownReason = reason;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const ValueKey('diary-photo-message'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+          content: Text(reason),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // A photo that got no questions keeps the usual ones; say why once.
+    // Only on Reflect, so opening or saving a story never starts the AI.
+    if (_stage == _PhotoStage.reflect) _listenForReasons();
     final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
     final background = DiaryMemoryPalette.of(context).desk;
     return PopScope(
@@ -808,54 +909,151 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
     ),
   );
 
-  Widget _reflection() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text(
-        'Sample questions for now · not drawn from your photos, and nothing is sent.',
-        key: const ValueKey('diary-photo-sample-note'),
-        style: TextStyle(
-          fontSize: 10,
-          height: 1.5,
-          fontStyle: FontStyle.italic,
-          color: DiaryMemoryPalette.of(context).muted,
+  /// Whether the computer is still writing questions for this story's
+  /// photos, the current one or ones waiting their turn.
+  bool get _generating {
+    final questions = _photoQuestions;
+    if (questions == null) return false;
+    final summary = ref.read(noteSummaryProvider);
+    return _moments.any(
+      (moment) =>
+          questions.queued.contains(moment.sha) ||
+          DiaryPhotoQuestionController.asking(summary, moment.sha),
+    );
+  }
+
+  Widget _reflection() {
+    _photoQuestions = ref.watch(diaryPhotoQuestionProvider);
+    ref.watch(noteSummaryProvider);
+    final shas = [for (final moment in _moments) moment.sha];
+    if (shas.any((sha) => !_photoQuestions!.questions.containsKey(sha))) {
+      // Cached questions from an earlier visit or a finished background task.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(ref.read(diaryPhotoQuestionProvider.notifier).load(shas));
+        }
+      });
+    }
+    return _generating ? _generatingQuestions() : _reflectionDesk();
+  }
+
+  /// Shown from **Generate questions** until the computer has finished.
+  Widget _generatingQuestions() {
+    final palette = DiaryMemoryPalette.of(context);
+    return Semantics(
+      key: const ValueKey('diary-photo-generating'),
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 64),
+        child: Column(
+          children: [
+            SizedBox.square(
+              dimension: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: palette.ink,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              _moments.length == 1
+                  ? 'Writing questions for your photo…'
+                  : 'Writing questions for your photos…',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: palette.muted,
+              ),
+            ),
+            const SizedBox(height: 10),
+            DiaryInkAction(
+              key: const ValueKey('diary-photo-stop'),
+              label: 'Stop',
+              onPressed: () => unawaited(
+                ref.read(diaryPhotoQuestionProvider.notifier).stop(),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  'Stop',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: palette.ink,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-      const SizedBox(height: 12),
-      _reflectionDesk(),
-    ],
-  );
+    );
+  }
 
-  Widget _reflectionDesk() => DiaryReflectionDesk(
-    photos: [
-      for (final moment in _moments)
-        (
-          bytes: moment.bytes,
-          caption: moment.caption.text.trim(),
-          hasWords: moment.writtenAnswers.isNotEmpty,
-        ),
-    ],
-    selectedPhoto: _selected,
-    selectedGroup: _moment.group,
-    groupLabels: [for (final group in _questionGroups) group.label],
-    groupHasWords: [
-      for (final group in _questionGroups)
-        _moment.writtenAnswers.any(
-          (answer) => group.questions.contains(answer.key),
-        ),
-    ],
-    question: _moment.question,
-    answer: _moment.answer,
-    questionAnchor: _questionAnchor,
-    onSelectPhoto: _selectPhoto,
-    onSelectGroup: (index) => setState(() => _moment.group = index),
-    onAnotherQuestion: () => setState(
-      () => _moment.variants[_moment.group] =
-          (_moment.variants[_moment.group] + 1) % 3,
-    ),
-    onEnlargePhoto: (index) => _showPhoto(_moments[index], index),
-    onAnswerChanged: () => setState(() {}),
-  );
+  /// **Generate questions**: asks the computer about every photo here.
+  void _generateQuestions() {
+    _shownReason = null;
+    final controller = ref.read(diaryPhotoQuestionProvider.notifier);
+    final asked = controller.generate(
+      date: TimeHelper.dateKey(widget.date),
+      photos: [
+        for (final moment in _moments)
+          (
+            photoSha: moment.sha,
+            photo: moment.bytes,
+            caption: moment.caption.text,
+          ),
+      ],
+    );
+    _changeStage(_PhotoStage.reflect);
+    // A refusal can arrive before Reflect starts listening.
+    unawaited(
+      asked.then((_) {
+        if (!mounted) return;
+        final messages = ref.read(diaryPhotoQuestionProvider).messages;
+        final reason = _moments
+            .map((moment) => messages[moment.sha])
+            .nonNulls
+            .firstOrNull;
+        if (reason != null) _showReason(reason);
+      }),
+    );
+  }
+
+  Widget _reflectionDesk() {
+    final generated = _generated(_moment);
+    return DiaryReflectionDesk(
+      photos: [
+        for (final moment in _moments)
+          (
+            bytes: moment.bytes,
+            caption: moment.caption.text.trim(),
+            hasWords: moment.writtenAnswers.isNotEmpty,
+          ),
+      ],
+      selectedPhoto: _selected,
+      selectedGroup: _moment.group,
+      groupLabels: [for (final group in diaryPhotoGroups) group.label],
+      groupHasWords: [
+        for (var g = 0; g < diaryPhotoGroups.length; g++)
+          _moment.groupHasWords(g),
+      ],
+      question: _moment.question(generated).text,
+      answer: _moment.answer(generated),
+      questionAnchor: _questionAnchor,
+      onSelectPhoto: _selectPhoto,
+      onSelectGroup: (index) => setState(() => _moment.group = index),
+      onAnotherQuestion: () => setState(
+        () => _moment.variants[_moment.group] =
+            (_moment.variants[_moment.group] + 1) %
+            _moment.groups(generated)[_moment.group].length,
+      ),
+      onEnlargePhoto: (index) => _showPhoto(_moments[index], index),
+      onAnswerChanged: () => setState(() {}),
+    );
+  }
 
   Widget _entryPreview() => _opening
       ? Padding(
@@ -881,6 +1079,9 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
                     for (final answer in moment.writtenAnswers)
                       (question: answer.key, answer: answer.value.text.trim()),
                 ],
+                seen: _includeReflections && moment.keepSeen
+                    ? moment.seen.text.trim()
+                    : '',
               ),
           ],
           onEnlarge: (index) => _showPhoto(_moments[index], index),
@@ -894,6 +1095,9 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
         );
 
   Widget _footer() {
+    if (_stage == _PhotoStage.reflect && _generating) {
+      return const SizedBox.shrink();
+    }
     if (_stage == _PhotoStage.reflect) {
       return DiaryReflectionControls(
         nextLabel: _moment.group < 2
@@ -927,9 +1131,7 @@ class _AddDiaryPhotosPageState extends State<AddDiaryPhotosPage> {
             else ...[
               DiaryPaperTicket(
                 label: 'Generate questions',
-                onPressed: _picking
-                    ? null
-                    : () => _changeStage(_PhotoStage.reflect),
+                onPressed: _picking ? null : _generateQuestions,
                 symbol: DiaryInkSymbol.sun,
               ),
               const SizedBox(height: 6),

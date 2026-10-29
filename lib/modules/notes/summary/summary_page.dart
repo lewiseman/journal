@@ -1,3 +1,4 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:journal/modules/diary/history/diary_answer_page.dart';
@@ -58,6 +59,19 @@ class NoteSummaryPage extends ConsumerWidget {
         state.handle!.noteId != noteId;
     return NoteAiScaffold(
       tool: NoteAiTool.summary,
+      loading:
+          !otherNote &&
+              (state.handle == null ||
+                  state.handle!.operation == 'summarize-note') &&
+              noteAiIsLoading(state.phase, busy: state.busy)
+          ? NoteAiLoading(
+              tool: NoteAiTool.summary,
+              phase: state.phase,
+              onCancel: state.handle != null && !state.busy && !state.terminal
+                  ? controller.cancel
+                  : null,
+            )
+          : null,
       step: state.text != null
           ? 2
           : state.busy
@@ -90,7 +104,6 @@ class NoteSummaryPage extends ConsumerWidget {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-        if (state.busy) const LinearProgressIndicator(),
         if (state.phase != 'idle')
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),

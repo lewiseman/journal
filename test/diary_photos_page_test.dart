@@ -13,6 +13,11 @@ import 'package:journal/modules/diary/controllers/diary_photo_stories.dart';
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/models/diary_item.dart';
 import 'package:journal/modules/diary/models/diary_photo.dart';
+import 'package:journal/modules/diary/controllers/diary_photo_store.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_contract.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_store.dart';
+import 'package:journal/modules/notes/summary/summary_controller.dart';
+import 'package:journal/modules/notes/summary/summary_store.dart';
 import 'package:journal/modules/diary/views/pages/add_diary_photos_page.dart';
 import 'package:journal/modules/diary/views/widgets/diary_ink_action.dart';
 import 'package:journal/modules/diary/views/widgets/diary_photo_entry_book.dart';
@@ -31,6 +36,64 @@ final _answer = find.byWidgetPredicate(
 late Uint8List _photoBytes;
 late DiaryFixture _diary;
 late MemoryPhotoStore _store;
+late MemoryPhotoQuestionStore _questions;
+late List<String> _shas;
+
+DiaryPhotoQuestions _generated({bool clear = true}) => DiaryPhotoQuestions(
+  observations: 'A market stall stacked with mangoes under a striped awning.',
+  clear: clear,
+  groups: const [
+    ['What brought you to the market that morning?'],
+    ['How did the crowd around the stall feel to you?'],
+    ['What could you smell near the mangoes?'],
+  ],
+);
+
+/// Photos the page asked the computer about, in order.
+final _asked = <String>[];
+
+/// Whether the fake computer accepts a request and keeps working on it.
+var _computerWorking = false;
+
+/// The shared AI task slot with no vision model on the computer: these tests
+/// never reach a computer. Controller tests cover real requests.
+class _IdleSummary extends NoteSummaryController {
+  @override
+  NoteSummaryState build() => const NoteSummaryState();
+
+  @override
+  Future<void> startDiaryPhotoQuestions({
+    required String date,
+    required String photoSha,
+    required Uint8List photo,
+    String caption = '',
+  }) async {
+    _asked.add(photoSha);
+    if (_computerWorking) {
+      state = NoteSummaryState(
+        phase: 'running',
+        handle: SummaryHandle(
+          id: 'photo-task-${_asked.length}',
+          noteId: photoSha,
+          revision: 'a' * 64,
+          computerId: 'desktop',
+          created: DateTime.now().millisecondsSinceEpoch,
+          operation: diaryPhotoQuestionOperation,
+          accepted: true,
+          phase: 'running',
+        ),
+      );
+      return;
+    }
+    state = const NoteSummaryState(
+      phase: 'error',
+      message: 'Download Qwen3-VL and run the image self-test on your computer. The usual questions are still here.',
+    );
+  }
+
+  @override
+  Future<void> cancel() async => state = const NoteSummaryState();
+}
 
 // Distinct trailing bytes give each test photo its own identity.
 Uint8List _bytes(int index) => Uint8List.fromList([..._photoBytes, index]);
@@ -70,6 +133,8 @@ Future<void> _mount(
         diaryPhotoStoriesProvider.overrideWithValue(
           DiaryPhotoStories(_diary.diary, _store),
         ),
+        noteSummaryProvider.overrideWith(_IdleSummary.new),
+        diaryPhotoQuestionStoreProvider.overrideWithValue(_questions),
       ],
       child: RepaintBoundary(
         key: _captureKey,
@@ -146,6 +211,9 @@ void main() {
   setUp(() {
     _diary = DiaryFixture.create(DateTime(2026, 10, 27, 12));
     _store = MemoryPhotoStore();
+    _questions = MemoryPhotoQuestionStore();
+    _asked.clear();
+    _computerWorking = false;
   });
   tearDown(() => _diary.dispose());
 
@@ -153,6 +221,9 @@ void main() {
     _photoBytes = (await rootBundle.load('assets/images/onboarding/diary.webp'))
         .buffer
         .asUint8List();
+    _shas = [
+      for (var i = 0; i < 3; i++) await DiaryPhotoStore.digest(_bytes(i)),
+    ];
     await (FontLoader(
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
@@ -258,7 +329,7 @@ void main() {
     tester,
   ) async {
     await _mount(tester);
-    await _tap(tester, find.text('Generate questions'));
+    await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
     final firstQuestion = tester.widget<Text>(_question).data!;
     await _capture(tester, 'questions');
     await _write(tester, 'We took the long way home.');
@@ -298,7 +369,7 @@ void main() {
     tester,
   ) async {
     await _mount(tester);
-    await _tap(tester, find.text('Generate questions'));
+    await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
     await _tap(tester, find.text('Next question'));
     await _tap(tester, find.text('Next question'));
     await _tap(tester, find.text('Next photo'));
@@ -357,7 +428,7 @@ void main() {
     'swiping the question deck draws alternatives without losing words',
     (tester) async {
       await _mount(tester, photos: 1);
-      await _tap(tester, find.text('Generate questions'));
+      await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
       final original = tester.widget<Text>(_question).data;
       await _write(
         tester,
@@ -388,7 +459,7 @@ void main() {
     'paper controls work with the keyboard and expose photo enlargement',
     (tester) async {
       await _mount(tester);
-      await _tap(tester, find.text('Generate questions'));
+      await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
       final feeling = find.byWidgetPredicate(
         (widget) => widget is DiaryInkAction && widget.label == 'The feeling',
       );
@@ -432,12 +503,12 @@ void main() {
     tester,
   ) async {
     await _mount(tester, photos: 1);
-    await _tap(tester, find.text('Generate questions'));
+    await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
     await _write(tester, 'I want to remember the light.');
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.text('Generate questions'), findsOneWidget);
-    await _tap(tester, find.text('Generate questions'));
+    await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
     expect(
       tester.widget<TextField>(_answer).controller!.text,
       'I want to remember the light.',
@@ -461,7 +532,7 @@ void main() {
       'The afternoon by the window.',
     );
     FocusManager.instance.primaryFocus?.unfocus();
-    await _tap(tester, find.text('Generate questions'));
+    await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
     await _write(tester, 'I finally had a quiet minute.');
     await _tap(tester, find.text('Review'));
     await _tap(tester, find.text('Edit photos'));
@@ -507,7 +578,7 @@ void main() {
     'entry annotations toggle and editing photos keeps the written story',
     (tester) async {
       await _mount(tester, photos: 1);
-      await _tap(tester, find.text('Generate questions'));
+      await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
       final question = tester.widget<Text>(_question).data!;
       await _write(tester, 'The whole street smelled like rain.');
       await _tap(tester, find.text('Review'));
@@ -575,11 +646,7 @@ void main() {
       await _mount(tester);
       await tester.enterText(find.byType(TextField), 'Leaving the market.');
       FocusManager.instance.primaryFocus?.unfocus();
-      await _tap(tester, find.text('Generate questions'));
-      expect(
-        find.byKey(const ValueKey('diary-photo-sample-note')),
-        findsOneWidget,
-      );
+      await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
       final question = tester.widget<Text>(_question).data!;
       await _write(tester, 'Mangoes everywhere.');
       await _tap(tester, find.text('Review'));
@@ -832,7 +899,7 @@ void main() {
               ? 'selection-dark'
               : 'selection-${config.size.width.toInt()}',
         );
-        await _tap(tester, find.text('Generate questions'));
+        await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
         expect(tester.takeException(), isNull);
         await _capture(
           tester,
@@ -854,4 +921,122 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'I02: generated questions replace the usual ones, with no info panel, and save their group and origin',
+    (tester) async {
+      _questions.results[_shas[0]] = _generated(clear: false);
+      await _mount(tester);
+      await _tap(tester, find.text('Generate questions'));
+      expect(_asked, [_shas[1]], reason: 'photo 1 already has questions');
+      expect(
+        find.byKey(const ValueKey('diary-photo-generating')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('diary-photo-status')), findsNothing);
+      expect(find.textContaining('A market stall stacked'), findsNothing);
+      expect(
+        tester.widget<Text>(_question).data,
+        'What brought you to the market that morning?',
+      );
+      await _write(tester, 'Sunday shopping with Ama.');
+      ScaffoldMessenger.of(tester.element(_question)).removeCurrentSnackBar();
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Review'));
+      await _tap(tester, find.text('Save to diary'));
+      final first = savedStory().photos.first;
+      expect(first.seen, '');
+      expect(first.reflections.single.group, 'moment');
+      expect(first.reflections.single.fromPhoto, true);
+      expect(savedStory().content, 'Sunday shopping with Ama.');
+    },
+  );
+
+  testWidgets(
+    'I02: answers written to the usual questions survive when photo questions arrive',
+    (tester) async {
+      await _mount(tester);
+      await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
+      final usual = tester.widget<Text>(_question).data!;
+      await _write(tester, 'It was loud and bright.');
+      // A result arrives (here: cached) while the person is elsewhere.
+      _questions.results[_shas[0]] = _generated();
+      await _tap(tester, find.byKey(const ValueKey('diary-section-photos')));
+      await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
+      expect(
+        tester.widget<Text>(_question).data,
+        'What brought you to the market that morning?',
+      );
+      // The earlier answer is still reachable in its group.
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('diary-photo-another-question')),
+      );
+      expect(tester.widget<Text>(_question).data, usual);
+      expect(
+        tester.widget<TextField>(_answer).controller!.text,
+        'It was loud and bright.',
+      );
+      await _tap(tester, find.text('Review'));
+      await _tap(tester, find.text('Save to diary'));
+      final reflection = savedStory().photos.first.reflections.single;
+      expect(reflection.question, usual);
+      expect(reflection.group, 'moment');
+      expect(reflection.fromPhoto, false);
+    },
+  );
+
+  testWidgets(
+    'I02: Reflect shows loading until the computer finishes, and Stop returns to the usual questions',
+    (tester) async {
+      _computerWorking = true;
+      await _mount(tester);
+      // The spinner never settles: pump frames instead of settling.
+      await tester.ensureVisible(find.text('Generate questions'));
+      await tester.tap(find.text('Generate questions'));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(_asked, [_shas[0]], reason: 'one photo at a time');
+      expect(
+        find.byKey(const ValueKey('diary-photo-generating')),
+        findsOneWidget,
+      );
+      expect(find.text('Writing questions for your photos…'), findsOneWidget);
+      expect(_question, findsNothing);
+      expect(find.text('Next question'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('diary-photo-stop')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('diary-photo-generating')),
+        findsNothing,
+      );
+      expect(
+        tester.widget<Text>(_question).data,
+        'What made you want to capture this moment?',
+      );
+      expect(_asked, [_shas[0]], reason: 'the waiting photo was never sent');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'I02: without a vision model, Generate questions keeps the usual questions and says why once',
+    (tester) async {
+      await _mount(tester, photos: 3);
+      await _tap(tester, find.text('Generate questions'));
+      expect(_asked, [_shas[0]], reason: 'the refusal is not repeated');
+      expect(
+        find.byKey(const ValueKey('diary-photo-generating')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('diary-photo-message')), findsOneWidget);
+      expect(find.textContaining('Download Qwen3-VL'), findsOneWidget);
+      expect(
+        tester.widget<Text>(_question).data,
+        'What made you want to capture this moment?',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

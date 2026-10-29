@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:journal/modules/diary/controllers/diary_photo_store.dart';
 import 'package:journal/modules/diary/controllers/diary_repository.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_contract.dart';
+import 'package:journal/modules/diary/photo_questions/diary_photo_question_store.dart';
 import 'package:journal/modules/root/controllers/journal_sync_store.dart';
 import 'package:journal/objectbox/objectbox.dart';
 import 'package:journal/objectbox/objectbox.g.dart';
@@ -40,6 +42,37 @@ class MemoryPhotoStore extends DiaryPhotoStore {
       if (DiaryPhotoStore.isOwned(path)) files.remove(path);
     }
   }
+}
+
+/// Photo question results and uploads in memory, for widget tests.
+class MemoryPhotoQuestionStore extends DiaryPhotoQuestionStore {
+  final results = <String, DiaryPhotoQuestions>{};
+  final uploads = <String, Uint8List>{};
+
+  @override
+  Future<DiaryPhotoQuestions?> read(String photoSha, {DateTime? now}) async =>
+      results[photoSha];
+
+  @override
+  Future<void> write(
+    String photoSha,
+    DiaryPhotoQuestions questions, {
+    DateTime? now,
+  }) async => results[photoSha] = questions;
+
+  @override
+  Future<void> remove(String photoSha) async => results.remove(photoSha);
+
+  @override
+  Future<void> writeUpload(String taskId, Uint8List png) async =>
+      uploads[taskId] = png;
+
+  @override
+  Future<Uint8List?> readUpload(String taskId) async => uploads[taskId];
+
+  @override
+  Future<void> prune({String? active, DateTime? now}) async =>
+      uploads.removeWhere((id, _) => id != active);
 }
 
 /// An ObjectBox-backed diary on a temp directory; reopenable for restarts.

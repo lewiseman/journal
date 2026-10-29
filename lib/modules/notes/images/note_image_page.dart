@@ -1,3 +1,4 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 
 import 'dart:io';
@@ -74,6 +75,17 @@ class _NoteImagePageState extends ConsumerState<NoteImagePage> {
     );
     return NoteAiScaffold(
       tool: NoteAiTool.image,
+      loading:
+          (handle == null || (mine && handle.noteId == widget.noteId)) &&
+              noteAiIsLoading(state.phase, busy: state.busy)
+          ? NoteAiLoading(
+              tool: NoteAiTool.image,
+              phase: state.phase,
+              onCancel: handle != null && !state.busy && !state.terminal
+                  ? controller.cancel
+                  : null,
+            )
+          : null,
       step: answer != null
           ? 2
           : state.busy
@@ -234,7 +246,6 @@ class _NoteImagePageState extends ConsumerState<NoteImagePage> {
               ],
             ),
         ],
-        if (state.busy) const LinearProgressIndicator(),
         if (state.message != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),

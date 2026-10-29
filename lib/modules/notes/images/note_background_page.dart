@@ -1,3 +1,4 @@
+import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 
 import 'dart:io';
@@ -27,7 +28,7 @@ class _NoteBackgroundPageState extends ConsumerState<NoteBackgroundPage> {
   String _tone = 'light';
   File? _preview;
   String? _previewFor, _message;
-  bool _canRevert = false;
+  bool _canRevert = false, _preparingPreview = false;
 
   @override
   void initState() {
@@ -85,9 +86,28 @@ class _NoteBackgroundPageState extends ConsumerState<NoteBackgroundPage> {
         : null;
     if (mine && state.phase == 'completed' && _previewFor != handle!.id) {
       _previewFor = handle.id;
-      controller.noteBackgroundPreview().then((file) {
-        if (mounted) setState(() => _preview = file);
-      });
+      _preparingPreview = true;
+      controller
+          .noteBackgroundPreview()
+          .then((file) {
+            if (!mounted) return;
+            setState(() {
+              _preview = file;
+              _preparingPreview = false;
+              if (file == null) {
+                _message =
+                    'Could not open this preview. Try generating it again.';
+              }
+            });
+          })
+          .catchError((Object _) {
+            if (!mounted) return;
+            setState(() {
+              _preparingPreview = false;
+              _message =
+                  'Could not open this preview. Try generating it again.';
+            });
+          });
     }
     final note = ref
         .watch(notesRepositoryProvider)
@@ -97,6 +117,18 @@ class _NoteBackgroundPageState extends ConsumerState<NoteBackgroundPage> {
         .resolveColors(Theme.of(context).colorScheme);
     return NoteAiScaffold(
       tool: NoteAiTool.background,
+      loading:
+          (handle == null || (mine && handle.noteId == widget.noteId)) &&
+              (noteAiIsLoading(state.phase, busy: state.busy) ||
+                  _preparingPreview)
+          ? NoteAiLoading(
+              tool: NoteAiTool.background,
+              phase: _preparingPreview ? 'preparing' : state.phase,
+              onCancel: handle != null && !state.busy && !state.terminal
+                  ? controller.cancel
+                  : null,
+            )
+          : null,
       step: _preview != null
           ? 2
           : state.busy
@@ -264,7 +296,6 @@ class _NoteBackgroundPageState extends ConsumerState<NoteBackgroundPage> {
               ],
             ),
         ],
-        if (state.busy) const LinearProgressIndicator(),
         if (state.message != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),

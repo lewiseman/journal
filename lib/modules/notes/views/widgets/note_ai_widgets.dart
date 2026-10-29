@@ -382,12 +382,14 @@ class NoteAiScaffold extends StatelessWidget {
     this.step = 0,
     this.listKey,
     this.header,
+    this.loading,
   });
   final NoteAiTool tool;
   final List<Widget> children;
   final int step;
   final Key? listKey;
   final Widget? header;
+  final Widget? loading;
 
   @override
   Widget build(BuildContext context) {
@@ -476,36 +478,49 @@ class NoteAiScaffold extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: ListView(
-                  key: listKey,
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                  children: [
-                    const SizedBox(height: 8),
-                    if (header != null)
-                      header!
-                    else ...[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          NoteAiArt(tool: tool, size: largeText ? 48 : 56),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              tool.description,
-                              style: base.textTheme.bodyMedium?.copyWith(
-                                height: 1.35,
-                                color: base.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => ListView(
+                    key: listKey,
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    children: [
+                      if (loading != null)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight > 32
+                                ? constraints.maxHeight - 32
+                                : 0,
                           ),
+                          child: Center(child: loading),
+                        )
+                      else ...[
+                        const SizedBox(height: 8),
+                        if (header != null)
+                          header!
+                        else ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              NoteAiArt(tool: tool, size: largeText ? 48 : 56),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  tool.description,
+                                  style: base.textTheme.bodyMedium?.copyWith(
+                                    height: 1.35,
+                                    color: base.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          _StepTrail(step: step, ink: ink),
                         ],
-                      ),
-                      const SizedBox(height: 20),
-                      _StepTrail(step: step, ink: ink),
+                        const SizedBox(height: 20),
+                        ...children,
+                      ],
                     ],
-                    const SizedBox(height: 20),
-                    ...children,
-                  ],
+                  ),
                 ),
               ),
             ],
