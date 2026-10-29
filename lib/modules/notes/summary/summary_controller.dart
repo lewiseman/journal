@@ -27,6 +27,7 @@ import '../../presentation/website_contract.dart';
 
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/history/diary_history_contract.dart';
+import 'package:journal/modules/notes/question/note_question_contract.dart';
 import 'package:journal/modules/diary/questions/daily_question_contract.dart';
 import 'package:journal/modules/diary/photo_questions/diary_photo_question_contract.dart';
 import 'package:journal/modules/diary/photo_questions/diary_photo_question_store.dart';
@@ -311,7 +312,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         (handle?.isThoughtReflection == true
             ? 'thought:${handle!.noteId}'
             : null) ??
-        (handle?.isDiaryDay == true
+        (handle?.isDiaryDay == true || handle?.isNoteQuestion == true
             ? '${handle!.operation}:${handle.noteId}'
             : handle?.noteId);
     if (_watchedNote == key) return;
@@ -323,6 +324,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           ? ref.read(thoughtsRepositoryProvider).watchThoughts()
           : handle.isDiaryDay
           ? ref.read(diaryRepositoryProvider).watchAllDays()
+          : handle.isNoteQuestion
+          ? ref.read(notesRepositoryProvider).watchActiveNotes()
           : ref.read(notesRepositoryProvider).watchNoteByUuid(handle.noteId);
       _source = stream.listen((_) {
         unawaited(refreshSource());
@@ -374,6 +377,19 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
       return selection != null &&
           selection.sources.every(
             (s) => sourceStatus(s, diary.getDay) == DiarySourceStatus.current,
+          );
+    }
+    if (handle.isNoteQuestion) {
+      // Unchanged when every sent note still has its version.
+      final notes = ref.read(notesRepositoryProvider);
+      final selection = handle.localSource == null
+          ? null
+          : NoteQuestionSelection.decode(handle.localSource!);
+      return selection != null &&
+          selection.sources.every(
+            (s) =>
+                noteSourceStatus(s, notes.getNoteByUuid) ==
+                NoteSourceStatus.current,
           );
     }
     if (handle.isDailyQuestion) {
@@ -661,6 +677,60 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     }
   }
 
+  /// S02: one grounded answer about saved notes from [selection]'s
+  /// excerpts. Read-only, so secondary devices may ask too.
+  Future<void> startNoteQuestion(NoteQuestionSelection selection) async {
+    if (!await _readyToStart()) return;
+    final generation = ++_generation;
+    _show('submitting', busy: true, stale: false);
+    try {
+      if (!selection.sendable) {
+        throw const CompanionFailure(
+          'SOURCE_MISSING',
+          'No notes matched, so nothing was sent.',
+        );
+      }
+      final input = selection.request();
+      if (utf8.encode(input).length > noteQuestionInputBytes) {
+        throw const FormatException(
+          'The selected excerpts exceed 2,000 UTF-8 bytes. Nothing was sent.',
+        );
+      }
+      final computer = _capableComputer(
+        contractKey: 'noteQuestionContract',
+        contract: noteQuestionContract,
+        operation: noteQuestionOperation,
+        fallback: 'Keyword search on the Notes page still works without it.',
+        update: 'Update the companion to answer questions about notes.',
+      );
+      final local = selection.encode();
+      final handle = SummaryHandle(
+        id: const Uuid().v4(),
+        noteId: selection.today,
+        revision: await hexHash(utf8.encode(local)),
+        computerId: computer.id,
+        deviceId: computer.deviceId,
+        created: DateTime.now().millisecondsSinceEpoch,
+        pendingText: input,
+        operation: noteQuestionOperation,
+        localSource: local,
+      );
+      if (!_alive(generation)) return;
+      await _save(handle);
+      if (!_alive(generation)) return;
+      _show('submitting', handle: handle, busy: true);
+      await retry();
+    } catch (error) {
+      if (_alive(generation)) {
+        _failure(
+          error is FormatException
+              ? CompanionFailure('INPUT_LIMIT', error.message)
+              : error,
+        );
+      }
+    }
+  }
+
   /// J02: one reflection question for [source]'s civil day. It writes no
   /// synced data, so secondary devices may ask too.
   Future<void> startDailyQuestion(DailyQuestionSource source) async {
@@ -861,6 +931,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     required String photoSha,
     required Uint8List photo,
     String caption = '',
+    int group = -1,
+    List<String> avoid = const [],
   }) async {
     if (!await _readyToStart()) return;
     final generation = ++_generation;
@@ -883,6 +955,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         photoSha: photoSha,
         imageSha: await hexHash(image),
         caption: DiaryPhotoQuestionSource.validateCaption(caption),
+        group: group,
+        avoid: avoid,
       );
       final id = const Uuid().v4();
       // The exact upload is kept until the task is cleared, so a retry after
@@ -1944,6 +2018,21 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (phase == 'completed' &&
         job['acknowledged'] != true &&
         !invalidOutput &&
+        handle.isNoteQuestion) {
+      try {
+        NoteQuestionAnswer.parse(
+          job['text'] as String,
+          NoteQuestionSelection.decode(handle.localSource!),
+        );
+      } on NoteAnswerRejected {
+        // Valid output that is not shown; the answer page explains why.
+      } catch (_) {
+        invalidOutput = true;
+      }
+    }
+    if (phase == 'completed' &&
+        job['acknowledged'] != true &&
+        !invalidOutput &&
         handle.isDailyQuestion) {
       // Content checks run when shown; only a broken envelope is invalid.
       try {
@@ -2049,6 +2138,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             ? dailyQuestionOutputBytes
             : handle.isDiaryAnswer
             ? historyOutputBytes
+            : handle.isNoteQuestion
+            ? noteQuestionOutputBytes
             : handle.isNoteMetadata || handle.isNoteIdeas
             ? noteHelpOutputBytes
             : handle.isNoteImage
@@ -2222,6 +2313,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             handle.isNoteBackground ||
             handle.isDiaryPhoto ||
             handle.isDiaryDay ||
+            handle.isNoteQuestion ||
             handle.isThoughtReflection) ||
         !state.terminal ||
         state.phase == 'completed' ||

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -55,11 +56,30 @@ final _asked = <String>[];
 /// Whether the fake computer accepts a request and keeps working on it.
 var _computerWorking = false;
 
+/// The fake slot, so a test can finish the computer's work.
+late _IdleSummary _summary;
+
+/// Shuffle requests the page made: group and questions to avoid.
+final _shuffles = <({int group, List<String> avoid})>[];
+
 /// The shared AI task slot with no vision model on the computer: these tests
 /// never reach a computer. Controller tests cover real requests.
 class _IdleSummary extends NoteSummaryController {
   @override
-  NoteSummaryState build() => const NoteSummaryState();
+  NoteSummaryState build() {
+    _summary = this;
+    return const NoteSummaryState();
+  }
+
+  /// Completes the running request with [text], as a computer would.
+  void finish(String text) => state = NoteSummaryState(
+    phase: 'completed',
+    handle: state.handle!.copyWith(phase: 'completed'),
+    text: text,
+  );
+
+  @override
+  Future<void> clear() async => state = const NoteSummaryState();
 
   @override
   Future<void> startDiaryPhotoQuestions({
@@ -67,8 +87,11 @@ class _IdleSummary extends NoteSummaryController {
     required String photoSha,
     required Uint8List photo,
     String caption = '',
+    int group = -1,
+    List<String> avoid = const [],
   }) async {
     _asked.add(photoSha);
+    if (group >= 0) _shuffles.add((group: group, avoid: avoid));
     if (_computerWorking) {
       state = NoteSummaryState(
         phase: 'running',
@@ -81,6 +104,14 @@ class _IdleSummary extends NoteSummaryController {
           operation: diaryPhotoQuestionOperation,
           accepted: true,
           phase: 'running',
+          localSource: DiaryPhotoQuestionSource(
+            date: date,
+            photoSha: photoSha,
+            imageSha: 'b' * 64,
+            caption: caption,
+            group: group,
+            avoid: avoid,
+          ).encode(),
         ),
       );
       return;
@@ -213,6 +244,7 @@ void main() {
     _store = MemoryPhotoStore();
     _questions = MemoryPhotoQuestionStore();
     _asked.clear();
+    _shuffles.clear();
     _computerWorking = false;
   });
   tearDown(() => _diary.dispose());
@@ -1035,6 +1067,75 @@ void main() {
       expect(
         tester.widget<Text>(_question).data,
         'What made you want to capture this moment?',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'I02: the question card has no label or counter, and shuffle asks the computer for a new question in that section',
+    (tester) async {
+      _computerWorking = true;
+      await _mount(tester);
+      await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
+      expect(find.text('SAMPLE QUESTION'), findsNothing);
+      expect(find.text('1 / 3'), findsNothing);
+      final first = tester.widget<Text>(_question).data!;
+      await tester.tap(
+        find.byKey(const ValueKey('diary-photo-another-question')),
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(_asked, [_shas[0]]);
+      expect(_shuffles.single.group, 0);
+      expect(_shuffles.single.avoid, contains(first));
+      expect(
+        find.byKey(const ValueKey('diary-photo-question-loading')),
+        findsOneWidget,
+      );
+      _summary.finish(
+        jsonEncode({
+          'observations': 'A market.',
+          'clear': true,
+          'moment': [first, 'Who were you hoping to bump into at the market?'],
+          'feeling': ['How did the noise feel?'],
+          'little': ['What could you smell?'],
+        }),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('diary-photo-question-loading')),
+        findsNothing,
+      );
+      expect(
+        tester.widget<Text>(_question).data,
+        'Who were you hoping to bump into at the market?',
+        reason: 'the first new question, skipping one already shown',
+      );
+      await _write(tester, 'Nobody, I wanted quiet.');
+      await _tap(tester, find.text('Review'));
+      await _tap(tester, find.text('Save to diary'));
+      final saved = savedStory().photos.first.reflections.single;
+      expect(saved.question, 'Who were you hoping to bump into at the market?');
+      expect(saved.group, 'moment');
+      expect(saved.fromPhoto, true);
+      expect(_questions.results, isEmpty, reason: 'one question, not a set');
+    },
+  );
+
+  testWidgets(
+    'I02: without the computer, shuffle moves to the next question it already has',
+    (tester) async {
+      await _mount(tester);
+      await _tap(tester, find.byKey(const ValueKey('diary-section-reflect')));
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('diary-photo-another-question')),
+      );
+      expect(
+        tester.widget<Text>(_question).data,
+        'What was happening just before you took this photo?',
       );
       expect(tester.takeException(), isNull);
     },

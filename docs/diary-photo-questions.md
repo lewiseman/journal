@@ -25,7 +25,17 @@ The companion side is described in
    before anything is sent (not connected, no vision model, another AI task
    open), nothing more is tried and a short snackbar says why once.
 
-There is no info panel on Reflect. The computer's observations of each photo
+4. The shuffle mark on a question card asks the computer for **one new
+   question for that photo and section**. It sends the photo, its caption and
+   the questions already shown in that section, so it doesn't repeat them. The
+   card shows a small spinner until the question arrives, then shows it. New
+   questions stay in that section while the story is open, and an answered one
+   is saved with `"source": "photo"`. If the computer can't help (not
+   connected, no vision model, or busy generating), shuffle moves to the next
+   question already on hand, as before.
+
+The question card has no "Sample question" label or "1 / 3" counter. There is
+no info panel on Reflect. The computer's observations of each photo
 are validated and cached but not shown; the entry still shows a saved `seen`
 note, labelled, for stories that have one.
 
@@ -77,7 +87,7 @@ shows them again.
 flutter test test/diary_photo_questions_test.dart test/diary_photos_page_test.dart test/diary_photo_stories_test.dart
 ```
 
-- `diary_photo_questions_test.dart` (12 tests) uses the real task controller,
+- `diary_photo_questions_test.dart` (13 tests) uses the real task controller,
   real file storage and a fake signed transport. It covers:
   - parsing and limits;
   - cache expiry, upload pruning and account reset;
@@ -90,12 +100,18 @@ flutter test test/diary_photo_questions_test.dart test/diary_photos_page_test.da
   - Generate questions asking about each photo in turn, skipping cached and
     missing photos, stopping with one reason when there's no vision model, and
     Stop generating;
+  - shuffle sending what was shown, returning one new question for its
+    group without touching the cached set, and saying so when only repeats
+    come back;
   - JSON round-trip with `seen` kept out of `content`.
-- `diary_photos_page_test.dart` adds 4 widget tests over ObjectBox:
+- `diary_photos_page_test.dart` adds 6 widget tests over ObjectBox:
   - generated questions shown with no info panel, saved with group and source;
   - a usual-question answer surviving when photo questions arrive;
   - the loading state until the computer finishes, and Stop;
-  - no vision model: the usual questions, the reason once, nothing repeated.
+  - no vision model: the usual questions, the reason once, nothing repeated;
+  - no label or counter on the card, and shuffle loading then showing a new
+    question that saves with its group and source;
+  - shuffle without the computer moving to the next question.
 - The full suite passed: 575 tests.
 
 Real model evidence is in
@@ -111,6 +127,8 @@ Real model evidence is in
 - The note summary/writing pages don't have a dedicated view for a photo task
   that holds the shared slot. It appears as "Photo questions" in AI task
   history, and the photo page's loading state offers Stop.
+- New questions from shuffle aren't cached: closing the story keeps only the
+  ones you answered.
 - Photos added to a reopened story aren't asked about, since its footer shows
   **Back to entry** rather than **Generate questions**.
 - No face identification, library-wide analysis or background generation:

@@ -607,6 +607,52 @@ class _DismissTarget extends StatelessWidget {
   }
 }
 
+/// Restores sheet scrolling below a Navigator's route-local scroll controller.
+/// Retained pages release the shared controller while another page covers them.
+/// Outside a QVAC sheet, pages keep their normal scrolling.
+class QvacAssistantSheetPage extends StatefulWidget {
+  const QvacAssistantSheetPage({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<QvacAssistantSheetPage> createState() => _QvacAssistantSheetPageState();
+}
+
+class _QvacAssistantSheetPageState extends State<QvacAssistantSheetPage> {
+  _QvacSheetScrollScope? _scope;
+  bool _active = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scope = context
+        .dependOnInheritedWidgetOfExactType<_QvacSheetScrollScope>();
+    final active = _scope != null && ModalRoute.isCurrentOf(context) != false;
+    if (active && !_active) QvacAssistantSheet.expand(context);
+    _active = active;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_scope == null) return widget.child;
+    if (!_active) return PrimaryScrollController.none(child: widget.child);
+    return PrimaryScrollController(
+      controller: _scope!.controller,
+      automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+      child: widget.child,
+    );
+  }
+}
+
+class _QvacSheetScrollScope extends InheritedWidget {
+  const _QvacSheetScrollScope({required this.controller, required super.child});
+  final ScrollController controller;
+
+  @override
+  bool updateShouldNotify(_QvacSheetScrollScope oldWidget) =>
+      controller != oldWidget.controller;
+}
+
 /// Page tools share the sheet's controller so an upward scroll expands the
 /// surface before scrolling its content. Settings live in the exposed scrim.
 class QvacAssistantSheet extends StatefulWidget {
@@ -626,7 +672,11 @@ class QvacAssistantSheet extends StatefulWidget {
     // Wait for the feature's scroll position: detaching the menu's position
     // cancels any sheet animation that was started against it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (sheet.mounted) sheet._resize(1);
+      if (sheet.mounted &&
+          context.mounted &&
+          ModalRoute.of(context)?.isCurrent != false) {
+        sheet._resize(1);
+      }
     });
     WidgetsBinding.instance.ensureVisualUpdate();
   }
@@ -636,7 +686,20 @@ class QvacAssistantSheet extends StatefulWidget {
 }
 
 class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
-  static const _initialSize = .64;
+  // Flutter compares snap lists by identity. A fresh list on each drag frame
+  // restarts snapping and cancels the finger's active drag.
+  List<double> get _snapSizes {
+    if (widget.pageLabel != 'Notes' || widget.contentBuilder == null) {
+      return const [.64];
+    }
+    final media = MediaQuery.of(context);
+    return media.textScaler.scale(14) > 20 || media.size.height < 600
+        ? const [.72]
+        : const [.42];
+  }
+
+  double get _initialSize => _snapSizes.single;
+
   final _sheet = DraggableScrollableController();
 
   bool get _reduced =>
@@ -686,7 +749,10 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
                 child: Opacity(
                   opacity: ((exposed - 76) / 48).clamp(0, 1),
                   child: _SettingsTag(
-                    iconOnly: widget.pageLabel == 'Note',
+                    iconOnly: const {
+                      'Note',
+                      'Notes',
+                    }.contains(widget.pageLabel),
                     onPressed: () => Navigator.pop(context, true),
                   ),
                 ),
@@ -697,10 +763,10 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
               minChildSize: .36,
               maxChildSize: 1,
               snap: true,
-              snapSizes: const [_initialSize],
+              snapSizes: _snapSizes,
               builder: (context, scrollController) => Material(
                 key: const ValueKey('qvac-sheet-surface'),
-                color: widget.pageLabel == 'Note'
+                color: const {'Note', 'Notes'}.contains(widget.pageLabel)
                     ? (colors.brightness == Brightness.dark
                           ? const Color(0xFF232522)
                           : const Color(0xFFFAF8F2))
@@ -756,15 +822,18 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
                       ),
                     ),
                     Expanded(
-                      child:
-                          widget.contentBuilder?.call(
-                            context,
-                            scrollController,
-                          ) ??
-                          _QvacPlaceholder(
-                            pageLabel: widget.pageLabel,
-                            scrollController: scrollController,
-                          ),
+                      child: _QvacSheetScrollScope(
+                        controller: scrollController,
+                        child:
+                            widget.contentBuilder?.call(
+                              context,
+                              scrollController,
+                            ) ??
+                            _QvacPlaceholder(
+                              pageLabel: widget.pageLabel,
+                              scrollController: scrollController,
+                            ),
+                      ),
                     ),
                   ],
                 ),

@@ -1,4 +1,5 @@
 import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
+import 'package:journal/modules/notes/views/pages/note_question_page.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:journal/modules/diary/history/diary_answer_page.dart';
@@ -27,6 +28,7 @@ class NoteSummaryPage extends ConsumerWidget {
       return NotePresentationPage(noteId: handle.noteId);
     }
     if (state.handle?.isDiaryAnswer == true) return const DiaryAnswerPage();
+    if (state.handle?.isNoteQuestion == true) return const NoteQuestionPage();
     if (state.handle?.isDailyQuestion == true) {
       return const DailyQuestionTaskPage();
     }

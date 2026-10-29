@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'note_ai_widgets.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:journal/modules/assistant/qvac_assistant.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/notes/draft/note_draft_pages.dart';
 import 'package:journal/modules/notes/images/note_background_page.dart';
@@ -72,11 +71,7 @@ class _NoteAssistantState extends State<NoteAssistant> {
     maintainState: maintainState,
     transitionDuration: Duration.zero,
     reverseTransitionDuration: Duration.zero,
-    pageBuilder: (context, _, _) => PrimaryScrollController(
-      controller: widget.scrollController,
-      automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
-      child: builder(context),
-    ),
+    pageBuilder: (context, _, _) => builder(context),
   );
 
   Future<void> _open(_NoteTool tool) async {
@@ -87,7 +82,6 @@ class _NoteAssistantState extends State<NoteAssistant> {
     if (widget.scrollController.hasClients) {
       widget.scrollController.jumpTo(0);
     }
-    QvacAssistantSheet.expand(context);
     final result = await _navigator.currentState!.push<Object?>(
       _route(
         (_) => switch (tool) {
@@ -118,7 +112,6 @@ class _NoteAssistantState extends State<NoteAssistant> {
     if (widget.scrollController.hasClients) {
       widget.scrollController.jumpTo(0);
     }
-    QvacAssistantSheet.expand(context);
     final result = await _navigator.currentState!.push<Object?>(
       _route(
         (_) => switch (tool) {

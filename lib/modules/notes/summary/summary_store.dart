@@ -13,6 +13,7 @@ import '../images/note_scan.dart';
 import '../images/note_background_gen.dart';
 import '../../presentation/website_contract.dart';
 import '../../diary/history/diary_history_contract.dart';
+import '../question/note_question_contract.dart';
 import '../../diary/questions/daily_question_contract.dart';
 import '../../diary/photo_questions/diary_photo_question_contract.dart';
 import '../../diary/suggestions/diary_suggestion_contract.dart';
@@ -60,6 +61,9 @@ class SummaryHandle {
 
   /// S01 historical answers. [noteId] holds the civil date asked on.
   bool get isDiaryAnswer => operation == historyOperation;
+
+  /// S02 answers about saved notes. [noteId] holds the civil date asked on.
+  bool get isNoteQuestion => operation == noteQuestionOperation;
 
   /// L01 Flow reflections. [noteId] holds the thought UUID.
   bool get isThoughtReflection => operation == thoughtReflectionOperation;
@@ -151,6 +155,7 @@ class SummaryHandle {
             !handle.isNoteWebsite &&
             !handle.isRetiredPresentation &&
             !handle.isDiaryDay &&
+            !handle.isNoteQuestion &&
             !handle.isNoteMetadata &&
             !handle.isNoteIdeas &&
             !handle.isNoteImage &&
@@ -162,7 +167,7 @@ class SummaryHandle {
         (handle.isDiaryPhoto &&
             !RegExp(r'^[a-f0-9]{64}$').hasMatch(handle.noteId)) ||
         (handle.isNoteIdeas && handle.noteId != noteIdeasKey) ||
-        (handle.isDiaryDay &&
+        ((handle.isDiaryDay || handle.isNoteQuestion) &&
             !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(handle.noteId)) ||
         !RegExp(r'^[a-zA-Z0-9_-]{8,80}$').hasMatch(handle.id) ||
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(handle.revision) ||
@@ -218,6 +223,11 @@ class SummaryHandle {
         }
       } else if (handle.isDiaryAnswer) {
         if (DiaryHistorySelection.decode(handle.localSource!).today !=
+            handle.noteId) {
+          throw const FormatException('Mismatched source');
+        }
+      } else if (handle.isNoteQuestion) {
+        if (NoteQuestionSelection.decode(handle.localSource!).today !=
             handle.noteId) {
           throw const FormatException('Mismatched source');
         }

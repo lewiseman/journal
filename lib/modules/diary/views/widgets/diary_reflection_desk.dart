@@ -30,6 +30,7 @@ class DiaryReflectionDesk extends StatefulWidget {
     required this.onAnotherQuestion,
     required this.onEnlargePhoto,
     required this.onAnswerChanged,
+    this.loadingQuestion = false,
   });
 
   final List<DiaryReflectionPhoto> photos;
@@ -42,6 +43,9 @@ class DiaryReflectionDesk extends StatefulWidget {
   final ValueChanged<int> onSelectPhoto, onSelectGroup;
   final ValueChanged<int> onEnlargePhoto;
   final VoidCallback onAnotherQuestion, onAnswerChanged;
+
+  /// Shuffle is waiting for a new question from the computer.
+  final bool loadingQuestion;
 
   @override
   State<DiaryReflectionDesk> createState() => _DiaryReflectionDeskState();
@@ -85,6 +89,7 @@ class _DiaryReflectionDeskState extends State<DiaryReflectionDesk> {
   }
 
   void _drawAnother() {
+    if (widget.loadingQuestion) return;
     FocusScope.of(context).unfocus();
     widget.onAnotherQuestion();
   }
@@ -364,27 +369,8 @@ class _DiaryReflectionDeskState extends State<DiaryReflectionDesk> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'SAMPLE QUESTION',
-                          style: TextStyle(
-                            fontSize: 8,
-                            letterSpacing: 1.6,
-                            color: palette.muted,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${widget.selectedGroup + 1} / 3',
-                        textDirection: TextDirection.ltr,
-                        style: TextStyle(fontSize: 10, color: palette.muted),
-                      ),
-                      const SizedBox(width: 40),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
+                  // Room for the shuffle mark in the corner.
+                  const SizedBox(height: 30),
                   GestureDetector(
                     key: const ValueKey('diary-reflection-swipe'),
                     behavior: HitTestBehavior.opaque,
@@ -421,21 +407,45 @@ class _DiaryReflectionDeskState extends State<DiaryReflectionDesk> {
                                   child: child,
                                 ),
                               ),
-                          child: SizedBox(
-                            key: ValueKey(questionIdentity),
-                            width: double.infinity,
-                            child: Text(
-                              widget.question,
-                              key: const ValueKey('diary-photo-question'),
-                              style: TextStyle(
-                                fontSize: 23,
-                                height: 1.4,
-                                letterSpacing: -.5,
-                                fontStyle: FontStyle.italic,
-                                color: palette.ink,
-                              ),
-                            ),
-                          ),
+                          child: widget.loadingQuestion
+                              ? Semantics(
+                                  key: const ValueKey(
+                                    'diary-photo-question-loading',
+                                  ),
+                                  liveRegion: true,
+                                  label: 'Writing a new question',
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    child: Align(
+                                      alignment:
+                                          AlignmentDirectional.centerStart,
+                                      child: SizedBox.square(
+                                        dimension: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: palette.muted,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : SizedBox(
+                                  key: ValueKey(questionIdentity),
+                                  width: double.infinity,
+                                  child: Text(
+                                    widget.question,
+                                    key: const ValueKey('diary-photo-question'),
+                                    style: TextStyle(
+                                      fontSize: 23,
+                                      height: 1.4,
+                                      letterSpacing: -.5,
+                                      fontStyle: FontStyle.italic,
+                                      color: palette.ink,
+                                    ),
+                                  ),
+                                ),
                         ),
                       ),
                     ),
@@ -485,7 +495,7 @@ class _DiaryReflectionDeskState extends State<DiaryReflectionDesk> {
               key: const ValueKey('diary-photo-another-question'),
               label: 'Try another question',
               tooltip: 'Try another question',
-              onPressed: _drawAnother,
+              onPressed: widget.loadingQuestion ? null : _drawAnother,
               child: Padding(
                 padding: const EdgeInsets.all(13),
                 child: SizedBox.square(

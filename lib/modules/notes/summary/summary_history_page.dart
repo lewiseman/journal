@@ -109,6 +109,8 @@ class SummaryHistoryPage extends ConsumerWidget {
                                   ? 'Daily question'
                                   : task.isDiaryAnswer
                                   ? 'Diary question'
+                                  : task.isNoteQuestion
+                                  ? 'Notes question'
                                   : task.isThoughtReflection
                                   ? 'Flow reflection'
                                   : task.isNoteWebsite

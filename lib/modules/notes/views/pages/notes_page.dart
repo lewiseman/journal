@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/notes/models/note_tag.dart';
-import 'package:journal/modules/notes/metadata/note_help_pages.dart';
 import 'package:journal/modules/notes/views/widgets/note_card.dart';
-import 'package:journal/modules/notes/views/widgets/note_idea_card.dart';
+import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
+import 'package:journal/modules/notes/views/widgets/notes_assistant.dart';
+import 'package:journal/modules/notes/views/pages/note_question_page.dart';
 import 'package:journal/modules/notes/views/widgets/note_tag_strip.dart';
 import 'package:journal/modules/notes/views/widgets/notes_top_artwork.dart';
 import 'package:journal/modules/recall/hybrid_retriever.dart';
@@ -93,139 +94,156 @@ class _NotesPageState extends ConsumerState<NotesPage> {
     ];
   }
 
+  void _startIdeaNote(String idea) {
+    if (!mounted || ref.read(accountResetProvider).blocksDataAccess) return;
+    context.nav.push(EditNotePage(starterTitle: idea));
+  }
+
+  void _openNoteSearch() {
+    if (!mounted || ref.read(accountResetProvider).blocksDataAccess) return;
+    context.nav.push(const NoteQuestionPage());
+  }
+
   @override
   Widget build(BuildContext context) {
     final notesAsync = ref.watch(notesStreamProvider);
     final screenPadding = MediaQuery.paddingOf(context);
     final noteTags = ref.watch(notesTagProvider);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: SizedBox(
-              width: MediaQuery.sizeOf(context).width.clamp(0.0, 900.0),
-              height: 280 + screenPadding.top,
-              child: AnimatedBuilder(
-                animation: _scroll,
-                child: const NotesTopArtwork(),
-                builder: (context, child) {
-                  final progress = _scroll.hasClients
-                      ? (_scroll.offset / 260).clamp(0.0, 1.0)
-                      : 0.0;
-                  return TickerMode(
-                    enabled: progress < 1,
-                    child: Opacity(
-                      opacity: 1 - progress,
-                      child: Transform.translate(
-                        offset: Offset(0, -28 * progress),
-                        child: child,
+    return QvacAssistantContent(
+      label: 'Notes',
+      builder: (_, scrollController) => NotesAssistant(
+        scrollController: scrollController,
+        onUseIdea: _startIdeaNote,
+        onSearch: _openNoteSearch,
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: SizedBox(
+                width: MediaQuery.sizeOf(context).width.clamp(0.0, 900.0),
+                height: 280 + screenPadding.top,
+                child: AnimatedBuilder(
+                  animation: _scroll,
+                  child: const NotesTopArtwork(),
+                  builder: (context, child) {
+                    final progress = _scroll.hasClients
+                        ? (_scroll.offset / 260).clamp(0.0, 1.0)
+                        : 0.0;
+                    return TickerMode(
+                      enabled: progress < 1,
+                      child: Opacity(
+                        opacity: 1 - progress,
+                        child: Transform.translate(
+                          offset: Offset(0, -28 * progress),
+                          child: child,
+                        ),
                       ),
-                    ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final textScale =
+                      MediaQuery.textScalerOf(context).scale(14) / 14;
+                  final columns = constraints.maxWidth < 300 || textScale > 1.4
+                      ? (constraints.maxWidth >= 650 ? 2 : 1)
+                      : (constraints.maxWidth >= 700 ? 3 : 2);
+
+                  return CustomScrollView(
+                    key: const PageStorageKey('notes-collection'),
+                    controller: _scroll,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    slivers: [
+                      SliverFloatingHeader(
+                        snapMode: FloatingHeaderSnapMode.overlay,
+                        animationStyle: const AnimationStyle(
+                          duration: Duration(milliseconds: 220),
+                          reverseDuration: Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          reverseCurve: Curves.easeOutCubic,
+                        ),
+                        child: _buildSearch(screenPadding: screenPadding),
+                      ),
+                      SliverToBoxAdapter(
+                        child: Center(
+                          child: NoteTagStrip(
+                            tags: noteTags,
+                            selectedTag: _selectedTag,
+                            isLoading: notesAsync.isLoading,
+                            onSelected: (tag) =>
+                                setState(() => _selectedTag = tag),
+                          ),
+                        ),
+                      ),
+                      ...notesAsync.when(
+                        skipLoadingOnRefresh: false,
+                        loading: () => [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.all(72),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: context.colors.primary,
+                                  semanticsLabel: 'Loading notes',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                        error: (_, _) => [
+                          SliverToBoxAdapter(
+                            child: _CollectionMessage(
+                              icon: Icon(
+                                Icons.cloud_off_rounded,
+                                size: 36,
+                                color: context.colors.primary,
+                              ),
+                              title: 'Your notes need a moment',
+                              message: 'We couldn\'t load them. Give it another try.',
+                              action: 'Try again',
+                              onAction: () =>
+                                  ref.invalidate(notesRepositoryProvider),
+                            ),
+                          ),
+                        ],
+                        data: (allNotes) =>
+                            _buildCollection(allNotes, columns, noteTags),
+                      ),
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: 110 + MediaQuery.paddingOf(context).bottom,
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
             ),
           ),
-        ),
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final textScale =
-                    MediaQuery.textScalerOf(context).scale(14) / 14;
-                final columns = constraints.maxWidth < 300 || textScale > 1.4
-                    ? (constraints.maxWidth >= 650 ? 2 : 1)
-                    : (constraints.maxWidth >= 700 ? 3 : 2);
-
-                return CustomScrollView(
-                  key: const PageStorageKey('notes-collection'),
-                  controller: _scroll,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  slivers: [
-                    SliverFloatingHeader(
-                      snapMode: FloatingHeaderSnapMode.overlay,
-                      animationStyle: const AnimationStyle(
-                        duration: Duration(milliseconds: 220),
-                        reverseDuration: Duration(milliseconds: 180),
-                        curve: Curves.easeOutCubic,
-                        reverseCurve: Curves.easeOutCubic,
-                      ),
-                      child: _buildSearch(screenPadding: screenPadding),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Center(
-                        child: NoteTagStrip(
-                          tags: noteTags,
-                          selectedTag: _selectedTag,
-                          isLoading: notesAsync.isLoading,
-                          onSelected: (tag) =>
-                              setState(() => _selectedTag = tag),
-                        ),
-                      ),
-                    ),
-                    ...notesAsync.when(
-                      skipLoadingOnRefresh: false,
-                      loading: () => [
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.all(72),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: context.colors.primary,
-                                semanticsLabel: 'Loading notes',
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      error: (_, _) => [
-                        SliverToBoxAdapter(
-                          child: _CollectionMessage(
-                            icon: Icon(
-                              Icons.cloud_off_rounded,
-                              size: 36,
-                              color: context.colors.primary,
-                            ),
-                            title: 'Your notes need a moment',
-                            message:
-                                'We couldn\'t load them. Give it another try.',
-                            action: 'Try again',
-                            onAction: () =>
-                                ref.invalidate(notesRepositoryProvider),
-                          ),
-                        ),
-                      ],
-                      data: (allNotes) =>
-                          _buildCollection(allNotes, columns, noteTags),
-                    ),
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 110 + MediaQuery.paddingOf(context).bottom,
-                      ),
-                    ),
-                  ],
-                );
+          Positioned(
+            bottom: 24,
+            right: 16,
+            child: _AddNoteButton(
+              key: const ValueKey('notes-add-button'),
+              onPressed: () {
+                context.nav.push(EditNotePage());
               },
             ),
           ),
-        ),
-        Positioned(
-          bottom: 24,
-          right: 16,
-          child: _AddNoteButton(
-            key: const ValueKey('notes-add-button'),
-            onPressed: () {
-              context.nav.push(EditNotePage());
-            },
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -335,8 +353,8 @@ class _NotesPageState extends ConsumerState<NotesPage> {
     List<({String emoji, String name})> noteTags,
   ) {
     final entries = _visibleNotes(allNotes);
-    final showIdea = _selectedTag == 'All' && _query.trim().isEmpty;
-    final emptyNotebook = showIdea && entries.isEmpty;
+    final emptyNotebook =
+        _selectedTag == 'All' && _query.trim().isEmpty && entries.isEmpty;
     return [
       if (entries.isEmpty && !emptyNotebook)
         SliverToBoxAdapter(
@@ -390,22 +408,8 @@ class _NotesPageState extends ConsumerState<NotesPage> {
             crossAxisCount: columns,
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
-            childCount: emptyNotebook ? 2 : entries.length + (showIdea ? 1 : 0),
+            childCount: emptyNotebook ? 1 : entries.length,
             itemBuilder: (context, index) {
-              if (showIdea && index == 1) {
-                return NoteIdeaCard(
-                  key: const ValueKey('note-idea-shuffle'),
-                  onUsePrompt: (prompt) {
-                    context.nav.push(EditNotePage(starterTitle: prompt));
-                  },
-                  onAskAi: () => context.nav.push<void>(
-                    NoteIdeasPage(
-                      onUseIdea: (idea) =>
-                          context.nav.push(EditNotePage(starterTitle: idea)),
-                    ),
-                  ),
-                );
-              }
               if (emptyNotebook) {
                 return _FirstNoteCard(
                   onTap: () {
@@ -413,12 +417,11 @@ class _NotesPageState extends ConsumerState<NotesPage> {
                   },
                 );
               }
-              final noteIndex = showIdea && index > 1 ? index - 1 : index;
-              final note = entries[noteIndex];
+              final note = entries[index];
               return NoteCard(
                 key: ValueKey(note.uuid),
                 note: note,
-                index: noteIndex,
+                index: index,
                 onTap: () {
                   context.nav.push(EditNotePage(existingNote: note));
                 },

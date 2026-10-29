@@ -52,6 +52,15 @@ class _Summary extends NoteSummaryController {
   );
 
   void idle() => state = const NoteSummaryState();
+
+  void longSummary() {
+    running('summarize-note');
+    state = NoteSummaryState(
+      phase: 'completed',
+      handle: state.handle,
+      text: List.filled(40, 'A quiet walk by the river.').join('\n'),
+    );
+  }
 }
 
 final _button = find.byKey(const ValueKey('qvac-assistant-button'));
@@ -324,6 +333,70 @@ void main() {
     expect(tester.takeException(), isNull);
     await _unmount(tester, app);
   });
+
+  testWidgets(
+    'a nested long preview keeps the sheet and content connected',
+    (tester) async {
+      final app = await _mount(tester, reducedMotion: false);
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      await _open(tester, 'writing');
+      final scope = ProviderScope.containerOf(
+        tester.element(find.byType(EditNotePage)),
+        listen: false,
+      );
+      final tasks = scope.read(noteSummaryProvider.notifier) as _Summary;
+      tasks.longSummary();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open preview'));
+      await tester.pumpAndSettle();
+      final sheet = tester
+          .widget<DraggableScrollableSheet>(
+            find.byType(DraggableScrollableSheet),
+          )
+          .controller!;
+      final list = find.descendant(
+        of: find.byType(NoteSummaryPage),
+        matching: find.byType(ListView),
+      );
+      final controller = PrimaryScrollController.of(tester.element(list));
+      expect(controller.positions.length, 1);
+      expect(sheet.size, closeTo(1, .01));
+
+      // A content swipe must expand the sheet before consuming the long page.
+      sheet.jumpTo(.64);
+      await tester.pumpAndSettle();
+      await tester.drag(list, const Offset(0, -220));
+      await tester.pumpAndSettle();
+      expect(sheet.size, closeTo(1, .01));
+      expect(controller.offset, closeTo(0, .01));
+      await tester.drag(list, const Offset(0, -350));
+      await tester.pumpAndSettle();
+      expect(controller.offset, greaterThan(0));
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(find.text('Dismiss').hitTestable(), findsOneWidget);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(NoteTransformPage), findsOneWidget);
+      final writingList = find.descendant(
+        of: find.byType(NoteTransformPage),
+        matching: find.byType(ListView),
+      );
+      expect(
+        PrimaryScrollController.of(tester.element(writingList)),
+        controller,
+      );
+      expect(controller.positions.length, 1);
+      expect(tester.takeException(), isNull);
+      await _unmount(tester, app);
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.android,
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    }),
+  );
 
   testWidgets('dragging down dismisses the tools and their feature pages', (
     tester,

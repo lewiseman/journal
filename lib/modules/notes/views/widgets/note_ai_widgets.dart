@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:journal/modules/assistant/qvac_assistant.dart';
 
 /// One visual language from the note toolbox through to the reviewed result.
 enum NoteAiTool {
   ideas(
-    'Starting ideas',
+    'Note ideas',
     'Choose a topic to get note ideas.',
-    'Find an idea',
-    'Topic suggestions',
+    'Note ideas',
+    'Start a new note',
     Color(0xFFB5683F),
+  ),
+  search(
+    'AI note search',
+    'Ask a question and get an answer from your notes.',
+    'AI note search',
+    'Ask about your notes',
+    Color(0xFF527C9C),
   ),
   template(
     'Starting template',
@@ -257,6 +265,24 @@ class _ToolPainter extends CustomPainter {
         lines(44, 34, 18, 3);
         sparkle(64, 63);
       case NoteAiTool.ideas:
+        sheet(10, 28, 39, 39);
+        lines(17, 40, 22, 3);
+        canvas.drawCircle(const Offset(54, 26), 13, Paint()..color = paper);
+        canvas.drawCircle(const Offset(54, 26), 13, stroke);
+        line(48, 39, 60, 39);
+        line(49, 44, 59, 44);
+        line(54, 8, 54, 3);
+        line(72, 26, 77, 26);
+        line(69, 12, 73, 8);
+        sparkle(69, 53);
+      case NoteAiTool.search:
+        sheet(12, 11, 39, 50);
+        sheet(18, 17, 39, 50, tinted: true);
+        lines(25, 30, 23, 3);
+        canvas.drawCircle(const Offset(58, 51), 12, Paint()..color = paper);
+        canvas.drawCircle(const Offset(58, 51), 12, stroke);
+        line(67, 60, 75, 68);
+        sparkle(66, 13);
       case NoteAiTool.template:
         sheet(14, 12, 49, 57);
         line(23, 25, 49, 25);
@@ -459,71 +485,79 @@ class NoteAiScaffold extends StatelessWidget {
         ),
       ),
     );
-    return Theme(
-      data: theme,
-      child: Scaffold(
-        body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    const BackButton(),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(tool.title, style: base.textTheme.labelLarge),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) => ListView(
-                    key: listKey,
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+    return QvacAssistantSheetPage(
+      child: Theme(
+        data: theme,
+        child: Scaffold(
+          body: SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
                     children: [
-                      if (loading != null)
-                        ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight > 32
-                                ? constraints.maxHeight - 32
-                                : 0,
-                          ),
-                          child: Center(child: loading),
-                        )
-                      else ...[
-                        const SizedBox(height: 8),
-                        if (header != null)
-                          header!
-                        else ...[
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              NoteAiArt(tool: tool, size: largeText ? 48 : 56),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  tool.description,
-                                  style: base.textTheme.bodyMedium?.copyWith(
-                                    height: 1.35,
-                                    color: base.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          _StepTrail(step: step, ink: ink),
-                        ],
-                        const SizedBox(height: 20),
-                        ...children,
-                      ],
+                      const BackButton(),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          tool.title,
+                          style: base.textTheme.labelLarge,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => ListView(
+                      key: listKey,
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      children: [
+                        if (loading != null)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight > 32
+                                  ? constraints.maxHeight - 32
+                                  : 0,
+                            ),
+                            child: Center(child: loading),
+                          )
+                        else ...[
+                          const SizedBox(height: 8),
+                          if (header != null)
+                            header!
+                          else ...[
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                NoteAiArt(
+                                  tool: tool,
+                                  size: largeText ? 48 : 56,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    tool.description,
+                                    style: base.textTheme.bodyMedium?.copyWith(
+                                      height: 1.35,
+                                      color: base.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            _StepTrail(step: step, ink: ink),
+                          ],
+                          const SizedBox(height: 20),
+                          ...children,
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

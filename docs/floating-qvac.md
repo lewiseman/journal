@@ -15,6 +15,13 @@ reflect the companion's live transport phase, not model readiness.
   secondary-device restrictions apply.
 - Diary Microphone closes the QVAC sheet and opens the full voice conversation
   page for the selected day. Leaving voice returns directly to the diary.
+- On the Notes collection, QVAC opens two illustrated choices: Note ideas and
+  AI note search. Note ideas opens at full height within the same sheet; using
+  an idea closes the sheet and opens an unsaved note with that starting title.
+  AI note search closes the sheet and opens a full page where you ask a
+  question about your notes and get a cited answer (see `note-question.md`).
+  The old idea-shuffle card is removed from the notes grid. The collection menu
+  uses a shorter initial sheet, with more space for large text or small screens.
 - In a single note, a compact illustrated toolbox groups actions by purpose:
   Edit, Add, and Appearance. Short labels pair with custom paper drawings; lone
   choices use a full-width card. New notes offer starting templates, scanning,
@@ -46,6 +53,11 @@ reflect the companion's live transport phase, not model readiness.
   palette adapts to dark mode. All note pages use the sheet's scroll controller.
 - The sheet and its page content share scrolling: scroll up to fill the page,
   then continue through the content. Drag or tap the handle to resize it.
+  Snap-position lists stay constant between drag frames; replacing a list
+  restarts Flutter's snap behavior and interrupts the ongoing finger gesture.
+  `NoteAiScaffold` uses `QvacAssistantSheetPage` to restore this connection below
+  each route's own scroll controller, including nested previews. Covered pages
+  release the shared controller; the active feature expands after attaching.
 - Every page sheet has a Local AI settings shortcut above its surface, in the
   transparent area. It fades away as the sheet fills the page and returns when
   collapsed. Note sheets show only a settings icon. The shortcut opens the

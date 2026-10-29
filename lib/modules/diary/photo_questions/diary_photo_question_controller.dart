@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:journal/common.dart';
@@ -14,6 +15,8 @@ class DiaryPhotoQuestionState {
     this.questions = const {},
     this.messages = const {},
     this.queued = const [],
+    this.shuffling = const {},
+    this.fresh = const {},
     this.revision = 0,
   });
 
@@ -25,6 +28,13 @@ class DiaryPhotoQuestionState {
 
   /// Photos from **Generate questions** not yet held by the task slot.
   final List<String> queued;
+
+  /// Photos waiting for one new question, by photo SHA-256: the group index.
+  final Map<String, int> shuffling;
+
+  /// The latest new question per photo from shuffle. [id] is the task that
+  /// wrote it, so the page adds each one once.
+  final Map<String, ({String id, int group, String question})> fresh;
   final int revision;
 }
 
@@ -67,14 +77,23 @@ class DiaryPhotoQuestionController extends Notifier<DiaryPhotoQuestionState> {
   void _set({
     Map<String, DiaryPhotoQuestions>? questions,
     Map<String, String>? messages,
+    Map<String, int>? shuffling,
+    Map<String, ({String id, int group, String question})>? fresh,
   }) {
     state = DiaryPhotoQuestionState(
       questions: questions ?? state.questions,
       messages: messages ?? state.messages,
       queued: [for (final ask in _queue) ask.photoSha],
+      shuffling: shuffling ?? state.shuffling,
+      fresh: fresh ?? state.fresh,
       revision: state.revision + 1,
     );
   }
+
+  Map<String, int> _withoutShuffle(String photoSha) => {
+    for (final entry in state.shuffling.entries)
+      if (entry.key != photoSha) entry.key: entry.value,
+  };
 
   void _message(String photoSha, String? message) => _set(
     messages: {
@@ -194,6 +213,55 @@ class DiaryPhotoQuestionController extends Notifier<DiaryPhotoQuestionState> {
     }
   }
 
+  /// Shuffle: asks for one new question in [group] for one photo, avoiding
+  /// [shown]. Returns false when nothing was sent (no computer, no model, the
+  /// slot busy), so the page can fall back to the questions it has.
+  Future<bool> another({
+    required String date,
+    required String photoSha,
+    required Uint8List photo,
+    required int group,
+    required List<String> shown,
+    String caption = '',
+  }) async {
+    if (photo.isEmpty || state.shuffling.containsKey(photoSha)) return false;
+    final summary = ref.read(noteSummaryProvider);
+    if (summary.handle != null || summary.busy || _queue.isNotEmpty) {
+      return false;
+    }
+    // The newest questions matter most, and the request must stay within the
+    // task slot's 2,000-byte input.
+    final avoid = <String>[];
+    for (final question in shown.reversed) {
+      if (avoid.length == diaryPhotoAvoid) break;
+      final next = [question, ...avoid];
+      if (utf8.encode(jsonEncode({'caption': caption, 'avoid': next})).length >
+          1900) {
+        break;
+      }
+      avoid.insert(0, question);
+    }
+    if (avoid.isEmpty) return false;
+    _set(shuffling: {...state.shuffling, photoSha: group});
+    await ref
+        .read(noteSummaryProvider.notifier)
+        .startDiaryPhotoQuestions(
+          date: date,
+          photoSha: photoSha,
+          photo: photo,
+          caption: caption,
+          group: group,
+          avoid: avoid,
+        );
+    if (!ref.mounted) return false;
+    final next = ref.read(noteSummaryProvider);
+    if (next.handle?.noteId == photoSha && next.handle!.isDiaryPhoto) {
+      return true;
+    }
+    _set(shuffling: _withoutShuffle(photoSha));
+    return false;
+  }
+
   /// Asks the computer about one photo.
   Future<void> request({
     required String date,
@@ -250,6 +318,51 @@ class DiaryPhotoQuestionController extends Notifier<DiaryPhotoQuestionState> {
     final controller = ref.read(noteSummaryProvider.notifier);
     final sha = handle.noteId;
     String? message;
+    DiaryPhotoQuestionSource? source;
+    try {
+      source = DiaryPhotoQuestionSource.decode(handle.localSource ?? '');
+    } catch (_) {
+      // Retrieved after the source was dropped: treat as a full request.
+    }
+    if (source != null && source.shuffle) {
+      // One new question for one group; the cached set is left as it is.
+      String? question;
+      if (summary.phase == 'completed' && summary.text != null) {
+        try {
+          final seen = {for (final q in source.avoid) q.toLowerCase()};
+          final result = DiaryPhotoQuestions.parse(summary.text!);
+          question = result.groups[source.group]
+              .where((q) => !seen.contains(q.toLowerCase()))
+              .firstOrNull;
+        } catch (_) {
+          // Reported below.
+        }
+      }
+      await controller.clear();
+      try {
+        await _store.prune();
+      } catch (_) {
+        // Removed on the next start.
+      }
+      if (!ref.mounted) return;
+      _set(
+        shuffling: _withoutShuffle(sha),
+        fresh: question == null
+            ? null
+            : {
+                ...state.fresh,
+                sha: (id: handle.id, group: source.group, question: question),
+              },
+      );
+      if (question == null) {
+        _message(
+          sha,
+          summary.phase == 'cancelled' ? null : 'Your computer didn’t come up with a different question this time.',
+        );
+      }
+      await _next();
+      return;
+    }
     if (summary.phase == 'completed' && summary.text != null) {
       try {
         final questions = DiaryPhotoQuestions.parse(summary.text!);

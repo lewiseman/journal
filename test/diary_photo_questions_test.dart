@@ -36,7 +36,7 @@ class PhotoConnection extends summary.TestConnection {
           'id': 'vision',
           'status': photoStatus,
           'visionContract': 1,
-          'photoContract': 1,
+          'photoContract': diaryPhotoQuestionContract,
           'operations': [diaryPhotoQuestionOperation],
         },
       ],
@@ -494,4 +494,58 @@ void main() {
       expect(c.read(noteSummaryProvider).handle, isNull);
     },
   );
+
+  test('shuffle sends what was shown, returns one new question for that group, and leaves the cached set alone', () async {
+    final store = summary.MemorySummaries();
+    final wire = ImageTransport(store)..output = jsonEncode(questions);
+    final c = container(store, wire);
+    addTearDown(c.dispose);
+    c.read(noteSummaryProvider);
+    await summary.settle();
+    final controller = c.read(diaryPhotoQuestionProvider.notifier);
+    final sent = await controller.another(
+      date: '2026-10-27',
+      photoSha: sha,
+      photo: photo,
+      group: 1,
+      shown: ['How did you feel as the sun went down?'],
+      caption: 'Beach',
+    );
+    expect(sent, true);
+    await summary.settle();
+    expect(jsonDecode(wire.submitted.single['prompt'] as String), {
+      'caption': 'Beach',
+      'avoid': ['How did you feel as the sun went down?'],
+    });
+    final state = c.read(diaryPhotoQuestionProvider);
+    expect(state.fresh[sha]!.group, 1);
+    expect(
+      state.fresh[sha]!.question,
+      'What did this evening mean to you?',
+      reason: 'the shown question is skipped',
+    );
+    expect(state.shuffling, isEmpty);
+    expect(state.questions, isEmpty);
+    expect(await cache.read(sha), isNull);
+    expect(store.value, isNull);
+    // Only repeats come back: say so, add nothing.
+    wire.output = jsonEncode({
+      ...questions,
+      'little': ['What could you hear near the red umbrella?'],
+    });
+    await controller.another(
+      date: '2026-10-27',
+      photoSha: sha,
+      photo: photo,
+      group: 2,
+      shown: ['What could you hear near the red umbrella?'],
+    );
+    await summary.settle();
+    expect(
+      c.read(diaryPhotoQuestionProvider).messages[sha],
+      contains('didn’t come up with a different question'),
+    );
+    expect(c.read(diaryPhotoQuestionProvider).fresh[sha]!.group, 1);
+    expect(wire.submitted, hasLength(2));
+  });
 }

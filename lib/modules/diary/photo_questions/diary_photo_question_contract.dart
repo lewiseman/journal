@@ -3,7 +3,10 @@ import 'dart:convert';
 /// I02: reflection questions about one diary photo the user chose. Only the
 /// re-encoded photo and its optional caption are sent; no diary text.
 const diaryPhotoQuestionOperation = 'diary-photo-questions';
-const diaryPhotoQuestionContract = 1;
+
+/// 2 adds `avoid`, so shuffle can ask for a question not seen yet.
+const diaryPhotoQuestionContract = 2;
+const diaryPhotoAvoid = 12;
 const diaryPhotoCaptionChars = 240;
 const diaryPhotoQuestionOutputBytes = 4096;
 const diaryPhotoQuestionChars = 160;
@@ -26,6 +29,8 @@ class DiaryPhotoQuestionSource {
     required this.photoSha,
     required this.imageSha,
     this.caption = '',
+    this.group = -1,
+    this.avoid = const [],
   });
 
   /// The civil day of the story, for the history label only.
@@ -38,13 +43,25 @@ class DiaryPhotoQuestionSource {
   final String imageSha;
   final String caption;
 
-  String request() => jsonEncode({'caption': caption});
+  /// Shuffle: the [diaryPhotoGroups] index wanting one new question, or -1
+  /// when asking for all three groups.
+  final int group;
+
+  /// Shuffle: questions already shown in that group, not to be repeated.
+  final List<String> avoid;
+
+  bool get shuffle => group >= 0;
+
+  String request() =>
+      jsonEncode({'caption': caption, if (avoid.isNotEmpty) 'avoid': avoid});
 
   String encode() => jsonEncode({
     'date': date,
     'photoSha': photoSha,
     'imageSha': imageSha,
     'caption': caption,
+    if (shuffle) 'group': group,
+    if (avoid.isNotEmpty) 'avoid': avoid,
   });
 
   factory DiaryPhotoQuestionSource.decode(String raw) {
@@ -62,11 +79,23 @@ class DiaryPhotoQuestionSource {
       throw const FormatException('Invalid photo question source');
     }
     validateCaption(json['caption'] as String);
+    final group = json['group'] ?? -1;
+    final avoid = json['avoid'] ?? const [];
+    if (group is! int ||
+        group < -1 ||
+        group >= diaryPhotoGroups.length ||
+        avoid is! List ||
+        avoid.length > diaryPhotoAvoid ||
+        avoid.any((q) => q is! String)) {
+      throw const FormatException('Invalid photo question source');
+    }
     return DiaryPhotoQuestionSource(
       date: json['date'] as String,
       photoSha: json['photoSha'] as String,
       imageSha: json['imageSha'] as String,
       caption: json['caption'] as String,
+      group: group,
+      avoid: [for (final q in avoid) q as String],
     );
   }
 

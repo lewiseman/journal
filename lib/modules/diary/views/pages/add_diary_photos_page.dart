@@ -61,6 +61,12 @@ class _PhotoMoment {
   /// Which group each question belongs to and where it came from, so
   /// answers keep their place when questions change.
   final meta = <String, ({int group, bool fromPhoto})>{};
+
+  /// New questions from shuffle, per group, kept while the story is open.
+  final extra = [<String>[], <String>[], <String>[]];
+
+  /// Shuffle results already added, by the task that wrote them.
+  final applied = <String>{};
   final List<int> variants;
   int group = 0;
 
@@ -73,6 +79,11 @@ class _PhotoMoment {
           for (final text in generated?.groups[g] ?? _usualQuestions[g])
             (text: text, fromPhoto: generated != null),
         ];
+        for (final text in extra[g]) {
+          if (!base.any((q) => q.text == text)) {
+            base.add((text: text, fromPhoto: true));
+          }
+        }
         final shown = {for (final q in base) q.text};
         return [
           ...base,
@@ -918,7 +929,9 @@ class _AddDiaryPhotosPageState extends ConsumerState<AddDiaryPhotosPage> {
     return _moments.any(
       (moment) =>
           questions.queued.contains(moment.sha) ||
-          DiaryPhotoQuestionController.asking(summary, moment.sha),
+          // A shuffle waits on its card, not the whole page.
+          (DiaryPhotoQuestionController.asking(summary, moment.sha) &&
+              !questions.shuffling.containsKey(moment.sha)),
     );
   }
 
@@ -933,6 +946,15 @@ class _AddDiaryPhotosPageState extends ConsumerState<AddDiaryPhotosPage> {
           unawaited(ref.read(diaryPhotoQuestionProvider.notifier).load(shas));
         }
       });
+    }
+    // Add new questions from shuffle, once each, and show them.
+    for (final moment in _moments) {
+      final fresh = _photoQuestions!.fresh[moment.sha];
+      if (fresh == null || !moment.applied.add(fresh.id)) continue;
+      final g = fresh.group;
+      moment.extra[g].add(fresh.question);
+      final list = moment.groups(_generated(moment))[g];
+      moment.variants[g] = list.indexWhere((q) => q.text == fresh.question);
     }
     return _generating ? _generatingQuestions() : _reflectionDesk();
   }
@@ -992,6 +1014,31 @@ class _AddDiaryPhotosPageState extends ConsumerState<AddDiaryPhotosPage> {
     );
   }
 
+  /// Shuffle: a new question from the computer for this photo and group,
+  /// or the next question already here when the computer can't help.
+  Future<void> _shuffle() async {
+    final moment = _moment, group = moment.group;
+    void cycle() => setState(
+      () => moment.variants[group] =
+          (moment.variants[group] + 1) %
+          moment.groups(_generated(moment))[group].length,
+    );
+    if (moment.draft.missing) return cycle();
+    final sent = await ref
+        .read(diaryPhotoQuestionProvider.notifier)
+        .another(
+          date: TimeHelper.dateKey(widget.date),
+          photoSha: moment.sha,
+          photo: moment.bytes,
+          group: group,
+          shown: [
+            for (final q in moment.groups(_generated(moment))[group]) q.text,
+          ],
+          caption: moment.caption.text,
+        );
+    if (!sent && mounted) cycle();
+  }
+
   /// **Generate questions**: asks the computer about every photo here.
   void _generateQuestions() {
     _shownReason = null;
@@ -1045,11 +1092,8 @@ class _AddDiaryPhotosPageState extends ConsumerState<AddDiaryPhotosPage> {
       questionAnchor: _questionAnchor,
       onSelectPhoto: _selectPhoto,
       onSelectGroup: (index) => setState(() => _moment.group = index),
-      onAnotherQuestion: () => setState(
-        () => _moment.variants[_moment.group] =
-            (_moment.variants[_moment.group] + 1) %
-            _moment.groups(generated)[_moment.group].length,
-      ),
+      loadingQuestion: _photoQuestions?.shuffling[_moment.sha] == _moment.group,
+      onAnotherQuestion: _shuffle,
       onEnlargePhoto: (index) => _showPhoto(_moments[index], index),
       onAnswerChanged: () => setState(() {}),
     );
