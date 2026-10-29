@@ -169,9 +169,7 @@ class _AddDiaryPhotosPageState extends ConsumerState<AddDiaryPhotosPage> {
   String? _pickerError;
 
   _PhotoMoment get _moment => _moments[_selected];
-  bool get _reduced =>
-      MediaQuery.disableAnimationsOf(context) ||
-      MediaQuery.accessibleNavigationOf(context);
+  bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
   @override
   void initState() {

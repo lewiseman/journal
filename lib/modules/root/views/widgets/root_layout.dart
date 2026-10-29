@@ -14,6 +14,7 @@ class _RootLayoutState extends ConsumerState<RootLayout>
   int _page = 0;
   late final AnimationController _reveal = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 240),
     value: 1,
   );
@@ -29,7 +30,17 @@ class _RootLayoutState extends ConsumerState<RootLayout>
     setState(() {
       _page = index;
     });
-    _reveal.forward(from: 0);
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _reveal.value = 1;
+    } else {
+      _reveal.forward(from: 0);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) _reveal.value = 1;
   }
 
   @override

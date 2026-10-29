@@ -41,7 +41,9 @@ class JournalBottomNavbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const duration = Duration(milliseconds: 260);
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -141,6 +143,7 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
 
   @override
   Widget build(BuildContext context) {
+    final reduced = MediaQuery.disableAnimationsOf(context);
     final color = widget.selected
         ? context.colors.primary
         : context.colors.onSurfaceVariant;
@@ -166,13 +169,15 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                 dimension: 44,
                 child: AnimatedScale(
                   scale: _pressed ? .94 : 1,
-                  duration: Duration(milliseconds: _pressed ? 70 : 140),
+                  duration: reduced
+                      ? Duration.zero
+                      : Duration(milliseconds: _pressed ? 70 : 140),
                   curve: Curves.easeOutCubic,
                   child: TweenAnimationBuilder<double>(
                     tween: Tween<double>(end: widget.selected ? 1 : 0),
-                    duration: Duration(
-                      milliseconds: widget.selected ? 320 : 180,
-                    ),
+                    duration: reduced
+                        ? Duration.zero
+                        : Duration(milliseconds: widget.selected ? 320 : 180),
                     curve: widget.selected
                         ? Curves.easeOutBack
                         : Curves.easeOutCubic,
@@ -186,7 +191,9 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                     // Mount both states ahead of selection to keep the
                     // artwork available throughout the lift and crossfade.
                     child: AnimatedCrossFade(
-                      duration: const Duration(milliseconds: 150),
+                      duration: reduced
+                          ? Duration.zero
+                          : const Duration(milliseconds: 150),
                       firstCurve: Curves.easeOutCubic,
                       secondCurve: Curves.easeOutCubic,
                       crossFadeState: widget.selected
@@ -210,7 +217,9 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
               ),
               const SizedBox(height: 3),
               AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 180),
+                duration: reduced
+                    ? Duration.zero
+                    : const Duration(milliseconds: 180),
                 curve: Curves.easeOut,
                 style: DefaultTextStyle.of(context).style.copyWith(
                   color: color,

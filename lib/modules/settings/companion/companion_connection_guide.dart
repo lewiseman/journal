@@ -209,9 +209,7 @@ class _CompanionConnectionGuideState
     final colors = Theme.of(context).colorScheme;
     final theme = Theme.of(context).textTheme;
     final state = widget.connection;
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     final duration = reduced
         ? Duration.zero
         : const Duration(milliseconds: 260);

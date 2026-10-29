@@ -167,7 +167,7 @@ class _EditNotepageBgState extends State<EditNotepageBg>
     _settle = AnimationController(
       vsync: this,
       duration: duration,
-      // Keep the full entrance duration regardless of system motion settings.
+      // The app's motion preference is handled in didChangeDependencies.
       animationBehavior: AnimationBehavior.preserve,
     )..addStatusListener(_onSettleStatus);
     _paintProgress = _settle.drive(
@@ -210,6 +210,7 @@ class _EditNotepageBgState extends State<EditNotepageBg>
     super.didChangeDependencies();
     _resolveHeaderImage();
     _visible = TickerMode.valuesOf(context).enabled;
+    if (MediaQuery.disableAnimationsOf(context)) _settle.value = 1;
     // A covered route settles immediately and does not replay on return.
     // Initial offstage layout must not consume an entrance that hasn't begun.
     if (!_visible && _settle.isAnimating) {

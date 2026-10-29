@@ -195,11 +195,17 @@ class AppNav {
           transition == NavTransition.none && customTransition == null
           ? Duration.zero
           : (reverseDuration ?? defaultReverseDuration),
-      pageBuilder: (_, __, ___) => page,
-      transitionsBuilder:
-          customTransition ??
-          (_, animation, secondaryAnimation, child) =>
-              _animate(transition, animation, child),
+      pageBuilder: (_, _, _) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        if (MediaQuery.disableAnimationsOf(context)) return child;
+        return customTransition?.call(
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) ??
+            _animate(transition, animation, child);
+      },
     );
   }
 

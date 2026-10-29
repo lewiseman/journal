@@ -16,10 +16,12 @@ class _OnboardingBodyState extends State<OnboardingBody>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   late final _turn = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 850),
   );
   late final _close = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 1100),
   );
   final _name = TextEditingController();

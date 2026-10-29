@@ -26,6 +26,7 @@ class _VoiceAmbientBackgroundState extends State<VoiceAmbientBackground>
     with SingleTickerProviderStateMixin {
   late final _motion = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(seconds: 12),
   );
   double _cool = 0;

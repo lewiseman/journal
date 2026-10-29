@@ -67,12 +67,14 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
 
   late final _expansion = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     value: widget.isPreviewMode ? 0 : 1,
     duration: _unfoldDuration,
   )..addListener(_publishExpansion);
   late final _scroll = _PaperScrollController(this);
   final _bottomFade = ValueNotifier<double>(0);
   bool _reduceMotion = false;
+  double? _animationTarget;
   bool _enteringEdit = false;
   bool _collapsing = false;
   bool _dragCanExpand = false;
@@ -88,6 +90,10 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion && _expansion.isAnimating) {
+      _expansion.stop(canceled: false);
+      _expansion.value = _animationTarget ?? _expansion.value.roundToDouble();
+    }
   }
 
   @override
@@ -116,6 +122,7 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
   }
 
   Future<void> _animateTo(double target) async {
+    _animationTarget = target;
     if (_reduceMotion || _expansion.value == target) {
       if (_expansion.value != target) {
         // didUpdateWidget may be running in a listening ancestor's build.
@@ -213,6 +220,7 @@ class _EditNoteCardBgState extends State<EditNoteCardBg>
       _expansion.value = target;
     } else {
       // Distance chooses the destination; fling velocity cannot bypass it.
+      _animationTarget = target;
       _expansion.animateWith(ScrollSpringSimulation(_spring, value, target, 0));
     }
     return true;

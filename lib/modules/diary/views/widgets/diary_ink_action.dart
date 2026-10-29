@@ -34,9 +34,7 @@ class _DiaryInkActionState extends State<DiaryInkAction> {
 
   @override
   Widget build(BuildContext context) {
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     Widget control = Semantics(
       button: true,
       enabled: widget.onPressed != null,

@@ -159,9 +159,7 @@ class _DiaryPhotoEntryBookState extends State<DiaryPhotoEntryBook> {
 
   Widget _moment(int index, DiaryPhotoStory story, DiaryMemoryPalette palette) {
     final prompts = _showPrompts.contains(index);
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

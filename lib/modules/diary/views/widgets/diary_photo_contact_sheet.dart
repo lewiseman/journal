@@ -28,9 +28,7 @@ class DiaryPhotoContactSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = DiaryMemoryPalette.of(context);
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     return CustomPaint(
       painter: _FilmStripPainter(
         base: context.colors.surfaceContainerHighest,

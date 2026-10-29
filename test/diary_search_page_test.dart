@@ -384,7 +384,7 @@ void main() {
   );
 
   testWidgets(
-    'selected dates normalize and accessible navigation removes motion',
+    'selected dates normalize and accessible navigation does not reduce motion',
     (tester) async {
       final results = <DateTime?>[];
       final service = _ControlledSearch();
@@ -396,7 +396,7 @@ void main() {
       );
       expect(
         tester.widget<AnimatedSwitcher>(find.byType(AnimatedSwitcher)).duration,
-        Duration.zero,
+        const Duration(milliseconds: 240),
       );
       await _submit(tester, 'walk');
       service.pending.single.complete(_response('A memory.'));

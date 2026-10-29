@@ -24,6 +24,7 @@ class _DiarySearchLoadingState extends State<DiarySearchLoading>
     with SingleTickerProviderStateMixin {
   late final _scan = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 2200),
   );
 

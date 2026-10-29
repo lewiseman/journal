@@ -41,9 +41,7 @@ class _DiaryCalendarPageState extends State<DiaryCalendarPage> {
       TimeHelper.dateOnly(widget.firstDate ?? DateTime(1));
   DateTime get _lastDate => TimeHelper.dateOnly(widget.lastDate);
   DateTime get _selectedDate => TimeHelper.dateOnly(widget.initialDate);
-  bool get _reduced =>
-      MediaQuery.disableAnimationsOf(context) ||
-      MediaQuery.accessibleNavigationOf(context);
+  bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
   void _select(DateTime date) {
     if (_returning || date.isBefore(_firstDate) || date.isAfter(_lastDate)) {
@@ -287,9 +285,7 @@ class _CalendarYearTabsState extends State<_CalendarYearTabs> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !(_scroll?.hasClients ?? false)) return;
       final offset = (widget.year - widget.firstYear) * _extent;
-      final reduced =
-          MediaQuery.disableAnimationsOf(context) ||
-          MediaQuery.accessibleNavigationOf(context);
+      final reduced = MediaQuery.disableAnimationsOf(context);
       if (reduced) {
         _scroll!.jumpTo(offset);
       } else {
@@ -426,9 +422,7 @@ class _CalendarYearState extends State<_CalendarYear> {
   )..addListener(() => widget.onOffset(_scroll.offset));
 
   void showMonth(DateTime month) {
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     if (_anchor != month) {
       setState(() => _anchor = month);
       _scroll.jumpTo(0);
@@ -761,9 +755,7 @@ class _CalendarDateState extends State<_CalendarDate> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final data = widget.data;
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     final ink = widget.selected ? colors.primary : colors.onSurface;
     final paper = widget.selected
         ? colors.primaryContainer

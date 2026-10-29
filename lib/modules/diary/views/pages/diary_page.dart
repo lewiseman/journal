@@ -79,6 +79,7 @@ class _DiaryPageState extends State<_DiaryReader>
   late final _turn = AnimationController.unbounded(vsync: this);
   late final _fade = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     value: 1,
     duration: const Duration(milliseconds: 150),
   );
@@ -109,9 +110,7 @@ class _DiaryPageState extends State<_DiaryReader>
   }
 
   bool get _busy => _dragging || _settling;
-  bool get _reduced =>
-      MediaQuery.disableAnimationsOf(context) ||
-      MediaQuery.accessibleNavigationOf(context);
+  bool get _reduced => MediaQuery.disableAnimationsOf(context);
   double get _controlsHeight =>
       (MediaQuery.textScalerOf(context).scale(13) + 26).clamp(
         44.0,

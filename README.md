@@ -26,6 +26,10 @@ More keeps the app's normal screen background, with bookcloth texture confined
 to the account card and subtle ink washes behind the illustrated
 entries for Appearance and Local QVAC. It opens directly on the account
 and controls, without a masthead or decorative copy.
+Appearance includes **Motion → Animations**, enabled by default. Turning it off
+reduces decorative motion and transitions throughout the app. This preference
+is saved on the device and controls the app's motion mode independently of the
+system's reduced-motion setting.
 The taller bookplate centers a large avatar above the user's name and folds
 into a pinned account strip when scrolling. The shared
 surface, palette and entry widgets can carry this style into More's subpages;
@@ -106,6 +110,11 @@ Close Journal on other devices first: their local copies are not remotely erased
 and can upload again if reconnected before being cleared.
 
 ## Running and checking
+
+For signed APK downloads, GitHub publishing and repeatable build updates, see
+[Android releases](docs/android-release.md). Run
+`python3 scripts/release_android.py` to prepare a build, or add `--publish`
+after committing and pushing the app source.
 
 Configure the app's Google OAuth clients and Drive app-data access. The existing
 ignored `env.json` supplies `GOOGLE_SERVER_CLIENT_ID` and `GOOGLE_CLIENT_ID`:

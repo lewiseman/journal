@@ -366,7 +366,9 @@ class _OnboardingPageHints extends StatelessWidget {
         children: List.generate(
           6,
           (i) => AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 200),
             margin: const EdgeInsets.symmetric(horizontal: 4),
             width: i == page ? 22 : 5,
             height: 5,

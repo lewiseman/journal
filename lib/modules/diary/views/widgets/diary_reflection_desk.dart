@@ -55,9 +55,7 @@ class _DiaryReflectionDeskState extends State<DiaryReflectionDesk> {
   final _prints = ScrollController();
   double _drag = 0;
 
-  bool get _reduced =>
-      MediaQuery.disableAnimationsOf(context) ||
-      MediaQuery.accessibleNavigationOf(context);
+  bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
   @override
   void didUpdateWidget(covariant DiaryReflectionDesk oldWidget) {

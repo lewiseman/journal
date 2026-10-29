@@ -448,9 +448,7 @@ class _AddNoteButtonState extends State<_AddNoteButton> {
 
   @override
   Widget build(BuildContext context) {
-    final reducedMotion =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
     return Tooltip(
       message: 'Add note',
       excludeFromSemantics: true,

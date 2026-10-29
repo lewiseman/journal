@@ -242,6 +242,8 @@ void main() {
 
   test('end to end: exact thought only, review, keep, reject, replace, dismiss, thought untouched', () async {
     final app = await SyncFixture.create(MemoryDrive(), 'phone');
+    // Keep the fixture's background sync from draining the queue being checked.
+    app.network.online = false;
     final thought = app.thoughts.saveThought(content: thoughtText);
     final syncedBefore = jsonEncode(thought.toSyncJson('phone'));
     final pendingBefore = app.storage.pendingCreations.length;

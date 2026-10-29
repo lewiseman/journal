@@ -155,9 +155,7 @@ class _DiaryConversationPageState extends ConsumerState<DiaryConversationPage> {
       _ => 'Sending your words to your computer…',
     };
     final drafted = _draft.text.trim().isNotEmpty;
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     return Scaffold(
       backgroundColor: colors.paper,
       body: SafeArea(

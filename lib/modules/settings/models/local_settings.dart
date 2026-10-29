@@ -8,12 +8,14 @@ class LocalSettings {
     this.diaryBodyFontFamily = defaultDiaryBodyFontFamily,
     this.themeMode = ThemeMode.system,
     this.accent = AppAccent.indigo,
+    this.animationsEnabled = true,
   });
 
   final String fontFamily;
   final String diaryTitleFontFamily, diaryBodyFontFamily;
   final ThemeMode themeMode;
   final AppAccent accent;
+  final bool animationsEnabled;
 
   static const defaultFontFamily = 'Poppins';
   static const defaultDiaryTitleFontFamily = 'Caveat';
@@ -28,6 +30,7 @@ class LocalSettings {
 
   factory LocalSettings.fromMap(Map<String, dynamic>? data) {
     final family = data?['font_family'];
+    final animations = data?['animations_enabled'];
     String diaryFont(String key, String fallback) {
       final value = data?[key];
       return value is String && supportsFont(value) ? value : fallback;
@@ -50,6 +53,7 @@ class LocalSettings {
         orElse: () => ThemeMode.system,
       ),
       accent: AppAccent.fromName(data?['accent_color']),
+      animationsEnabled: animations is bool ? animations : true,
     );
   }
 
@@ -59,6 +63,7 @@ class LocalSettings {
     'diary_body_font_family': diaryBodyFontFamily,
     'theme_mode': themeMode.name,
     'accent_color': accent.name,
+    'animations_enabled': animationsEnabled,
   };
 
   LocalSettings copyWith({
@@ -67,12 +72,14 @@ class LocalSettings {
     String? diaryBodyFontFamily,
     ThemeMode? themeMode,
     AppAccent? accent,
+    bool? animationsEnabled,
   }) => LocalSettings(
     fontFamily: fontFamily ?? this.fontFamily,
     diaryTitleFontFamily: diaryTitleFontFamily ?? this.diaryTitleFontFamily,
     diaryBodyFontFamily: diaryBodyFontFamily ?? this.diaryBodyFontFamily,
     themeMode: themeMode ?? this.themeMode,
     accent: accent ?? this.accent,
+    animationsEnabled: animationsEnabled ?? this.animationsEnabled,
   );
 }
 

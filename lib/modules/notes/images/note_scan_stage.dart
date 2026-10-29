@@ -50,6 +50,7 @@ class _NoteScanStageState extends State<NoteScanStage>
     with SingleTickerProviderStateMixin {
   late final _sweep = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 2400),
   );
 

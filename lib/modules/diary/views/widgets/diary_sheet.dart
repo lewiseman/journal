@@ -283,9 +283,7 @@ void _openConversation(
   DiaryItem item,
 ) {
   if (ModalRoute.of(context)?.isCurrent == false) return;
-  final reduced =
-      MediaQuery.disableAnimationsOf(context) ||
-      MediaQuery.accessibleNavigationOf(context);
+  final reduced = MediaQuery.disableAnimationsOf(context);
   context.nav.push<void>(
     DiaryConversationPage(dateString: day.dateString, itemUuid: item.itemUuid),
     transition: reduced ? NavTransition.none : NavTransition.platform,
@@ -296,9 +294,7 @@ void _openConversation(
 void _openPhotoStory(BuildContext context, DiaryDayEntity day, DiaryItem item) {
   if (ModalRoute.of(context)?.isCurrent == false) return;
   final access = context.dependOnInheritedWidgetOfExactType<DiaryAccess>();
-  final reduced =
-      MediaQuery.disableAnimationsOf(context) ||
-      MediaQuery.accessibleNavigationOf(context);
+  final reduced = MediaQuery.disableAnimationsOf(context);
   context.nav.push<void>(
     AddDiaryPhotosPage(
       date: day.calendarDate,
@@ -327,9 +323,7 @@ class _DiaryAddActions extends StatelessWidget {
 
   void _openText(BuildContext context) {
     if (ModalRoute.of(context)?.isCurrent == false) return;
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     context.nav.push<void>(
       AddDiaryTextPage(date: date),
       transition: reduced ? NavTransition.none : NavTransition.platform,
@@ -339,9 +333,7 @@ class _DiaryAddActions extends StatelessWidget {
   void _openPhotos(BuildContext context) {
     if (ModalRoute.of(context)?.isCurrent == false) return;
     FocusScope.of(context).unfocus();
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     context.nav.push<void>(
       AddDiaryPhotosPage(date: date),
       transition: reduced ? NavTransition.none : NavTransition.platform,

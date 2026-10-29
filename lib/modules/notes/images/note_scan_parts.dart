@@ -220,6 +220,7 @@ class _NoteScanReadingState extends State<NoteScanReading>
     with SingleTickerProviderStateMixin {
   late final _breath = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 1300),
   );
 

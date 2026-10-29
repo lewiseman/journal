@@ -107,9 +107,7 @@ class _EditNotePageState extends ConsumerState<EditNotePage> {
         mode: VoiceSessionMode.transcription,
         title: 'Voice note',
       ),
-      transition:
-          MediaQuery.disableAnimationsOf(context) ||
-              MediaQuery.accessibleNavigationOf(context)
+      transition: MediaQuery.disableAnimationsOf(context)
           ? NavTransition.none
           : NavTransition.fade,
     );

@@ -16,6 +16,7 @@ class _NotesTopArtworkState extends State<NotesTopArtwork>
     with SingleTickerProviderStateMixin {
   late final _motion = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(seconds: 24),
   );
 

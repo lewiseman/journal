@@ -7,6 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/config/theme.dart';
+import 'package:journal/config/app_motion.dart';
+import 'package:journal/modules/settings/controllers/settings_ctrl.dart';
+import 'package:journal/modules/settings/models/local_settings.dart';
 import 'package:journal/modules/assistant/qvac_assistant.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/more/views/widgets/more_index_entry.dart';
@@ -24,6 +27,17 @@ class _Connection extends CompanionController {
 class _Recall extends RecallIndexer {
   @override
   RecallIndexState build() => const RecallIndexState(enabled: {});
+}
+
+class _MotionSettings extends SettingsNotifier {
+  _MotionSettings(this.enabled);
+  final bool enabled;
+
+  @override
+  LocalSettings build() => LocalSettings(animationsEnabled: enabled);
+
+  void animations(bool value) =>
+      state = state.copyWith(animationsEnabled: value);
 }
 
 final _button = find.byKey(const ValueKey('qvac-assistant-button'));
@@ -115,6 +129,7 @@ _mount(
   WidgetTester tester, {
   bool dark = false,
   bool reduced = false,
+  bool systemReduced = false,
   bool onboarding = false,
   double scale = 1,
   Size size = const Size(390, 844),
@@ -130,6 +145,7 @@ _mount(
     overrides: [
       companionControllerProvider.overrideWith(_Connection.new),
       recallIndexerProvider.overrideWith(_Recall.new),
+      settingsController.overrideWith(() => _MotionSettings(!reduced)),
     ],
   );
   final assistant = scope.read(qvacAssistantProvider);
@@ -156,13 +172,15 @@ _mount(
           navigatorObservers: [QvacAssistantObserver(assistant)],
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
-              disableAnimations: reduced,
+              disableAnimations: systemReduced,
               textScaler: TextScaler.linear(scale),
             ),
-            child: QvacAssistantHost(
-              controller: assistant,
-              navigatorKey: nav,
-              child: child!,
+            child: AppMotionScope(
+              child: QvacAssistantHost(
+                controller: assistant,
+                navigatorKey: nav,
+                child: child!,
+              ),
             ),
           ),
           home: _Tabs(
@@ -528,6 +546,34 @@ void main() {
       expect(tester.binding.hasScheduledFrame, false);
     },
   );
+
+  testWidgets('saved motion mode settles the assistant and restores movement', (
+    tester,
+  ) async {
+    final app = await _mount(tester, systemReduced: true);
+    final settings =
+        app.scope.read(settingsController.notifier) as _MotionSettings;
+    final controller = app.scope.read(qvacAssistantProvider);
+    app.tabs.currentState!.select(3);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 90));
+    settings.animations(false);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(_button),
+      tester.getRect(find.byType(QvacAssistantDock)),
+    );
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    settings.animations(true);
+    app.tabs.currentState!.select(0);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(tester.binding.transientCallbackCount, greaterThan(0));
+    await tester.pumpAndSettle();
+    expect(app.scope.read(qvacAssistantProvider), same(controller));
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('opening a sheet mid-flight pauses and then resumes docking', (
     tester,

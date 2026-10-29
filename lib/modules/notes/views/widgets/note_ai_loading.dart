@@ -55,6 +55,7 @@ class _NoteAiLoadingState extends State<NoteAiLoading>
     with SingleTickerProviderStateMixin {
   late final _motion = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 3400),
   );
 

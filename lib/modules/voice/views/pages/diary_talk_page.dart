@@ -361,9 +361,7 @@ class _DiaryTalkPageState extends ConsumerState<DiaryTalkPage>
   Widget build(BuildContext context) {
     final ink = VoiceColors.of(context).ink;
     final phase = _talk.phase;
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     final (label, icon) = _status;
     final (
       actionLabel,

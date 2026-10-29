@@ -17,6 +17,9 @@ class SettingsNotifier extends Notifier<LocalSettings> {
   Future<void> setAccent(AppAccent accent) =>
       _save((settings) => settings.copyWith(accent: accent));
 
+  Future<void> setAnimationsEnabled(bool enabled) =>
+      _save((settings) => settings.copyWith(animationsEnabled: enabled));
+
   Future<void> setFontFamily(String family) async {
     if (!LocalSettings.supportsFont(family)) {
       throw ArgumentError.value(family, 'family', 'Unsupported font family');
@@ -59,6 +62,7 @@ class SettingsNotifier extends Notifier<LocalSettings> {
         next.diaryTitleFontFamily == state.diaryTitleFontFamily &&
         next.diaryBodyFontFamily == state.diaryBodyFontFamily &&
         next.themeMode == state.themeMode &&
+        next.animationsEnabled == state.animationsEnabled &&
         next.accent == state.accent) {
       return Future.value();
     }

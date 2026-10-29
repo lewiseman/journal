@@ -19,7 +19,11 @@ if (!gemHome) {
   }
 }
 const hosts = { ios: ['ios-arm64', 'ios-arm64-simulator'], android: ['android-arm64'] }
-const platforms = process.platform === 'darwin' ? Object.keys(hosts) : ['android']
+const platformArgument = process.argv.slice(2)
+if (platformArgument.length > 1 || (platformArgument.length === 1 && platformArgument[0] !== '--platform=android')) {
+  throw new Error('Usage: node build.mjs [--platform=android]')
+}
+const platforms = platformArgument.length ? ['android'] : process.platform === 'darwin' ? Object.keys(hosts) : ['android']
 const sdkPath = path.dirname(require.resolve('@qvac/sdk/package'))
 await bundleSdk({ projectRoot: root, hosts: platforms.flatMap(p => hosts[p]), installMissingPrebuilds: true })
 const bundleFile = path.join(root, 'qvac/primitive.bundle')

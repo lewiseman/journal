@@ -67,6 +67,7 @@ class _FloatingAssistantState extends State<_FloatingAssistant>
   final _floatingLink = LayerLink();
   late final _motion = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 440),
     value: 1,
   );

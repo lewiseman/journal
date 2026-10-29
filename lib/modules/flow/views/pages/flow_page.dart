@@ -120,9 +120,7 @@ class _FlowPageState extends ConsumerState<FlowPage> {
         title: 'Capture a thought',
         target: 'flow',
       ),
-      transition:
-          MediaQuery.disableAnimationsOf(context) ||
-              MediaQuery.accessibleNavigationOf(context)
+      transition: MediaQuery.disableAnimationsOf(context)
           ? NavTransition.none
           : NavTransition.fade,
     );

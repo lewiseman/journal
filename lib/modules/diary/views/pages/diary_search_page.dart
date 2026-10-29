@@ -35,9 +35,7 @@ class _DiarySearchPageState extends State<DiarySearchPage> {
   Timer? _loadingTimer;
   Completer<void>? _loadingBeat;
 
-  bool get _reduced =>
-      MediaQuery.disableAnimationsOf(context) ||
-      MediaQuery.accessibleNavigationOf(context);
+  bool get _reduced => MediaQuery.disableAnimationsOf(context);
 
   Future<void> _search([String? prompt]) async {
     final query = (prompt ?? _draft.text).trim();

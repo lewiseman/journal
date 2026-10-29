@@ -1,5 +1,6 @@
 import 'package:journal/common.dart';
 import 'package:journal/config/diary_typography.dart';
+import 'package:journal/config/app_motion.dart';
 import 'package:sync_wise/sync_wise.dart';
 import 'package:journal/modules/root/views/widgets/account_reset_gate.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
@@ -44,6 +45,9 @@ class Journal extends ConsumerWidget {
       settingsController.select((settings) => settings.themeMode),
     );
     final themes = ref.watch(appThemesProvider);
+    final animationsEnabled = ref.watch(
+      settingsController.select((settings) => settings.animationsEnabled),
+    );
     final assistant = ref.watch(qvacAssistantProvider);
     final navigatorKey = ref.watch(journalNavigatorKeyProvider);
     final firstTimeUser = CacheStorage.instance.get(userNameKey) ?? '';
@@ -53,12 +57,17 @@ class Journal extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: themes.light,
       darkTheme: themes.dark,
+      themeAnimationDuration: animationsEnabled
+          ? kThemeAnimationDuration
+          : Duration.zero,
       title: 'Journal',
-      builder: (context, child) => AccountResetGate(
-        child: QvacAssistantHost(
-          controller: assistant,
-          navigatorKey: navigatorKey,
-          child: child!,
+      builder: (context, child) => AppMotionScope(
+        child: AccountResetGate(
+          child: QvacAssistantHost(
+            controller: assistant,
+            navigatorKey: navigatorKey,
+            child: child!,
+          ),
         ),
       ),
       home: firstTimeUser.isEmpty ? OnboardingPage() : RootLayout(),

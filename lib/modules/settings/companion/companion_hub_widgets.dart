@@ -57,9 +57,7 @@ class _CompanionSurfaceButtonState extends State<CompanionSurfaceButton> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     return AnimatedScale(
       scale: _pressed ? .98 : 1,
       duration: reduced ? Duration.zero : const Duration(milliseconds: 110),

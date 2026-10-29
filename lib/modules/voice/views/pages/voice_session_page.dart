@@ -48,9 +48,7 @@ class _VoiceSessionPageState extends State<_PreviewVoiceSessionPage>
 
   void _configurePlayback() {
     assert(_controller.mode == widget.mode);
-    _reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    _reduced = MediaQuery.disableAnimationsOf(context);
     _controller.setReducedMotion(_reduced);
     _controller.start();
     final lifecycle = WidgetsBinding.instance.lifecycleState;

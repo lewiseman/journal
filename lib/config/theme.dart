@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts_lite.dart';
 import 'package:journal/common.dart';
 import 'package:journal/utils/font_download_client.dart';
 import 'package:journal/config/diary_typography.dart';
+import 'package:journal/config/app_motion.dart';
 
 extension JournalThemeContext on BuildContext {
   ColorScheme get colors => Theme.of(this).colorScheme;
@@ -109,6 +110,7 @@ abstract final class AppThemeConfig {
       platform: TargetPlatform.iOS,
       brightness: brightness,
       colorScheme: colors,
+      pageTransitionsTheme: const AppPageTransitionsTheme(),
       appBarTheme: AppBarThemeData(
         systemOverlayStyle: brightness == Brightness.dark
             ? darkSystemUiOverlay

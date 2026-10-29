@@ -93,6 +93,10 @@ class AppearancePage extends ConsumerWidget {
           _sectionTitle('Accent color'),
           const SizedBox(height: 14),
           _buildAccentOptions(context, localSettings.accent, ref),
+          _sectionDivider(),
+          _sectionTitle('Motion'),
+          const SizedBox(height: 12),
+          const _AnimationsToggle(),
         ],
       ),
     );
@@ -257,7 +261,9 @@ class AppearancePage extends ConsumerWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
         padding: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
           color: selected
@@ -338,6 +344,69 @@ class AppearancePage extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _AnimationsToggle extends ConsumerStatefulWidget {
+  const _AnimationsToggle();
+
+  @override
+  ConsumerState<_AnimationsToggle> createState() => _AnimationsToggleState();
+}
+
+class _AnimationsToggleState extends ConsumerState<_AnimationsToggle> {
+  bool _saving = false;
+  String? _error;
+
+  Future<void> _change(bool enabled) async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref.read(settingsController.notifier).setAnimationsEnabled(enabled);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = 'Could not save animation preference. Try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: context.colors.surfaceContainer,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(color: context.borderColor1),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          key: const ValueKey('animations-toggle'),
+          title: const Text('Animations'),
+          subtitle: const Text('Turn off to reduce motion across the app.'),
+          value: ref.watch(
+            settingsController.select((settings) => settings.animationsEnabled),
+          ),
+          onChanged: _saving ? null : _change,
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              _error!,
+              key: const ValueKey('animations-save-error'),
+              style: TextStyle(color: context.colors.error),
+            ),
+          ),
+      ],
+    ),
+  );
 }
 
 class _DiaryAppearancePreview extends StatelessWidget {

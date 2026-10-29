@@ -214,9 +214,7 @@ class _VoiceCapturePageState extends ConsumerState<VoiceCapturePage>
     ].contains(_capture.phase);
     final reviewable = !active && !waiting && _capture.text.isNotEmpty;
     final ink = VoiceColors.of(context).ink;
-    final reduced =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
+    final reduced = MediaQuery.disableAnimationsOf(context);
     final (label, icon) = _status(waiting);
     final (actionLabel, actionIcon, onAction) = reviewable
         ? (

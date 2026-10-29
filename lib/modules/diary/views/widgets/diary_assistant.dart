@@ -21,8 +21,7 @@ import 'package:journal/utils/time_helper.dart';
 enum _DiaryTool { details }
 
 bool _reducedMotion(BuildContext context) =>
-    MediaQuery.disableAnimationsOf(context) ||
-    MediaQuery.accessibleNavigationOf(context);
+    MediaQuery.disableAnimationsOf(context);
 
 /// The selected reader day is captured when QVAC opens, including empty days.
 /// Opening the menu itself never creates a microphone or a conversation.
@@ -429,10 +428,12 @@ class _VoiceInk extends StatefulWidget {
 class _VoiceInkState extends State<_VoiceInk> with TickerProviderStateMixin {
   late final _draw = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 700),
   );
   late final _breath = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 2600),
   );
   bool? _reduced;
@@ -649,6 +650,7 @@ class _PencilScribbleState extends State<_PencilScribble>
     with SingleTickerProviderStateMixin {
   late final _controller = AnimationController(
     vsync: this,
+    animationBehavior: AnimationBehavior.preserve,
     duration: const Duration(milliseconds: 1600),
   );
 
