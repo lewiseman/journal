@@ -689,7 +689,8 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
   // Flutter compares snap lists by identity. A fresh list on each drag frame
   // restarts snapping and cancels the finger's active drag.
   List<double> get _snapSizes {
-    if (widget.pageLabel != 'Notes' || widget.contentBuilder == null) {
+    if (!const {'Notes', 'Flow'}.contains(widget.pageLabel) ||
+        widget.contentBuilder == null) {
       return const [.64];
     }
     final media = MediaQuery.of(context);

@@ -1,4 +1,4 @@
-# S02 (notes) — AI note search
+# S02 — AI note search and Flow AI search
 
 AI note search lets you ask your paired computer a question about your saved
 notes, such as "What did I plan for the garden?". The phone picks the most
@@ -6,7 +6,9 @@ relevant notes and sends short excerpts of them with the question. The answer
 comes only from those excerpts, and each cited note opens. When nothing matches,
 or the excerpts are not enough, it says so instead of guessing.
 
-Flow thoughts are not included. Diary questions are S01 (`diary-history.md`).
+Flow AI search does the same for Flow thoughts (see below). Each search covers
+one collection only: notes and thoughts are never sent together. Diary questions
+are S01 (`diary-history.md`).
 
 ## Use
 
@@ -23,9 +25,27 @@ Flow thoughts are not included. Diary questions are S01 (`diary-history.md`).
 4. **Ask another question** clears it. The task is listed in AI task history as
    "Notes question" and survives an app restart.
 
+## Flow AI search
+
+Flow no longer has a search icon at the top. Instead, tap QVAC on Flow, then
+**Flow AI search**. The sheet closes and a full page opens. It works like AI
+note search, with these differences:
+
+- Only Flow thoughts are searched. Thoughts are sent without a title.
+- A cited thought shows its date. Tapping it returns to Flow and opens that
+  thought.
+- The thought prompt may point out a link between thoughts, but only as "a
+  possible connection". The page says such links are the AI's reading, not
+  something you wrote.
+- The task is listed in AI task history as "Flow question".
+
+The old keyword-and-meaning recall page for thoughts (`thought_recall_page.dart`)
+has been removed.
+
 ## Retrieval and what is sent
 
-Selection and answers are in `lib/modules/notes/question/note_question_contract.dart`.
+Selection and answers are in `lib/modules/recall/recall_question_contract.dart`,
+and both searches share `lib/modules/recall/recall_question_page.dart`.
 It reuses `diary_retrieval.dart` for word matching and date phrases, and the
 diary contract's `excerptFor`.
 
@@ -48,8 +68,9 @@ diary contract's `excerptFor`.
 
 ## Companion
 
-The desktop operation is `answer-note-question` (`desktop/src/note-question.cjs`),
-advertised as `noteQuestionContract: 1`. It validates the input shape and
+The desktop operations are `answer-note-question` and `answer-thought-question`
+(`desktop/src/note-question.cjs`), advertised as `noteQuestionContract: 1` and
+`thoughtQuestionContract: 1`. It validates the input shape and
 output schema, runs with temperature 0 and a JSON-schema response format, and
 treats note text as untrusted data. An older companion without the operation
 gets "Update the companion to answer questions about notes."; an unreachable one
@@ -57,7 +78,7 @@ gets the usual connection message, and nothing is sent.
 
 ## Checks
 
-- `journal/test/note_question_test.dart`: selection, deleted notes, date scope,
+- `journal/test/recall_question_test.dart`: selection, deleted notes, date scope,
   byte limit, citation checks, edited/deleted labels, offline and old-companion
   behaviour, and the page flow from question to opened note.
 - `journal/test/notes_assistant_test.dart`: the card closes the sheet and opens

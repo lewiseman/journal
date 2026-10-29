@@ -49,7 +49,7 @@ class FlowThoughtCard extends StatelessWidget {
       context.colors.surface,
       .16,
     )!;
-    final shape = _ThoughtBubbleBorder(
+    final shape = FlowCloudBorder(
       alternate: _paperIndex(thought).isOdd,
       side: BorderSide(
         // Preserve a visible seam when clouds with identical fills overlap.
@@ -159,8 +159,8 @@ class FlowThoughtCard extends StatelessWidget {
 }
 
 /// One cloud outline serves the fill, shadow, clipping and touch feedback.
-class _ThoughtBubbleBorder extends OutlinedBorder {
-  const _ThoughtBubbleBorder({
+class FlowCloudBorder extends OutlinedBorder {
+  const FlowCloudBorder({
     super.side,
     required this.alternate,
     this.tailHeight = 18,
@@ -237,14 +237,14 @@ class _ThoughtBubbleBorder extends OutlinedBorder {
   }
 
   @override
-  _ThoughtBubbleBorder copyWith({BorderSide? side}) => _ThoughtBubbleBorder(
+  FlowCloudBorder copyWith({BorderSide? side}) => FlowCloudBorder(
     side: side ?? this.side,
     alternate: alternate,
     tailHeight: tailHeight,
   );
 
   @override
-  ShapeBorder scale(double t) => _ThoughtBubbleBorder(
+  ShapeBorder scale(double t) => FlowCloudBorder(
     side: side.scale(t),
     alternate: alternate,
     tailHeight: tailHeight * t,
@@ -252,7 +252,7 @@ class _ThoughtBubbleBorder extends OutlinedBorder {
 
   @override
   bool operator ==(Object other) =>
-      other is _ThoughtBubbleBorder &&
+      other is FlowCloudBorder &&
       other.side == side &&
       other.alternate == alternate &&
       other.tailHeight == tailHeight;

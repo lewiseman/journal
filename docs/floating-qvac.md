@@ -22,6 +22,13 @@ reflect the companion's live transport phase, not model readiness.
   question about your notes and get a cited answer (see `note-question.md`).
   The old idea-shuffle card is removed from the notes grid. The collection menu
   uses a shorter initial sheet, with more space for large text or small screens.
+- On Flow, the sheet is drawn like Flow itself: its paper gradient and two
+  thought clouds, Voice and Flow AI search, with the same shorter starting
+  height as Notes. Voice closes the sheet and opens full-screen voice capture,
+  as the old microphone button did. Flow AI search closes the sheet and opens
+  the question page for thoughts. Flow has no search icon and no microphone
+  button: its text box spans the row, and a send arrow appears inside it once
+  you type (the keyboard's send key also saves).
 - In a single note, a compact illustrated toolbox groups actions by purpose:
   Edit, Add, and Appearance. Short labels pair with custom paper drawings; lone
   choices use a full-width card. New notes offer starting templates, scanning,

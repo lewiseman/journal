@@ -14,7 +14,6 @@ import 'package:journal/modules/flow/views/pages/flow_page.dart';
 import 'package:journal/modules/flow/views/widgets/flow_opening.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
-import 'package:journal/modules/voice/voice.dart';
 
 import 'support/memory_thoughts_repository.dart';
 
@@ -303,7 +302,7 @@ void main() {
     (tester) async {
       await _mount(tester);
       final originalComposer = tester.getRect(find.byType(TextField));
-      expect(find.byTooltip('Voice capture').hitTestable(), findsOneWidget);
+      expect(find.byType(TextField).hitTestable(), findsOneWidget);
       expect(_card(0), findsOneWidget);
       expect(_card(3), findsOneWidget);
       expect(_layout(tester).previewCount, 6);
@@ -345,7 +344,7 @@ void main() {
       await _capture(tester, 'collection');
       _scroll(tester).jumpTo(_layout(tester).collapseExtent + 80);
       await tester.pump();
-      expect(find.byTooltip('Voice capture').hitTestable(), findsNothing);
+      expect(find.byType(TextField).hitTestable(), findsNothing);
       expect(
         tester
             .widget<TextField>(find.byType(TextField))
@@ -369,13 +368,13 @@ void main() {
           .map((card) => card.thought.id)
           .toList();
       expect(ids.toSet().length, ids.length);
-      expect(find.byTooltip('Voice capture').hitTestable(), findsNothing);
+      expect(find.byType(TextField).hitTestable(), findsNothing);
       await _capture(tester, 'older');
 
       _scroll(tester).jumpTo(0);
       await tester.pump();
       expect(tester.getRect(find.byType(TextField)), originalComposer);
-      expect(find.byTooltip('Voice capture').hitTestable(), findsOneWidget);
+      expect(find.byType(TextField).hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -393,7 +392,7 @@ void main() {
         '  A tiny idea worth keeping.  ',
       );
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Voice capture'), findsNothing);
+      expect(find.byIcon(Icons.mic_none_rounded), findsNothing);
       await tester.tap(find.bySemanticsLabel('Diary tab'));
       await tester.pumpAndSettle();
       expect(
@@ -429,80 +428,61 @@ void main() {
   );
 
   testWidgets(
-    'the round action animates between mic and send without shifting the pill',
+    'the input spans the row; send appears inside it only with text',
     (tester) async {
       await _mount(tester);
-      final inputWidth = tester.getSize(find.byType(TextField)).width;
-      final action = tester.getRect(find.byTooltip('Voice capture'));
-      expect(action.size, const Size(56, 56));
+      final pill = tester.getRect(
+        find
+            .ancestor(
+              of: find.byType(TextField),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      final screen = tester.view.physicalSize.width;
+      expect(pill.left, 20);
+      expect(pill.right, screen - 20);
+      expect(find.byIcon(Icons.mic_none_rounded), findsNothing);
+      expect(find.byTooltip('Add thought'), findsNothing);
 
       await tester.enterText(find.byType(TextField), 'A tiny idea.');
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 80));
-      expect(find.byTooltip('Voice capture'), findsNothing);
-      expect(find.byIcon(Icons.mic_none_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.send_rounded), findsOneWidget);
-      expect(tester.getRect(find.byTooltip('Add thought')), action);
-      expect(tester.getSize(find.byType(TextField)).width, inputWidth);
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.mic_none_rounded), findsNothing);
+      final send = tester.getRect(find.byTooltip('Add thought'));
+      expect(pill.contains(send.center), isTrue);
       await _capture(tester, 'typing');
 
       await tester.enterText(find.byType(TextField), '');
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Voice capture'), findsOneWidget);
       expect(find.byTooltip('Add thought'), findsNothing);
-      expect(find.byIcon(Icons.send_rounded), findsNothing);
-      expect(tester.getSize(find.byType(TextField)).width, inputWidth);
       expect(tester.takeException(), isNull);
     },
   );
 
-  testWidgets(
-    'cards reveal full text and voice opens real recording controls',
-    (tester) async {
-      await _mount(tester);
-      // The frontmost card is fully tappable even in the scattered arrangement.
-      final text = tester.widget<FlowThoughtCard>(_card(3)).thought.content;
-      await tester.tap(_card(3));
-      await tester.pumpAndSettle();
-      expect(find.widgetWithText(SelectableText, text), findsOneWidget);
-      expect(find.text('YOUR THOUGHT'), findsOneWidget);
-      await _capture(tester, 'detail');
-      Navigator.of(tester.element(find.byType(SelectableText))).pop();
-      await tester.pumpAndSettle();
-      final thoughtsBefore = tester
-          .widgetList<FlowThoughtCard>(find.byType(FlowThoughtCard))
-          .map((card) => card.thought.content)
-          .toList();
-      await tester.tap(find.byTooltip('Voice capture'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(
-        tester.widget<VoiceSessionPage>(find.byType(VoiceSessionPage)).mode,
-        VoiceSessionMode.transcription,
-      );
-      expect(find.byTooltip('Record'), findsOneWidget);
-      expect(find.text('Preview · sample text'), findsNothing);
-      // A live status can animate while protected storage is being restored.
-      await tester.pump(const Duration(milliseconds: 300));
-      await _capture(tester, 'voice');
-      await tester.tap(find.byTooltip('Close'));
-      await tester.pumpAndSettle();
-      expect(find.byType(VoiceSessionPage), findsNothing);
-      expect(
-        tester
-            .widgetList<FlowThoughtCard>(find.byType(FlowThoughtCard))
-            .map((card) => card.thought.content),
-        thoughtsBefore,
-      );
-      expect(
-        tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        '',
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('the keyboard send action saves the thought', (tester) async {
+    await _mount(tester);
+    await tester.enterText(find.byType(TextField), 'Sent from the keyboard.');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pumpAndSettle();
+    expect(find.text('Sent from the keyboard.'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      isEmpty,
+    );
+  });
+
+  testWidgets('cards reveal their full text', (tester) async {
+    await _mount(tester);
+    // The frontmost card is fully tappable even in the scattered arrangement.
+    final text = tester.widget<FlowThoughtCard>(_card(3)).thought.content;
+    await tester.tap(_card(3));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(SelectableText, text), findsOneWidget);
+    expect(find.text('YOUR THOUGHT'), findsOneWidget);
+    await _capture(tester, 'detail');
+    Navigator.of(tester.element(find.byType(SelectableText))).pop();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('focused multiline input stays usable above the keyboard', (
     tester,

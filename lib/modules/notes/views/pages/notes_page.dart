@@ -6,7 +6,7 @@ import 'package:journal/modules/notes/models/note_tag.dart';
 import 'package:journal/modules/notes/views/widgets/note_card.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 import 'package:journal/modules/notes/views/widgets/notes_assistant.dart';
-import 'package:journal/modules/notes/views/pages/note_question_page.dart';
+import 'package:journal/modules/recall/recall_question_page.dart';
 import 'package:journal/modules/notes/views/widgets/note_tag_strip.dart';
 import 'package:journal/modules/notes/views/widgets/notes_top_artwork.dart';
 import 'package:journal/modules/recall/hybrid_retriever.dart';
@@ -101,7 +101,7 @@ class _NotesPageState extends ConsumerState<NotesPage> {
 
   void _openNoteSearch() {
     if (!mounted || ref.read(accountResetProvider).blocksDataAccess) return;
-    context.nav.push(const NoteQuestionPage());
+    context.nav.push(const RecallQuestionPage(kind: RecallKind.note));
   }
 
   @override

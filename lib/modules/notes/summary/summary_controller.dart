@@ -27,7 +27,7 @@ import '../../presentation/website_contract.dart';
 
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/history/diary_history_contract.dart';
-import 'package:journal/modules/notes/question/note_question_contract.dart';
+import 'package:journal/modules/recall/recall_question_contract.dart';
 import 'package:journal/modules/diary/questions/daily_question_contract.dart';
 import 'package:journal/modules/diary/photo_questions/diary_photo_question_contract.dart';
 import 'package:journal/modules/diary/photo_questions/diary_photo_question_store.dart';
@@ -312,7 +312,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         (handle?.isThoughtReflection == true
             ? 'thought:${handle!.noteId}'
             : null) ??
-        (handle?.isDiaryDay == true || handle?.isNoteQuestion == true
+        (handle?.isDiaryDay == true || handle?.isRecallQuestion == true
             ? '${handle!.operation}:${handle.noteId}'
             : handle?.noteId);
     if (_watchedNote == key) return;
@@ -326,6 +326,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
           ? ref.read(diaryRepositoryProvider).watchAllDays()
           : handle.isNoteQuestion
           ? ref.read(notesRepositoryProvider).watchActiveNotes()
+          : handle.isThoughtQuestion
+          ? ref.read(thoughtsRepositoryProvider).watchThoughts()
           : ref.read(notesRepositoryProvider).watchNoteByUuid(handle.noteId);
       _source = stream.listen((_) {
         unawaited(refreshSource());
@@ -379,17 +381,19 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             (s) => sourceStatus(s, diary.getDay) == DiarySourceStatus.current,
           );
     }
-    if (handle.isNoteQuestion) {
-      // Unchanged when every sent note still has its version.
-      final notes = ref.read(notesRepositoryProvider);
+    if (handle.isRecallQuestion) {
+      // Unchanged when every sent note or thought still has its version.
       final selection = handle.localSource == null
           ? null
-          : NoteQuestionSelection.decode(handle.localSource!);
+          : RecallQuestionSelection.decode(handle.localSource!);
       return selection != null &&
           selection.sources.every(
             (s) =>
-                noteSourceStatus(s, notes.getNoteByUuid) ==
-                NoteSourceStatus.current,
+                recallSourceStatus(
+                  s,
+                  (uuid) => recallItem(selection.kind, uuid),
+                ) ==
+                RecallSourceStatus.current,
           );
     }
     if (handle.isDailyQuestion) {
@@ -677,31 +681,32 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     }
   }
 
-  /// S02: one grounded answer about saved notes from [selection]'s
-  /// excerpts. Read-only, so secondary devices may ask too.
-  Future<void> startNoteQuestion(NoteQuestionSelection selection) async {
+  /// S02: one grounded answer about saved notes or Flow thoughts from
+  /// [selection]'s excerpts. Read-only, so secondary devices may ask too.
+  Future<void> startRecallQuestion(RecallQuestionSelection selection) async {
     if (!await _readyToStart()) return;
     final generation = ++_generation;
     _show('submitting', busy: true, stale: false);
+    final kind = selection.kind;
     try {
       if (!selection.sendable) {
-        throw const CompanionFailure(
+        throw CompanionFailure(
           'SOURCE_MISSING',
-          'No notes matched, so nothing was sent.',
+          'No ${kind.many} matched, so nothing was sent.',
         );
       }
       final input = selection.request();
-      if (utf8.encode(input).length > noteQuestionInputBytes) {
+      if (utf8.encode(input).length > recallQuestionInputBytes) {
         throw const FormatException(
           'The selected excerpts exceed 2,000 UTF-8 bytes. Nothing was sent.',
         );
       }
       final computer = _capableComputer(
-        contractKey: 'noteQuestionContract',
-        contract: noteQuestionContract,
-        operation: noteQuestionOperation,
-        fallback: 'Keyword search on the Notes page still works without it.',
-        update: 'Update the companion to answer questions about notes.',
+        contractKey: kind.questionContractKey,
+        contract: recallQuestionContract,
+        operation: kind.questionOperation,
+        fallback: 'Nothing was sent.',
+        update: 'Update the companion to answer questions about ${kind.many}.',
       );
       final local = selection.encode();
       final handle = SummaryHandle(
@@ -712,7 +717,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         deviceId: computer.deviceId,
         created: DateTime.now().millisecondsSinceEpoch,
         pendingText: input,
-        operation: noteQuestionOperation,
+        operation: kind.questionOperation,
         localSource: local,
       );
       if (!_alive(generation)) return;
@@ -729,6 +734,17 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         );
       }
     }
+  }
+
+  /// The current note or thought behind a question source, or null when it
+  /// is gone.
+  RecallItem? recallItem(RecallKind kind, String uuid) {
+    if (kind == RecallKind.note) {
+      final note = ref.read(notesRepositoryProvider).getNoteByUuid(uuid);
+      return note == null ? null : RecallItem.note(note);
+    }
+    final thought = ref.read(thoughtsRepositoryProvider).getThoughtByUuid(uuid);
+    return thought == null ? null : RecallItem.thought(thought);
   }
 
   /// J02: one reflection question for [source]'s civil day. It writes no
@@ -2018,13 +2034,13 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     if (phase == 'completed' &&
         job['acknowledged'] != true &&
         !invalidOutput &&
-        handle.isNoteQuestion) {
+        handle.isRecallQuestion) {
       try {
-        NoteQuestionAnswer.parse(
+        RecallQuestionAnswer.parse(
           job['text'] as String,
-          NoteQuestionSelection.decode(handle.localSource!),
+          RecallQuestionSelection.decode(handle.localSource!),
         );
-      } on NoteAnswerRejected {
+      } on RecallAnswerRejected {
         // Valid output that is not shown; the answer page explains why.
       } catch (_) {
         invalidOutput = true;
@@ -2138,8 +2154,8 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             ? dailyQuestionOutputBytes
             : handle.isDiaryAnswer
             ? historyOutputBytes
-            : handle.isNoteQuestion
-            ? noteQuestionOutputBytes
+            : handle.isRecallQuestion
+            ? recallQuestionOutputBytes
             : handle.isNoteMetadata || handle.isNoteIdeas
             ? noteHelpOutputBytes
             : handle.isNoteImage
@@ -2313,7 +2329,7 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
             handle.isNoteBackground ||
             handle.isDiaryPhoto ||
             handle.isDiaryDay ||
-            handle.isNoteQuestion ||
+            handle.isRecallQuestion ||
             handle.isThoughtReflection) ||
         !state.terminal ||
         state.phase == 'completed' ||

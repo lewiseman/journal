@@ -8,7 +8,11 @@ import 'package:journal/modules/flow/reflection/thought_reflection_controller.da
 import 'package:journal/modules/flow/views/widgets/flow_opening.dart';
 import 'package:journal/modules/flow/views/widgets/flow_reflection.dart';
 import 'package:journal/modules/flow/views/widgets/flow_thought_card.dart';
-import 'package:journal/modules/flow/views/pages/thought_recall_page.dart';
+import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
+import 'package:journal/modules/flow/views/widgets/flow_assistant.dart';
+import 'package:journal/modules/recall/recall_question_contract.dart'
+    show RecallKind;
+import 'package:journal/modules/recall/recall_question_page.dart';
 
 class FlowPage extends ConsumerStatefulWidget {
   const new({super.key});
@@ -87,11 +91,12 @@ class _FlowPageState extends ConsumerState<FlowPage> {
     }
   }
 
-  /// S03b: search earlier thoughts, then open the one chosen.
-  Future<void> _recall() async {
+  /// S02: ask about earlier thoughts; a cited thought opens when chosen.
+  Future<void> _search() async {
+    if (ref.read(accountResetProvider).blocksDataAccess) return;
     _focus.unfocus();
-    final thought = await Navigator.of(context).push<ThoughtEntity>(
-      MaterialPageRoute(builder: (_) => const ThoughtRecallPage()),
+    final thought = await context.nav.push<ThoughtEntity>(
+      const RecallQuestionPage(kind: RecallKind.thought),
     );
     if (thought != null && mounted) _openThought(thought);
   }
@@ -135,9 +140,10 @@ class _FlowPageState extends ConsumerState<FlowPage> {
     );
   }
 
+  /// Full-screen voice capture, opened from Flow's QVAC sheet as it closes.
   void _openVoice() {
     _focus.unfocus();
-    if (ModalRoute.of(context)?.isCurrent == false) return;
+    if (!mounted || ref.read(accountResetProvider).blocksDataAccess) return;
     context.nav.push<void>(
       const VoiceSessionPage(
         mode: VoiceSessionMode.transcription,
@@ -202,61 +208,55 @@ class _FlowPageState extends ConsumerState<FlowPage> {
     final paper = NoteColorPreset.paper
         .resolveColors(context.colors)
         .background;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.lerp(context.colors.surface, paper, .55)!,
-            context.colors.surface,
-          ],
-        ),
+    return QvacAssistantContent(
+      label: 'Flow',
+      builder: (_, scrollController) => FlowAssistant(
+        scrollController: scrollController,
+        onVoice: _openVoice,
+        onSearch: _search,
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final layout = FlowSceneLayout(
-                  width: constraints.maxWidth,
-                  height: constraints.maxHeight,
-                  textScale: MediaQuery.textScalerOf(context).scale(16) / 16,
-                  composerHeight: _composerHeight,
-                  thoughtCount: saved.length,
-                );
-                return Stack(
-                  clipBehavior: Clip.hardEdge,
-                  children: [
-                    _history(layout, reduced, saved, thoughts),
-                    AnimatedBuilder(
-                      animation: _scroll,
-                      builder: (context, _) => _floatingScene(
-                        layout,
-                        reduced: reduced,
-                        keyboard: keyboard,
-                        tabActive: tabActive,
-                      ),
-                    ),
-                    if (saved.isNotEmpty)
-                      Positioned(
-                        top: 4,
-                        right: 8,
-                        child: IconButton(
-                          key: const ValueKey('flow-recall'),
-                          tooltip: 'Recall a thought',
-                          onPressed: _recall,
-                          icon: Icon(
-                            Icons.search_rounded,
-                            color: context.colors.onSurfaceVariant,
-                          ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.lerp(context.colors.surface, paper, .55)!,
+              context.colors.surface,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final layout = FlowSceneLayout(
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight,
+                    textScale: MediaQuery.textScalerOf(context).scale(16) / 16,
+                    composerHeight: _composerHeight,
+                    thoughtCount: saved.length,
+                  );
+                  return Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      _history(layout, reduced, saved, thoughts),
+                      AnimatedBuilder(
+                        animation: _scroll,
+                        builder: (context, _) => _floatingScene(
+                          layout,
+                          reduced: reduced,
+                          keyboard: keyboard,
+                          tabActive: tabActive,
                         ),
                       ),
-                  ],
-                );
-              },
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -423,7 +423,6 @@ class _FlowPageState extends ConsumerState<FlowPage> {
                                     controller: _draft,
                                     focusNode: _focus,
                                     onSend: _send,
-                                    onVoice: _openVoice,
                                   ),
                                 ),
                               ),

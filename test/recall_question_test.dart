@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/notes/controllers/notes_ctrl.dart';
 import 'package:journal/modules/notes/models/note_entity.dart';
-import 'package:journal/modules/notes/question/note_question_contract.dart';
+import 'package:journal/modules/recall/recall_question_contract.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_store.dart';
 import 'package:journal/modules/notes/views/pages/edit_note_page.dart';
-import 'package:journal/modules/notes/views/pages/note_question_page.dart';
+import 'package:journal/modules/recall/recall_question_page.dart';
+import 'package:journal/modules/flow/controllers/thoughts_providers.dart';
+import 'package:journal/modules/flow/models/thought_entity.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:sync_wise/sync_wise.dart';
@@ -27,8 +29,8 @@ String answer(String text, List<String> citations, {bool answered = true}) =>
       'citations': citations,
     });
 
-class NoteQuestionConnection extends summary.TestConnection {
-  NoteQuestionConnection({this.contract = 1});
+class QuestionConnection extends summary.TestConnection {
+  QuestionConnection({this.contract = 1});
   final int contract;
   @override
   CompanionState build() => CompanionState(
@@ -41,8 +43,9 @@ class NoteQuestionConnection extends summary.TestConnection {
         {
           'id': 'text',
           'status': 'ready',
-          'operations': [noteQuestionOperation],
+          'operations': [noteQuestionOperation, thoughtQuestionOperation],
           'noteQuestionContract': contract,
+          'thoughtQuestionContract': contract,
         },
       ],
     },
@@ -59,10 +62,11 @@ ProviderContainer questionContainer(
     objectBoxProvider.overrideWithValue(app.db),
     syncStateStoreProvider.overrideWithValue(app.storage),
     notesRepositoryProvider.overrideWithValue(app.notes),
+    thoughtsRepositoryProvider.overrideWithValue(app.thoughts),
     summaryStoreProvider.overrideWithValue(store),
     companionTransportProvider.overrideWithValue(wire),
     companionControllerProvider.overrideWith(
-      connection ?? NoteQuestionConnection.new,
+      connection ?? QuestionConnection.new,
     ),
     accountResetProvider.overrideWith(summary.TestReset.new),
     syncDeviceRoleProvider.overrideWithValue(SyncDeviceRole.primary),
@@ -100,13 +104,14 @@ void main() {
         note('market', 'Market', 'Buy bread on Saturday.'),
         note('empty', '', '   '),
       ];
-      final s = NoteQuestionSelection.select(
+      final s = RecallQuestionSelection.select(
+        kind: RecallKind.note,
         question: 'Where do the tulips go?',
         today: today,
-        notes: notes,
+        items: RecallItem.notes(notes),
       );
       expect(s.sources.map((e) => e.uuid), ['garden']);
-      expect(s.notesSearched, 2);
+      expect(s.searched, 2);
       final request = jsonDecode(s.request()) as Map;
       expect(
         request.keys,
@@ -121,12 +126,13 @@ void main() {
         },
       ]);
       expect(s.request(), isNot(contains('garden"')));
-      expect(NoteQuestionSelection.decode(s.encode()).encode(), s.encode());
+      expect(RecallQuestionSelection.decode(s.encode()).encode(), s.encode());
       expect(
-        () => NoteQuestionSelection.select(
+        () => RecallQuestionSelection.select(
+          kind: RecallKind.note,
           question: 'x' * 301,
           today: today,
-          notes: notes,
+          items: RecallItem.notes(notes),
         ),
         throwsFormatException,
       );
@@ -143,26 +149,29 @@ void main() {
           created: DateTime(2026, i < 10 ? 9 : 5, 3),
         ),
     ];
-    final ranked = NoteQuestionSelection.select(
+    final ranked = RecallQuestionSelection.select(
+      kind: RecallKind.note,
       question: 'trip planning',
       today: today,
-      notes: notes,
+      items: RecallItem.notes(notes),
       ranked: ['n12', 'n3', 'missing'],
     );
     expect(ranked.semantic, true);
     expect(ranked.sources.map((s) => s.uuid), unorderedEquals(['n12', 'n3']));
-    final bounded = NoteQuestionSelection.select(
+    final bounded = RecallQuestionSelection.select(
+      kind: RecallKind.note,
       question: 'trip planning',
       today: today,
-      notes: notes,
+      items: RecallItem.notes(notes),
     );
-    expect(bounded.sources.length, lessThanOrEqualTo(noteQuestionMaxSources));
+    expect(bounded.sources.length, lessThanOrEqualTo(recallQuestionMaxSources));
     expect(utf8.encode(bounded.request()).length, lessThanOrEqualTo(2000));
     expect(bounded.sources.any((s) => s.truncated), true);
-    final scoped = NoteQuestionSelection.select(
+    final scoped = RecallQuestionSelection.select(
+      kind: RecallKind.note,
       question: 'trip planning in september',
       today: today,
-      notes: notes,
+      items: RecallItem.notes(notes),
     );
     expect(scoped.scope, isNotNull);
     expect(scoped.sources.every((s) => s.date.startsWith('2026-09')), true);
@@ -171,33 +180,34 @@ void main() {
   test(
     'answers must cite supplied notes; insufficient evidence is explicit',
     () {
-      final s = NoteQuestionSelection.select(
+      final s = RecallQuestionSelection.select(
+        kind: RecallKind.note,
         question: 'tulips',
         today: today,
-        notes: [note('garden', 'Garden', 'Plant tulips.')],
+        items: RecallItem.notes([note('garden', 'Garden', 'Plant tulips.')]),
       );
-      final ok = NoteQuestionAnswer.parse(
+      final ok = RecallQuestionAnswer.parse(
         answer('Your Garden note says to plant tulips [s0].', ['s0']),
         s,
       );
       expect(ok.text, 'Your Garden note says to plant tulips.');
       expect(ok.citations.single.uuid, 'garden');
       expect(
-        () => NoteQuestionAnswer.parse(answer('Made up.', ['s3']), s),
-        throwsA(isA<NoteAnswerRejected>()),
+        () => RecallQuestionAnswer.parse(answer('Made up.', ['s3']), s),
+        throwsA(isA<RecallAnswerRejected>()),
       );
       expect(
-        () => NoteQuestionAnswer.parse(answer('No citations.', []), s),
-        throwsA(isA<NoteAnswerRejected>()),
+        () => RecallQuestionAnswer.parse(answer('No citations.', []), s),
+        throwsA(isA<RecallAnswerRejected>()),
       );
-      final none = NoteQuestionAnswer.parse(
+      final none = RecallQuestionAnswer.parse(
         answer('You went skydiving instead.', [], answered: false),
         s,
       );
       expect(none.answered, false);
       expect(none.text, isNot(contains('skydiving')));
       expect(
-        () => NoteQuestionAnswer.parse('{"status":"answered"}', s),
+        () => RecallQuestionAnswer.parse('{"status":"answered"}', s),
         throwsFormatException,
       );
     },
@@ -223,30 +233,35 @@ void main() {
       final c = questionContainer(app, store, wire);
       addTearDown(c.dispose);
       await restored(c);
-      final selection = NoteQuestionSelection.select(
+      final selection = RecallQuestionSelection.select(
+        kind: RecallKind.note,
         question: 'Where do the tulips go?',
         today: today,
-        notes: app.db.noteBox.getAll(),
+        items: RecallItem.notes(app.db.noteBox.getAll()),
       );
-      await c.read(noteSummaryProvider.notifier).startNoteQuestion(selection);
+      await c.read(noteSummaryProvider.notifier).startRecallQuestion(selection);
       await finished(c);
       final sent = wire.submitted.single;
       expect(sent['operation'], noteQuestionOperation);
       expect(sent['prompt'] as String, isNot(contains('"garden"')));
       final state = c.read(noteSummaryProvider);
       expect(state.phase, 'completed');
-      final parsed = NoteQuestionAnswer.parse(state.text!, selection);
+      final parsed = RecallQuestionAnswer.parse(state.text!, selection);
       final cited = parsed.citations.single;
-      final lookup = app.notes.getNoteByUuid;
-      expect(noteSourceStatus(cited, lookup), NoteSourceStatus.current);
+      RecallItem? lookup(String uuid) {
+        final n = app.notes.getNoteByUuid(uuid);
+        return n == null ? null : RecallItem.note(n);
+      }
+
+      expect(recallSourceStatus(cited, lookup), RecallSourceStatus.current);
       app.notes.saveNote(
         uuid: cited.uuid,
         title: 'Garden plans',
         content: 'Plant tulips by the shed instead.',
       );
-      expect(noteSourceStatus(cited, lookup), NoteSourceStatus.edited);
+      expect(recallSourceStatus(cited, lookup), RecallSourceStatus.edited);
       app.notes.deleteNote(cited.uuid);
-      expect(noteSourceStatus(cited, lookup), NoteSourceStatus.deleted);
+      expect(recallSourceStatus(cited, lookup), RecallSourceStatus.deleted);
     },
   );
 
@@ -255,20 +270,21 @@ void main() {
     () async {
       final app = await SyncFixture.create(MemoryDrive(), 'phone');
       app.notes.saveNote(uuid: 'garden', title: 'Garden', content: 'Tulips.');
-      NoteQuestionSelection pick(String q) => NoteQuestionSelection.select(
+      RecallQuestionSelection pick(String q) => RecallQuestionSelection.select(
+        kind: RecallKind.note,
         question: q,
         today: today,
-        notes: app.db.noteBox.getAll(),
+        items: RecallItem.notes(app.db.noteBox.getAll()),
       );
       for (final (connection, selection, expected) in [
-        (NoteQuestionConnection.new, pick('skydiving'), 'nothing was sent'),
+        (QuestionConnection.new, pick('skydiving'), 'nothing was sent'),
         (
           OfflineConnection.new,
           pick('tulips'),
           'Connect your trusted computer',
         ),
         (
-          () => NoteQuestionConnection(contract: 0),
+          () => QuestionConnection(contract: 0),
           pick('tulips'),
           'Update the companion',
         ),
@@ -277,7 +293,9 @@ void main() {
         final wire = summary.SummaryTransport(store);
         final c = questionContainer(app, store, wire, connection: connection);
         await restored(c);
-        await c.read(noteSummaryProvider.notifier).startNoteQuestion(selection);
+        await c
+            .read(noteSummaryProvider.notifier)
+            .startRecallQuestion(selection);
         expect(wire.submitted, isEmpty);
         expect(c.read(noteSummaryProvider).message, contains(expected));
         c.dispose();
@@ -303,30 +321,182 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: c,
-        child: MaterialApp(home: NoteQuestionPage(today: today)),
+        child: MaterialApp(
+          home: RecallQuestionPage(kind: RecallKind.note, today: today),
+        ),
       ),
     );
     await tester.runAsync(() => restored(c));
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey('note-question-disclosure')),
+      find.byKey(const ValueKey('recall-question-disclosure')),
       findsOneWidget,
     );
     await tester.enterText(
-      find.byKey(const ValueKey('note-question-field')),
+      find.byKey(const ValueKey('recall-question-field')),
       'Where do the tulips go?',
     );
-    await tester.tap(find.byKey(const ValueKey('note-question-ask')));
+    await tester.tap(find.byKey(const ValueKey('recall-question-ask')));
     for (var i = 0; i < 40 && !c.read(noteSummaryProvider).terminal; i++) {
       await tester.runAsync(summary.settle);
       await tester.pump();
     }
     await tester.pumpAndSettle();
     expect(wire.submitted.single['operation'], noteQuestionOperation);
-    expect(find.byKey(const ValueKey('note-question-answer')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('note-question-source-garden')));
+    expect(
+      find.byKey(const ValueKey('recall-question-answer')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('recall-question-source-garden')),
+    );
     await tester.pumpAndSettle();
     expect(find.byType(EditNotePage), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+    app.container.dispose();
+  });
+
+  test('thought questions send untitled excerpts and never include notes', () {
+    final thoughts = [
+      ThoughtEntity(
+        uuid: 't1',
+        content: 'Worried about the move to the new flat.',
+        createdAt: DateTime(2026, 10, 1),
+      ),
+      ThoughtEntity(
+        uuid: 't2',
+        content: 'Bought blue paint.',
+        createdAt: DateTime(2026, 10, 2),
+      ),
+    ];
+    final s = RecallQuestionSelection.select(
+      kind: RecallKind.thought,
+      question: 'What about the move?',
+      today: today,
+      items: RecallItem.thoughts(thoughts),
+    );
+    expect(s.sources.map((e) => e.uuid), ['t1']);
+    final sent = jsonDecode(s.request())['sources'] as List;
+    expect(sent.single, {
+      'id': 's0',
+      'date': '2026-10-01',
+      'text': 'Worried about the move to the new flat.',
+    });
+    expect(
+      s.coverage,
+      startsWith('Searched all of your thoughts (2 thoughts).'),
+    );
+    final decoded = RecallQuestionSelection.decode(s.encode());
+    expect(decoded.kind, RecallKind.thought);
+    expect(decoded.encode(), s.encode());
+    final none = RecallQuestionAnswer.parse(
+      answer('Nothing here.', [], answered: false),
+      s,
+    );
+    expect(none.text, contains('thoughts searched'));
+  });
+
+  test('a thought question runs its own operation end to end', () async {
+    final app = await SyncFixture.create(MemoryDrive(), 'phone');
+    final thought = app.thoughts.saveThought(
+      content: 'Worried about the move to the new flat.',
+    );
+    app.notes.saveNote(uuid: 'n', title: 'Move', content: 'Move boxes.');
+    final store = summary.MemorySummaries();
+    final wire = summary.SummaryTransport(store)
+      ..output = answer('You wrote that you were worried about the move.', [
+        's0',
+      ]);
+    final c = questionContainer(app, store, wire);
+    addTearDown(c.dispose);
+    await restored(c);
+    final selection = RecallQuestionSelection.select(
+      kind: RecallKind.thought,
+      question: 'What about the move?',
+      today: today,
+      items: RecallItem.thoughts(app.db.thoughtBox.getAll()),
+    );
+    await c.read(noteSummaryProvider.notifier).startRecallQuestion(selection);
+    await finished(c);
+    final sent = wire.submitted.single;
+    expect(sent['operation'], thoughtQuestionOperation);
+    expect(sent['prompt'] as String, isNot(contains('Move boxes')));
+    final state = c.read(noteSummaryProvider);
+    expect(state.handle?.isThoughtQuestion, true);
+    final parsed = RecallQuestionAnswer.parse(state.text!, selection);
+    final notifier = c.read(noteSummaryProvider.notifier);
+    expect(
+      recallSourceStatus(
+        parsed.citations.single,
+        (uuid) => notifier.recallItem(RecallKind.thought, uuid),
+      ),
+      RecallSourceStatus.current,
+    );
+    expect(parsed.citations.single.uuid, thought.uuid);
+  });
+
+  testWidgets('the Flow page pops with the cited thought', (tester) async {
+    final app = (await tester.runAsync(
+      () => SyncFixture.create(MemoryDrive(), 'phone'),
+    ))!;
+    final thought = app.thoughts.saveThought(
+      content: 'Worried about the move to the new flat.',
+    );
+    final store = summary.MemorySummaries();
+    final wire = summary.SummaryTransport(store)
+      ..output = answer('You wrote that you were worried about the move.', [
+        's0',
+      ]);
+    final c = questionContainer(app, store, wire);
+    ThoughtEntity? opened;
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: c,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async =>
+                  opened = await Navigator.of(context).push<ThoughtEntity>(
+                    MaterialPageRoute(
+                      builder: (_) => RecallQuestionPage(
+                        kind: RecallKind.thought,
+                        today: today,
+                      ),
+                    ),
+                  ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => restored(c));
+    await tester.pumpAndSettle();
+    expect(find.text('Flow AI search'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('recall-question-field')),
+      'What about the move?',
+    );
+    await tester.tap(find.byKey(const ValueKey('recall-question-ask')));
+    for (var i = 0; i < 40 && !c.read(noteSummaryProvider).terminal; i++) {
+      await tester.runAsync(summary.settle);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    expect(wire.submitted.single['operation'], thoughtQuestionOperation);
+    expect(
+      find.byKey(const ValueKey('recall-question-answer')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('not something you wrote'), findsOneWidget);
+    await tester.tap(
+      find.byKey(ValueKey('recall-question-source-${thought.uuid}')),
+    );
+    await tester.pumpAndSettle();
+    expect(opened?.uuid, thought.uuid);
     await tester.pumpWidget(const SizedBox());
     c.dispose();
     app.container.dispose();

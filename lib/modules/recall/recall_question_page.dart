@@ -1,30 +1,34 @@
 import 'package:journal/common.dart';
-import 'package:journal/modules/notes/question/note_question_contract.dart';
+import 'package:journal/modules/recall/recall_question_contract.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/notes/summary/summary_history_page.dart';
 import 'package:journal/modules/notes/summary/summary_page.dart';
 import 'package:journal/modules/diary/history/diary_retrieval.dart'
-    show civilKey;
+    show civil, civilKey;
 import 'package:journal/modules/notes/views/widgets/note_ai_loading.dart';
 import 'package:journal/modules/notes/views/widgets/note_ai_widgets.dart';
 import 'package:journal/modules/recall/hybrid_retriever.dart';
 import 'package:journal/modules/recall/recall_contract.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
 
-/// S02 (notes): ask a question about saved notes. The most relevant notes are
-/// found on the phone and sent as bounded excerpts; the cited notes open.
-/// With a note-question task in the slot it shows that task.
-class NoteQuestionPage extends ConsumerStatefulWidget {
-  const NoteQuestionPage({super.key, this.today});
+/// S02: ask a question about saved notes or Flow thoughts. The most relevant
+/// ones are found on the phone and sent as bounded excerpts. A cited note opens
+/// in the editor; a cited thought pops this page with it. With a question task
+/// of the same [kind] in the slot it shows that task.
+class RecallQuestionPage extends ConsumerStatefulWidget {
+  const RecallQuestionPage({super.key, required this.kind, this.today});
+
+  /// [RecallKind.note] or [RecallKind.thought].
+  final RecallKind kind;
 
   /// The user's current civil date; defaults to the device's local date.
   final DateTime? today;
 
   @override
-  ConsumerState<NoteQuestionPage> createState() => _NoteQuestionPageState();
+  ConsumerState<RecallQuestionPage> createState() => _RecallQuestionPageState();
 }
 
-class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
+class _RecallQuestionPageState extends ConsumerState<RecallQuestionPage> {
   final _question = TextEditingController();
   bool _searching = false;
   String? _localMessage;
@@ -39,13 +43,15 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
     FocusScope.of(context).unfocus();
     final question = _question.text;
     final today = widget.today ?? DateTime.now();
-    final notes = ref.read(notesStreamProvider).value ?? const <NoteEntity>[];
-    NoteQuestionSelection selection;
+    final kind = widget.kind;
+    final (items, sources) = _collection();
+    RecallQuestionSelection selection;
     try {
-      selection = NoteQuestionSelection.select(
+      selection = RecallQuestionSelection.select(
+        kind: kind,
         question: question,
         today: today,
-        notes: notes,
+        items: items,
       );
     } on FormatException catch (error) {
       setState(() => _localMessage = error.message);
@@ -55,7 +61,7 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
       _searching = true;
       _localMessage = null;
     });
-    final (:terms, :scope, today: t) = NoteQuestionSelection.parse(
+    final (:terms, :scope, today: t) = RecallQuestionSelection.parse(
       question,
       today,
     );
@@ -65,8 +71,8 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
           .read(hybridRetrieverProvider)
           .search(
             question,
-            sources: RecallSource.notes(notes),
-            kinds: const {RecallKind.note},
+            sources: sources,
+            kinds: {kind},
             terms: terms,
             from: scope == null ? null : civilKey(scope.from),
             to: civilKey(scope?.to ?? t),
@@ -74,10 +80,11 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
           );
       if (!mounted) return;
       if (result.semantic) {
-        selection = NoteQuestionSelection.select(
+        selection = RecallQuestionSelection.select(
+          kind: kind,
           question: question,
           today: today,
-          notes: notes,
+          items: items,
           ranked: [for (final h in result.hits) h.source.id],
         );
       }
@@ -88,18 +95,36 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
         _searching = false;
         _localMessage = terms.isEmpty && scope == null
             ? 'Add a topic or a time, such as “recipes” or “last month”.'
-            : 'No notes match this question, so nothing was sent.';
+            : 'No ${kind.many} match this question, so nothing was sent.';
       });
       return;
     }
-    await ref.read(noteSummaryProvider.notifier).startNoteQuestion(selection);
+    await ref.read(noteSummaryProvider.notifier).startRecallQuestion(selection);
     if (mounted) setState(() => _searching = false);
   }
 
-  void _open(NoteQuestionSource source) {
-    final note = ref.read(notesRepositoryProvider).getNoteByUuid(source.uuid);
-    if (note == null) return;
-    context.nav.push(EditNotePage(existingNote: note));
+  /// The searchable items of [RecallQuestionPage.kind], and the same as
+  /// retriever sources.
+  (List<RecallItem>, Iterable<RecallSource>) _collection() {
+    if (widget.kind == RecallKind.note) {
+      final notes = ref.read(notesStreamProvider).value ?? const <NoteEntity>[];
+      return (RecallItem.notes(notes), RecallSource.notes(notes));
+    }
+    final thoughts =
+        ref.read(thoughtsStreamProvider).value ?? const <ThoughtEntity>[];
+    return (RecallItem.thoughts(thoughts), RecallSource.thoughts(thoughts));
+  }
+
+  void _open(RecallQuestionSource source) {
+    if (widget.kind == RecallKind.note) {
+      final note = ref.read(notesRepositoryProvider).getNoteByUuid(source.uuid);
+      if (note != null) context.nav.push(EditNotePage(existingNote: note));
+      return;
+    }
+    final thought = ref
+        .read(thoughtsRepositoryProvider)
+        .getThoughtByUuid(source.uuid);
+    if (thought != null) Navigator.of(context).pop(thought);
   }
 
   @override
@@ -109,15 +134,21 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
         body: Center(child: Text('Account reset in progress.')),
       );
     }
-    ref.watch(notesStreamProvider);
+    final kind = widget.kind;
+    final tool = kind == RecallKind.note
+        ? NoteAiTool.search
+        : NoteAiTool.thoughtSearch;
+    ref.watch(
+      kind == RecallKind.note ? notesStreamProvider : thoughtsStreamProvider,
+    );
     final state = ref.watch(noteSummaryProvider);
     final controller = ref.read(noteSummaryProvider.notifier);
     final handle = state.handle;
-    final mine = handle?.isNoteQuestion == true;
-    NoteQuestionSelection? selection;
+    final mine = handle?.operation == kind.questionOperation;
+    RecallQuestionSelection? selection;
     if (mine && handle?.localSource != null) {
       try {
-        selection = NoteQuestionSelection.decode(handle!.localSource!);
+        selection = RecallQuestionSelection.decode(handle!.localSource!);
       } on FormatException {
         selection = null;
       }
@@ -126,10 +157,10 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
         _searching || (mine && noteAiIsLoading(state.phase, busy: state.busy));
     final answered = mine && state.phase == 'completed' && state.text != null;
     return NoteAiScaffold(
-      tool: NoteAiTool.search,
+      tool: tool,
       loading: loading
           ? NoteAiLoading(
-              tool: NoteAiTool.search,
+              tool: tool,
               phase: _searching ? 'submitting' : state.phase,
               onCancel: mine && !state.busy && !state.terminal
                   ? controller.cancel
@@ -156,9 +187,9 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
   }
 
   List<Widget> _otherTask(BuildContext context) => [
-    const Text(
-      'Another AI task is in progress. Finish or clear it before asking about your notes. Keyword search on the Notes page still works.',
-      key: ValueKey('note-question-occupied'),
+    Text(
+      'Another AI task is in progress. Finish or clear it before asking about your ${widget.kind.many}.',
+      key: const ValueKey('recall-question-occupied'),
     ),
     TextButton(
       onPressed: () => context.nav.push(const NoteSummaryPage()),
@@ -175,33 +206,35 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
     final message = _localMessage ?? state.message;
     return [
       TextField(
-        key: const ValueKey('note-question-field'),
+        key: const ValueKey('recall-question-field'),
         controller: _question,
-        maxLength: noteQuestionChars,
+        maxLength: recallQuestionChars,
         minLines: 1,
         maxLines: 4,
         textInputAction: TextInputAction.search,
         onSubmitted: (_) => _ask(),
-        decoration: const InputDecoration(
-          labelText: 'Ask about your notes',
-          hintText: 'For example: what did I plan for the garden?',
+        decoration: InputDecoration(
+          labelText: 'Ask about your ${widget.kind.many}',
+          hintText: widget.kind == RecallKind.note
+              ? 'For example: what did I plan for the garden?'
+              : 'For example: what have I been worrying about?',
         ),
       ),
       Text(
-        'Your question and short excerpts from the most relevant notes are sent to $name. Nothing else from your notes is sent.',
-        key: const ValueKey('note-question-disclosure'),
+        'Your question and short excerpts from the most relevant ${widget.kind.many} are sent to $name. Nothing else from your ${widget.kind.many} is sent.',
+        key: const ValueKey('recall-question-disclosure'),
         style: caption,
       ),
       const SizedBox(height: 16),
       FilledButton.icon(
-        key: const ValueKey('note-question-ask'),
+        key: const ValueKey('recall-question-ask'),
         onPressed: state.busy ? null : _ask,
         icon: const Icon(Icons.search_rounded),
         label: const Text('Ask'),
       ),
       if (message != null) ...[
         const SizedBox(height: 12),
-        Text(message, key: const ValueKey('note-question-message')),
+        Text(message, key: const ValueKey('recall-question-message')),
       ],
       const SizedBox(height: 12),
       TextButton(
@@ -214,20 +247,21 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
   List<Widget> _taskBody(
     BuildContext context,
     NoteSummaryState state,
-    NoteQuestionSelection selection,
+    RecallQuestionSelection selection,
     NoteSummaryController controller,
   ) {
+    final kind = widget.kind;
     final theme = Theme.of(context);
     final caption = theme.textTheme.bodySmall!.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    final lookup = ref.read(notesRepositoryProvider).getNoteByUuid;
-    NoteQuestionAnswer? answer;
+    RecallItem? lookup(String uuid) => controller.recallItem(kind, uuid);
+    RecallQuestionAnswer? answer;
     String? rejected;
     if (state.phase == 'completed' && state.text != null) {
       try {
-        answer = NoteQuestionAnswer.parse(state.text!, selection);
-      } on NoteAnswerRejected catch (error) {
+        answer = RecallQuestionAnswer.parse(state.text!, selection);
+      } on RecallAnswerRejected catch (error) {
         rejected = error.message;
       } catch (_) {
         rejected =
@@ -239,14 +273,14 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
       const SizedBox(height: 8),
       Text(
         selection.coverage,
-        key: const ValueKey('note-question-coverage'),
+        key: const ValueKey('recall-question-coverage'),
         style: caption,
       ),
       const SizedBox(height: 16),
       if (answer == null)
         Text(
           rejected ?? summaryPhaseLabel(state.phase),
-          key: const ValueKey('note-question-phase'),
+          key: const ValueKey('recall-question-phase'),
         ),
       if (answer == null && state.message != null) ...[
         const SizedBox(height: 8),
@@ -254,22 +288,26 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
       ],
       if (answer != null && !answer.answered)
         Text(
-          'Your notes don’t have enough to answer this. Try asking another way.',
-          key: const ValueKey('note-question-insufficient'),
+          'Your ${kind.many} don’t have enough to answer this. Try asking another way.',
+          key: const ValueKey('recall-question-insufficient'),
         ),
       if (answer != null && answer.answered) ...[
         Text(
           answer.text,
-          key: const ValueKey('note-question-answer'),
+          key: const ValueKey('recall-question-answer'),
           style: theme.textTheme.bodyLarge,
         ),
         const SizedBox(height: 8),
-        Text('Based only on these notes.', style: caption),
+        Text(
+          kind == RecallKind.note ? 'Based only on these notes.' : 'Based only on these thoughts. Links between them are the AI’s reading, not something you wrote.',
+          style: caption,
+        ),
         const SizedBox(height: 8),
         for (final source in answer.citations)
           _SourceTile(
+            kind: kind,
             source: source,
-            status: noteSourceStatus(source, lookup),
+            status: recallSourceStatus(source, lookup),
             onOpen: () => _open(source),
           ),
       ],
@@ -289,7 +327,7 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
             ),
           if (state.terminal)
             FilledButton(
-              key: const ValueKey('note-question-clear'),
+              key: const ValueKey('recall-question-clear'),
               onPressed: state.busy
                   ? null
                   : () async {
@@ -306,32 +344,45 @@ class _NoteQuestionPageState extends ConsumerState<NoteQuestionPage> {
 
 class _SourceTile extends StatelessWidget {
   const _SourceTile({
+    required this.kind,
     required this.source,
     required this.status,
     required this.onOpen,
   });
-  final NoteQuestionSource source;
-  final NoteSourceStatus status;
+  final RecallKind kind;
+  final RecallQuestionSource source;
+  final RecallSourceStatus status;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) => Card(
     child: ListTile(
-      key: ValueKey('note-question-source-${source.uuid}'),
-      title: Text(source.title.isEmpty ? 'Untitled' : source.title),
+      key: ValueKey('recall-question-source-${source.uuid}'),
+      title: Text(
+        kind == RecallKind.thought
+            ? TimeHelper.format(
+                civil(source.date),
+                pattern: TimeFormat.localizedDate,
+                locale: Localizations.localeOf(context).toString(),
+                toLocal: false,
+              )
+            : source.title.isEmpty
+            ? 'Untitled'
+            : source.title,
+      ),
       subtitle: Text(
         [
           if (source.text.isNotEmpty) source.text,
-          if (status == NoteSourceStatus.edited)
-            'Edited since this answer. Open the note to check.',
-          if (status == NoteSourceStatus.deleted)
-            'This note is no longer in your notes.',
+          if (status == RecallSourceStatus.edited)
+            'Edited since this answer. Open the ${kind.one} to check.',
+          if (status == RecallSourceStatus.deleted)
+            'This ${kind.one} is no longer in your ${kind.many}.',
         ].join('\n'),
       ),
-      trailing: status == NoteSourceStatus.deleted
+      trailing: status == RecallSourceStatus.deleted
           ? null
           : const Icon(Icons.north_east_rounded),
-      onTap: status == NoteSourceStatus.deleted ? null : onOpen,
+      onTap: status == RecallSourceStatus.deleted ? null : onOpen,
     ),
   );
 }

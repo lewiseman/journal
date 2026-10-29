@@ -17,6 +17,13 @@ enum NoteAiTool {
     'Ask about your notes',
     Color(0xFF527C9C),
   ),
+  thoughtSearch(
+    'Flow AI search',
+    'Ask a question and get an answer from your thoughts.',
+    'Flow AI search',
+    'Ask about your thoughts',
+    Color(0xFF6A7FA8),
+  ),
   template(
     'Starting template',
     'Choose a template for your note.',
@@ -275,7 +282,7 @@ class _ToolPainter extends CustomPainter {
         line(72, 26, 77, 26);
         line(69, 12, 73, 8);
         sparkle(69, 53);
-      case NoteAiTool.search:
+      case NoteAiTool.search || NoteAiTool.thoughtSearch:
         sheet(12, 11, 39, 50);
         sheet(18, 17, 39, 50, tinted: true);
         lines(25, 30, 23, 3);

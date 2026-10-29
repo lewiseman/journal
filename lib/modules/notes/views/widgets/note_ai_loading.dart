@@ -104,6 +104,7 @@ class _NoteAiLoadingState extends State<NoteAiLoading>
     _ => switch (widget.tool) {
       NoteAiTool.ideas => 'Finding ideas…',
       NoteAiTool.search => 'Searching notes…',
+      NoteAiTool.thoughtSearch => 'Searching thoughts…',
       NoteAiTool.template => 'Building your template…',
       NoteAiTool.summary => 'Making your summary…',
       NoteAiTool.writing => 'Improving your note…',
