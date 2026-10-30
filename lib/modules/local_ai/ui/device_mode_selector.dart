@@ -1,42 +1,47 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/ai_settings.dart';
 import '../core/engine_registry.dart';
+import 'ai_studio_material.dart';
 
 const _options = [
   (
     mode: AiMode.companion,
     tab: 'Computer',
     title: 'Companion',
-    description: 'Let your computer help with writing, images, voice and search. Keep both devices on the same Wi-Fi.',
+    note: 'a little room to think',
+    description:
+        'Your computer does the thinking. Keep both devices on the same Wi-Fi.',
     action: 'Use Companion',
-    icon: Icons.desktop_mac_rounded,
+    image: 'assets/images/ai_studio_computer.png',
   ),
   (
     mode: AiMode.device,
     tab: 'Phone',
     title: 'On this phone',
-    description: 'Take writing and image tools with you. Download a model first, then use it offline.',
+    note: 'take a little possibility with you',
+    description: 'Download a model once. Bring writing and image tools along, even offline.',
     action: 'Use this phone',
-    icon: Icons.phone_iphone_rounded,
+    image: 'assets/images/ai_studio_phone.png',
   ),
   (
     mode: AiMode.auto,
     tab: 'Auto',
     title: 'A little of both',
-    description: 'Prefer your computer when connected. Use prepared phone models when you’re away.',
+    note: 'wherever you find yourself',
+    description:
+        'Your computer when connected. Prepared phone models when you’re away.',
     action: 'Use Auto',
-    icon: Icons.swap_horiz_rounded,
+    image: 'assets/images/ai_studio_auto.png',
   ),
 ];
 
-/// Swiping compares options; only the explicit action changes where AI runs.
+/// A swipeable little stationery scene. Browsing never changes the AI route.
 class DeviceModeSelector extends ConsumerStatefulWidget {
-  const DeviceModeSelector({super.key});
+  const DeviceModeSelector({super.key, this.onSetup});
+  final VoidCallback? onSetup;
 
   @override
   ConsumerState<DeviceModeSelector> createState() => _DeviceModeSelectorState();
@@ -53,7 +58,7 @@ class _DeviceModeSelectorState extends ConsumerState<DeviceModeSelector> {
     _preview = _options.indexWhere(
       (option) => option.mode == ref.read(aiSettingsProvider).mode,
     );
-    _pages = PageController(initialPage: _preview, viewportFraction: .96);
+    _pages = PageController(initialPage: _preview, viewportFraction: .9);
   }
 
   @override
@@ -69,7 +74,7 @@ class _DeviceModeSelectorState extends ConsumerState<DeviceModeSelector> {
     } else {
       _pages.animateToPage(
         index,
-        duration: const Duration(milliseconds: 340),
+        duration: const Duration(milliseconds: 440),
         curve: Curves.easeInOutCubic,
       );
     }
@@ -80,7 +85,12 @@ class _DeviceModeSelectorState extends ConsumerState<DeviceModeSelector> {
     setState(() => _saving = true);
     try {
       await ref.read(aiSettingsProvider.notifier).setMode(mode);
-      if (mounted) HapticFeedback.selectionClick();
+      if (mounted) {
+        HapticFeedback.selectionClick();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onSetup?.call();
+        });
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -92,149 +102,92 @@ class _DeviceModeSelectorState extends ConsumerState<DeviceModeSelector> {
     }
   }
 
+  Widget _unavailable(AiSettings settings) {
+    if (settings.mode != AiMode.device &&
+        !settings.overrides.values.contains(AiMode.device)) {
+      return const SizedBox.shrink();
+    }
+    return AiStudioPaper(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'The device engine is unavailable. Choose Companion to continue.',
+          ),
+          TextButton(
+            onPressed: _saving
+                ? null
+                : () async {
+                    try {
+                      final controller = ref.read(aiSettingsProvider.notifier);
+                      for (final entry in settings.overrides.entries) {
+                        if (entry.value == AiMode.device) {
+                          await controller.setOverride(entry.key, AiMode.auto);
+                        }
+                      }
+                      if (mounted) await _choose(AiMode.companion);
+                    } catch (_) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Could not save the AI setting.'),
+                          ),
+                        );
+                      }
+                    }
+                  },
+            child: const Text('Use Companion'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(aiSettingsProvider);
+    if (ref.watch(onDeviceEngineProvider) == null) {
+      return _unavailable(settings);
+    }
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final reduced = MediaQuery.disableAnimationsOf(context);
+    final large = MediaQuery.textScalerOf(context).scale(14) > 20;
+    final option = _options[_preview];
+    final active = settings.mode == option.mode;
+    final duration = reduced
+        ? Duration.zero
+        : const Duration(milliseconds: 300);
     ref.listen(aiSettingsProvider.select((value) => value.mode), (_, mode) {
       _show(_options.indexWhere((option) => option.mode == mode));
     });
-    if (ref.watch(onDeviceEngineProvider) == null) {
-      if (settings.mode != AiMode.device &&
-          !settings.overrides.values.contains(AiMode.device)) {
-        return const SizedBox.shrink();
-      }
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'The device engine is unavailable. Choose Companion to continue.',
-              ),
-              TextButton(
-                onPressed: _saving
-                    ? null
-                    : () async {
-                        try {
-                          final controller = ref.read(
-                            aiSettingsProvider.notifier,
-                          );
-                          for (final entry in settings.overrides.entries) {
-                            if (entry.value == AiMode.device) {
-                              await controller.setOverride(
-                                entry.key,
-                                AiMode.auto,
-                              );
-                            }
-                          }
-                          await _choose(AiMode.companion);
-                        } catch (_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Could not save the AI setting.'),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                child: const Text('Use Companion'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    final titleStyle = text.titleLarge!.copyWith(
-      fontSize: 21,
-      fontWeight: FontWeight.w600,
-      letterSpacing: -.4,
-    );
-    final bodyStyle = text.bodyMedium!.copyWith(
-      color: colors.onSurfaceVariant,
-      height: 1.5,
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Where AI runs',
-          style: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Compare the options, then choose what suits you.',
-          style: text.bodySmall?.copyWith(
-            color: colors.onSurfaceVariant,
-            height: 1.4,
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            'ON YOUR DEVICES  /  ${settings.mode == AiMode.device
+                ? 'PHONE'
+                : settings.mode == AiMode.auto
+                ? 'AUTO'
+                : 'COMPUTER'}',
+            style: TextStyle(
+              fontSize: 10,
+              letterSpacing: 1.8,
+              color: colors.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
           ),
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            for (var i = 0; i < _options.length; i++)
-              ChoiceChip(
-                key: ValueKey('ai-mode-${_options[i].mode.name}'),
-                label: Text(_options[i].tab),
-                avatar: Icon(_options[i].icon, size: 17),
-                selected: _preview == i,
-                showCheckmark: false,
-                onSelected: (_) => _show(i),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         LayoutBuilder(
           builder: (context, constraints) {
-            final contentWidth = constraints.maxWidth * .96 - 8 - 36;
-            double measure(String value, TextStyle style, double width) {
-              final painter = TextPainter(
-                text: TextSpan(text: value, style: style),
-                textDirection: Directionality.of(context),
-                textScaler: MediaQuery.textScalerOf(context),
-              )..layout(maxWidth: math.max(1, width));
-              final height = painter.height;
-              painter.dispose();
-              return height;
-            }
-
-            // Size the deck from the actual type scale, including narrow phones.
-            final height = _options
-                .map((option) {
-                  final heading = math.max(
-                    48.0,
-                    measure(option.title, titleStyle, contentWidth - 62),
-                  );
-                  final description = measure(
-                    option.description,
-                    bodyStyle,
-                    contentWidth,
-                  );
-                  final action = math.max(
-                    48.0,
-                    math.max(
-                          measure(
-                            option.action,
-                            text.labelLarge!,
-                            contentWidth - 56,
-                          ),
-                          measure(
-                            'Current choice',
-                            text.labelLarge!,
-                            contentWidth - 56,
-                          ),
-                        ) +
-                        20,
-                  );
-                  return 36 + heading + 12 + description + 18 + action + 2;
-                })
-                .reduce(math.max);
+            final short = MediaQuery.sizeOf(context).height < 500;
+            final height = short
+                ? 145.0
+                : (constraints.maxWidth * .58).clamp(185.0, 260.0);
             return SizedBox(
               height: height,
               child: PageView.builder(
@@ -242,136 +195,219 @@ class _DeviceModeSelectorState extends ConsumerState<DeviceModeSelector> {
                 controller: _pages,
                 itemCount: _options.length,
                 allowImplicitScrolling: true,
-                onPageChanged: (index) => setState(() => _preview = index),
-                itemBuilder: (context, index) {
-                  final option = _options[index];
-                  final selected = settings.mode == option.mode;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: AnimatedContainer(
-                      duration: reduced
-                          ? Duration.zero
-                          : const Duration(milliseconds: 240),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? Color.alphaBlend(
-                                colors.primaryContainer.withValues(alpha: .55),
-                                colors.surface,
-                              )
-                            : colors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(26),
-                        border: Border.all(
-                          color: selected
-                              ? colors.primary.withValues(alpha: .45)
-                              : colors.outlineVariant.withValues(alpha: .6),
+                onPageChanged: (value) => setState(() => _preview = value),
+                itemBuilder: (context, index) => AnimatedBuilder(
+                  animation: _pages,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    child: Image.asset(
+                      _options[index].image,
+                      fit: BoxFit.contain,
+                      excludeFromSemantics: true,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
+                  builder: (context, child) {
+                    final page =
+                        _pages.hasClients &&
+                            _pages.position.hasContentDimensions
+                        ? _pages.page!
+                        : _preview.toDouble();
+                    final delta = (index - page).clamp(-1.0, 1.0);
+                    return Transform.translate(
+                      offset: Offset(0, reduced ? 0 : delta.abs() * 16),
+                      child: Transform.rotate(
+                        angle: reduced ? 0 : delta * .08,
+                        child: Transform.scale(
+                          scale: reduced ? 1 : 1 - delta.abs() * .12,
+                          child: child,
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: colors.surface.withValues(alpha: .75),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Icon(
-                                  option.icon,
-                                  color: colors.primary,
-                                  size: 27,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Text(option.title, style: titleStyle),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(option.description, style: bodyStyle),
-                          const Spacer(),
-                          const SizedBox(height: 18),
-                          FilledButton.tonalIcon(
-                            key: ValueKey('ai-use-${option.mode.name}'),
-                            onPressed: selected || _saving
-                                ? null
-                                : () => _choose(option.mode),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
-                              disabledBackgroundColor: colors.primary
-                                  .withValues(alpha: .08),
-                              disabledForegroundColor: colors.primary,
-                            ),
-                            icon: Icon(
-                              selected
-                                  ? Icons.check_circle_outline_rounded
-                                  : Icons.arrow_forward_rounded,
-                              size: 18,
-                            ),
-                            label: Text(
-                              selected ? 'Current choice' : option.action,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             );
           },
         ),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Swipe to compare',
-                style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+        if (!large)
+          AnimatedSwitcher(
+            duration: duration,
+            child: Text(
+              option.note,
+              key: ValueKey(option.mode),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Caveat',
+                fontSize: 21,
+                color: colors.onSurfaceVariant,
               ),
             ),
-            for (var i = 0; i < _options.length; i++)
-              AnimatedContainer(
-                duration: reduced
-                    ? Duration.zero
-                    : const Duration(milliseconds: 220),
-                width: _preview == i ? 18 : 6,
-                height: 6,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: _preview == i ? colors.primary : colors.outlineVariant,
-                  borderRadius: BorderRadius.circular(8),
+          ),
+        const SizedBox(height: 14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final vertical = large || constraints.maxWidth < 280;
+            final tabs = [
+              for (var i = 0; i < _options.length; i++)
+                Semantics(
+                  selected: _preview == i,
+                  child: TextButton(
+                    key: ValueKey('ai-mode-${_options[i].mode.name}'),
+                    onPressed: () => _show(i),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _preview == i
+                          ? colors.primary
+                          : colors.onSurfaceVariant,
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _options[i].tab,
+                          style: TextStyle(
+                            fontWeight: _preview == i
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        AnimatedContainer(
+                          duration: duration,
+                          width: _preview == i ? 28 : 6,
+                          height: 2,
+                          decoration: BoxDecoration(
+                            color: _preview == i
+                                ? colors.primary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ];
+            return vertical
+                ? Wrap(alignment: WrapAlignment.center, children: tabs)
+                : Row(children: [for (final tab in tabs) Expanded(child: tab)]);
+          },
+        ),
+        const SizedBox(height: 12),
+        AnimatedSwitcher(
+          duration: duration,
+          layoutBuilder: (current, previous) =>
+              current ?? const SizedBox.shrink(),
+          transitionBuilder: (child, animation) =>
+              FadeTransition(opacity: animation, child: child),
+          child: Column(
+            key: ValueKey(option.mode),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                option.title,
+                textAlign: TextAlign.center,
+                style: studioTitle(context, size: 21),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                option.description,
+                textAlign: TextAlign.center,
+                style: text.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  height: 1.5,
                 ),
               ),
-            const SizedBox(width: 8),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                key: ValueKey('ai-use-${option.mode.name}'),
+                onPressed: _saving
+                    ? null
+                    : active
+                    ? widget.onSetup
+                    : () => _choose(option.mode),
+                style: FilledButton.styleFrom(
+                  backgroundColor: active
+                      ? colors.primary.withValues(alpha: .08)
+                      : colors.primary,
+                  foregroundColor: active ? colors.primary : colors.onPrimary,
+                  disabledBackgroundColor: colors.primary.withValues(
+                    alpha: .07,
+                  ),
+                  disabledForegroundColor: colors.primary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: Icon(
+                  active
+                      ? widget.onSetup == null
+                            ? Icons.check_rounded
+                            : Icons.south_rounded
+                      : Icons.arrow_forward_rounded,
+                  size: 18,
+                ),
+                label: Text(
+                  active
+                      ? widget.onSetup == null
+                            ? 'Current choice'
+                            : 'View setup'
+                      : option.action,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Row(
+          children: [
             IconButton(
               tooltip: 'Previous AI option',
               onPressed: _preview == 0 ? null : () => _show(_preview - 1),
-              icon: const Icon(Icons.chevron_left_rounded),
+              icon: const Icon(Icons.chevron_left_rounded, size: 20),
+            ),
+            Expanded(
+              child: Text(
+                large ? '${_preview + 1} / 3' : 'swipe to find your fit',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Caveat',
+                  fontSize: 18,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
             ),
             IconButton(
               tooltip: 'Next AI option',
-              onPressed: _preview == _options.length - 1
-                  ? null
-                  : () => _show(_preview + 1),
-              icon: const Icon(Icons.chevron_right_rounded),
+              onPressed: _preview == 2 ? null : () => _show(_preview + 1),
+              icon: const Icon(Icons.chevron_right_rounded, size: 20),
             ),
           ],
         ),
         if (settings.mode == AiMode.device)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              'Keep Journal in the foreground while AI works.',
-              style: text.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                height: 1.4,
-              ),
+          Text(
+            'Keep Journal in the foreground while AI works.',
+            textAlign: TextAlign.center,
+            style: text.bodySmall?.copyWith(
+              fontSize: 11,
+              color: colors.onSurfaceVariant,
+              height: 1.4,
             ),
           ),
       ],

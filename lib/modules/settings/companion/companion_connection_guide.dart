@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'companion_controller.dart';
+import '../../local_ai/ui/ai_studio_material.dart';
 
 /// A visual walkthrough. Browsing a step never changes connection or trust.
 class CompanionConnectionGuide extends StatefulWidget {
@@ -121,59 +122,49 @@ class _CompanionConnectionGuideState extends State<CompanionConnectionGuide> {
           onTap: guided && !state.busy ? () => _selectStep(i) : null,
         ),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          _title,
-          style: theme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-            letterSpacing: -.4,
-          ),
-        ),
-        const SizedBox(height: 6),
-        if (guided) ...[
-          Text(
-            'Three small steps. Swipe through, or tap a step below.',
-            style: theme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-              height: 1.4,
+    return AiStudioPaper(
+      seed: 62,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(_title, style: studioTitle(context, size: 23)),
+          const SizedBox(height: 6),
+          if (guided) ...[
+            Text(
+              'Three small steps. Swipe through, or tap a step below.',
+              style: theme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant,
+                height: 1.4,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-        ] else
-          const SizedBox(height: 12),
-        GestureDetector(
-          key: const ValueKey('companion-guide-card'),
-          onHorizontalDragStart: guided && !state.busy
-              ? (_) => _drag = 0
-              : null,
-          onHorizontalDragUpdate: guided && !state.busy
-              ? (details) => _drag += details.delta.dx
-              : null,
-          onHorizontalDragEnd: guided && !state.busy
-              ? (details) {
-                  final movement = _drag.abs() > 40
-                      ? _drag
-                      : (details.primaryVelocity ?? 0).abs() > 250
-                      ? details.primaryVelocity!
-                      : 0.0;
-                  if (movement == 0) return;
-                  final forward =
-                      Directionality.of(context) == TextDirection.ltr
-                      ? movement < 0
-                      : movement > 0;
-                  _selectStep((_step + (forward ? 1 : -1)).clamp(0, 2));
-                }
-              : null,
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: .48),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: colors.primary.withValues(alpha: .12)),
-            ),
+            const SizedBox(height: 16),
+          ] else
+            const SizedBox(height: 12),
+          GestureDetector(
+            key: const ValueKey('companion-guide-card'),
+            onHorizontalDragStart: guided && !state.busy
+                ? (_) => _drag = 0
+                : null,
+            onHorizontalDragUpdate: guided && !state.busy
+                ? (details) => _drag += details.delta.dx
+                : null,
+            onHorizontalDragEnd: guided && !state.busy
+                ? (details) {
+                    final movement = _drag.abs() > 40
+                        ? _drag
+                        : (details.primaryVelocity ?? 0).abs() > 250
+                        ? details.primaryVelocity!
+                        : 0.0;
+                    if (movement == 0) return;
+                    final forward =
+                        Directionality.of(context) == TextDirection.ltr
+                        ? movement < 0
+                        : movement > 0;
+                    _selectStep((_step + (forward ? 1 : -1)).clamp(0, 2));
+                  }
+                : null,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+              padding: const EdgeInsets.only(top: 6, bottom: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -191,7 +182,13 @@ class _CompanionConnectionGuideState extends State<CompanionConnectionGuide> {
                           ),
                   AnimatedSwitcher(
                     duration: duration,
-                    child: _DeviceScene(key: ValueKey(_scene), step: _scene),
+                    child: Center(
+                      key: ValueKey(_scene),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 250),
+                        child: _DeviceScene(step: _scene),
+                      ),
+                    ),
                   ),
                   Semantics(
                     liveRegion: true,
@@ -258,7 +255,10 @@ class _CompanionConnectionGuideState extends State<CompanionConnectionGuide> {
                       icon: const Icon(Icons.link_rounded),
                       label: const Text('Connect again'),
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(56),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     )
                   else if (_step == 0)
@@ -268,7 +268,10 @@ class _CompanionConnectionGuideState extends State<CompanionConnectionGuide> {
                       icon: const Icon(Icons.arrow_forward_rounded),
                       label: const Text('Next'),
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(56),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     )
                   else
@@ -278,7 +281,10 @@ class _CompanionConnectionGuideState extends State<CompanionConnectionGuide> {
                       icon: const Icon(Icons.qr_code_scanner_rounded, size: 26),
                       label: const Text('Scan QR'),
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(56),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                   if (_pairing && state.busy) ...[
@@ -293,30 +299,30 @@ class _CompanionConnectionGuideState extends State<CompanionConnectionGuide> {
               ),
             ),
           ),
-        ),
-        if (!_connected && !awaiting) ...[
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.lock_outline_rounded,
-                size: 16,
-                color: colors.onSurfaceVariant,
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  'Your devices. Your private connection.',
-                  style: theme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
+          if (!_connected && !awaiting) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 16,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Your devices. Your private connection.',
+                    style: theme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -359,14 +365,13 @@ class _StepButton extends StatelessWidget {
                       ? Duration.zero
                       : const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
-                  width: 44,
-                  height: 44,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: selected ? colors.primary : colors.surface,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: selected ? colors.primary : colors.outlineVariant,
-                    ),
+                    color: selected
+                        ? colors.primary.withValues(alpha: .10)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: Icon(
                     done
@@ -376,8 +381,8 @@ class _StepButton extends StatelessWidget {
                             Icons.qr_code_scanner_rounded,
                             Icons.check_circle_outline_rounded,
                           ][index],
-                    color: selected ? colors.onPrimary : colors.primary,
-                    size: 23,
+                    color: selected ? colors.primary : colors.onSurfaceVariant,
+                    size: 21,
                   ),
                 ),
                 SizedBox(
@@ -431,7 +436,7 @@ class _ConnectionBadge extends StatelessWidget {
 }
 
 class _DeviceScene extends StatelessWidget {
-  const _DeviceScene({super.key, required this.step});
+  const _DeviceScene({required this.step});
   final int step;
   @override
   Widget build(BuildContext context) => Semantics(

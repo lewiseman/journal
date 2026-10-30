@@ -10,6 +10,7 @@ import 'package:journal/modules/voice/views/pages/reply_voice_page.dart';
 import '../../local_ai/core/ai_settings.dart';
 import '../../local_ai/core/engine_registry.dart';
 import '../../local_ai/ui/device_mode_selector.dart';
+import '../../local_ai/ui/ai_studio_material.dart';
 import '../../local_ai/ui/device_task_card.dart';
 import 'companion_connection_guide.dart';
 import 'companion_controller.dart';
@@ -85,8 +86,29 @@ class CompanionNavigationTile extends ConsumerWidget {
   }
 }
 
-class CompanionPage extends ConsumerWidget {
+class CompanionPage extends ConsumerStatefulWidget {
   const CompanionPage({super.key});
+
+  @override
+  ConsumerState<CompanionPage> createState() => _CompanionPageState();
+}
+
+class _CompanionPageState extends ConsumerState<CompanionPage> {
+  final _setupKey = GlobalKey();
+
+  void _showSetup() {
+    final target = _setupKey.currentContext;
+    if (target == null) return;
+    Scrollable.ensureVisible(
+      target,
+      alignment: .04,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 500),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
   Future<void> _pair(
     BuildContext context,
     WidgetRef ref, {
@@ -128,7 +150,7 @@ class CompanionPage extends ConsumerWidget {
     builder: (_) => const _PasteCodeDialog(),
   );
   @override
-  Widget build(BuildContext context, WidgetRef ref) =>
+  Widget build(BuildContext context) =>
       QvacAssistantPage(enabled: false, child: _buildPage(context, ref));
 
   Widget _buildPage(BuildContext context, WidgetRef ref) {
@@ -175,7 +197,13 @@ class CompanionPage extends ConsumerWidget {
       ],
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('Local AI')),
+      appBar: AppBar(
+        centerTitle: false,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        backgroundColor: context.colors.surface,
+        scrolledUnderElevation: 0,
+      ),
       body: SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -186,21 +214,17 @@ class CompanionPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _LocalAiIntro(),
-                  if (hasEngine) const SizedBox(height: 24),
-                  const DeviceModeSelector(),
-                  const SizedBox(height: 24),
+                  if (!hasEngine) const _LocalAiIntro(),
+                  DeviceModeSelector(onSetup: _showSetup),
+                  if (hasEngine)
+                    const AiStudioRule(label: 'a place to begin')
+                  else
+                    const SizedBox(height: 24),
                   if (mode == AiMode.auto) ...[
-                    Container(
+                    AiStudioPaper(
                       key: const ValueKey('ai-auto-status'),
-                      padding: const EdgeInsets.all(16),
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        color: context.colors.primaryContainer.withValues(
-                          alpha: .4,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
+                      padding: const EdgeInsets.all(20),
+                      seed: 58,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -228,52 +252,49 @@ class CompanionPage extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  if (reduced)
-                    setup
-                  else
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 320),
-                      curve: Curves.easeInOutCubic,
-                      alignment: Alignment.topCenter,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 240),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, animation) => FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, .025),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        ),
-                        // Retired controls cannot receive taps during a transition.
-                        layoutBuilder: (current, previous) => Stack(
-                          alignment: Alignment.topCenter,
-                          children: [
-                            for (final child in previous)
-                              ExcludeSemantics(
-                                child: IgnorePointer(child: child),
+                  KeyedSubtree(
+                    key: _setupKey,
+                    child: reduced
+                        ? setup
+                        : AnimatedSize(
+                            duration: const Duration(milliseconds: 320),
+                            curve: Curves.easeInOutCubic,
+                            alignment: Alignment.topCenter,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 240),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) =>
+                                  FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0, .025),
+                                        end: Offset.zero,
+                                      ).animate(animation),
+                                      child: child,
+                                    ),
+                                  ),
+                              // Retired controls cannot receive taps during a transition.
+                              layoutBuilder: (current, previous) => Stack(
+                                alignment: Alignment.topCenter,
+                                children: [
+                                  for (final child in previous)
+                                    ExcludeSemantics(
+                                      child: IgnorePointer(child: child),
+                                    ),
+                                  ?current,
+                                ],
                               ),
-                            ?current,
-                          ],
-                        ),
-                        child: setup,
-                      ),
-                    ),
+                              child: setup,
+                            ),
+                          ),
+                  ),
                   if (hasEngine) ...[
                     const SizedBox(height: 8),
                     const AiTaskPreferences(),
                   ],
-                  const SizedBox(height: 28),
-                  Text(
-                    'A little more personal',
-                    style: Theme.of(context).textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
+                  const AiStudioRule(label: 'the little details'),
                   CompanionShortcuts(
                     onVoice: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -311,32 +332,23 @@ class CompanionPage extends ConsumerWidget {
     required String subtitle,
     required WidgetBuilder builder,
     String? status,
-  }) => Container(
-    decoration: BoxDecoration(
-      border: Border.all(
-        color: context.colors.outlineVariant.withValues(alpha: .65),
-      ),
-      borderRadius: BorderRadius.circular(22),
+  }) => ExpansionTile(
+    key: ValueKey('ai-alternative-$id'),
+    leading: Icon(icon, color: context.colors.primary),
+    tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    childrenPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+    shape: const Border(),
+    collapsedShape: const Border(),
+    title: Text(
+      title,
+      style: Theme.of(context).textTheme.titleSmall
+          ?.copyWith(fontWeight: FontWeight.w600),
     ),
-    clipBehavior: Clip.antiAlias,
-    child: ExpansionTile(
-      key: ValueKey('ai-alternative-$id'),
-      leading: Icon(icon, color: context.colors.primary),
-      tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      childrenPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      shape: const Border(),
-      collapsedShape: const Border(),
-      title: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall
-            ?.copyWith(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        '${status == null ? '' : '$status · '}$subtitle',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.4),
-      ),
-      children: [Builder(builder: builder)],
+    subtitle: Text(
+      '${status == null ? '' : '$status · '}$subtitle',
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.4),
     ),
+    children: [Builder(builder: builder)],
   );
 
   Widget _companionSetup(
@@ -500,62 +512,24 @@ class _LocalAiIntro extends StatelessWidget {
   const _LocalAiIntro();
 
   @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final compact = MediaQuery.textScalerOf(context).scale(14) > 20;
-    final title = Text(
-      'A little help, close by.',
-      style: text.titleLarge?.copyWith(
-        fontWeight: FontWeight.w600,
-        letterSpacing: -.5,
-        height: 1.2,
-      ),
-    );
-    final description = Text(
-      'Writing, images and everyday ideas, on your own devices.',
-      style: text.bodyMedium?.copyWith(
-        color: context.colors.onSurfaceVariant,
-        height: 1.45,
-      ),
-    );
-    final artwork = ExcludeSemantics(
-      child: Image.asset(
-        'assets/images/more_local_qvac.png',
-        width: compact ? 48 : 76,
-        height: compact ? 54 : 86,
-      ),
-    );
-    if (compact) {
-      return Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Help on your own devices.',
-              style: text.bodyMedium?.copyWith(
-                color: context.colors.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          artwork,
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [title, const SizedBox(height: 8), description],
-          ),
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: Text(
+          'Your little\nthinking space.',
+          style: studioTitle(context, size: 28),
         ),
-        const SizedBox(width: 12),
-        artwork,
-      ],
-    );
-  }
+      ),
+      const SizedBox(width: 10),
+      ExcludeSemantics(
+        child: Image.asset(
+          'assets/images/ai_studio_computer.png',
+          width: 120,
+          height: 110,
+        ),
+      ),
+    ],
+  );
 }
 
 class _VerifyComputerDialog extends StatefulWidget {

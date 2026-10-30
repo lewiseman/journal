@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:journal/modules/local_ai/core/ai_settings.dart';
@@ -23,6 +24,18 @@ class RemovedEngineSettings extends UiSettings {
 }
 
 void main() {
+  setUpAll(() async {
+    for (final font in ['Lora', 'Caveat']) {
+      await (FontLoader(font)..addFont(
+            rootBundle.load(
+              font == 'Lora'
+                  ? 'assets/fonts/Lora-Regular.ttf'
+                  : 'assets/fonts/Caveat-Medium.ttf',
+            ),
+          ))
+          .load();
+    }
+  });
   testWidgets('removing an engine requires an explicit provider choice', (
     tester,
   ) async {

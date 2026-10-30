@@ -311,9 +311,24 @@ Future<({_Connection connection, _Voice voice})> _mount(
   await tester.pumpAndSettle();
   await tester.runAsync(
     () => precacheImage(
-      const AssetImage('assets/images/more_local_qvac.png'),
+      const AssetImage('assets/images/ai_studio_computer.png'),
       tester.element(find.byType(CompanionPage)),
     ),
+  );
+  await tester.runAsync(
+    () => Future.wait([
+      for (final path in [
+        'assets/images/ai_studio_phone.png',
+        'assets/images/ai_studio_auto.png',
+        'assets/images/navigation/notes_active.png',
+        'assets/images/more_appearance.png',
+        'assets/images/notes_add.png',
+      ])
+        precacheImage(
+          AssetImage(path),
+          tester.element(find.byType(CompanionPage)),
+        ),
+    ]),
   );
   await tester.pumpAndSettle();
   addTearDown(() async {
@@ -343,6 +358,16 @@ void main() {
     await (FontLoader(
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+    for (final font in ['Lora', 'Caveat']) {
+      await (FontLoader(font)..addFont(
+            rootBundle.load(
+              font == 'Lora'
+                  ? 'assets/fonts/Lora-Regular.ttf'
+                  : 'assets/fonts/Caveat-Medium.ttf',
+            ),
+          ))
+          .load();
+    }
     final font = File.fromUri(
       File(Platform.resolvedExecutable).uri
           .resolve('../../material_fonts/Roboto-Regular.ttf'),
@@ -370,6 +395,11 @@ void main() {
       );
       expect(find.byType(DropdownButtonFormField<AiMode>), findsNothing);
       await _capture(tester, 'local-ai-phone');
+      await tester.ensureVisible(_key('ai-use-device'));
+      await tester.tap(_key('ai-use-device'));
+      await tester.pumpAndSettle();
+      expect(_key('device-get-model-writing').hitTestable(), findsOneWidget);
+      await _capture(tester, 'local-ai-phone-setup');
       await tester.ensureVisible(_key('ai-alternative-companion'));
       await tester.tap(find.text('Companion extras'));
       await tester.pumpAndSettle();
@@ -619,6 +649,7 @@ void main() {
     'paste validates codes and requires identity confirmation before pairing',
     (tester) async {
       final app = await _mount(tester);
+      await tester.ensureVisible(_key('companion-paste'));
       await tester.tap(_key('companion-paste'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), _code(expired: true));
@@ -626,6 +657,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Create a fresh QR'), findsOneWidget);
       expect(app.connection.pairs, 0);
+      await tester.ensureVisible(_key('companion-paste'));
       await tester.tap(_key('companion-paste'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), _code());
@@ -796,6 +828,7 @@ void main() {
     tester,
   ) async {
     final app = await _mount(tester);
+    await tester.ensureVisible(_key('companion-discover'));
     await tester.tap(_key('companion-discover'));
     await tester.pumpAndSettle();
     expect(app.connection.scans, 1);

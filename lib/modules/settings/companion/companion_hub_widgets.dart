@@ -3,6 +3,7 @@ import 'package:journal/config/theme.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 
 import 'companion_controller.dart';
+import '../../local_ai/ui/ai_studio_material.dart';
 
 class CompanionDetailLayout extends StatelessWidget {
   const CompanionDetailLayout({
@@ -56,23 +57,16 @@ class _CompanionSurfaceButtonState extends State<CompanionSurfaceButton> {
   bool _pressed = false;
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final reduced = MediaQuery.disableAnimationsOf(context);
     return AnimatedScale(
       scale: _pressed ? .98 : 1,
       duration: reduced ? Duration.zero : const Duration(milliseconds: 110),
-      child: Material(
-        color: widget.color ?? colors.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: widget.onTap,
-          onHighlightChanged: (value) => setState(() => _pressed = value),
-          child: widget.child,
-        ),
+      child: AiStudioPaper(
+        color: widget.color,
+        padding: const EdgeInsets.all(5),
+        onTap: widget.onTap,
+        onHighlightChanged: (value) => setState(() => _pressed = value),
+        child: widget.child,
       ),
     );
   }
@@ -315,8 +309,7 @@ class _Shortcut extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w600, color: ink),
+                    style: studioTitle(context, size: 21).copyWith(color: ink),
                   ),
                 ),
                 Icon(Icons.arrow_outward_rounded, size: 18, color: ink),
