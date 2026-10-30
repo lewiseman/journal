@@ -161,7 +161,6 @@ class _CompanionPageState extends ConsumerState<CompanionPage> {
     final connected = state.phase == CompanionPhase.connected;
     final phoneFirst =
         mode == AiMode.device || (mode == AiMode.auto && !connected);
-    final reduced = MediaQuery.disableAnimationsOf(context);
     final setup = Column(
       key: ValueKey(phoneFirst ? 'phone-setup' : 'computer-setup'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -213,17 +212,17 @@ class _CompanionPageState extends ConsumerState<CompanionPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!hasEngine) const _LocalAiIntro(),
+                  const _LocalAiIntro(),
+                  const SizedBox(height: 20),
                   DeviceModeSelector(onSetup: _showSetup),
                   if (hasEngine)
-                    const AiStudioRule(label: 'a place to begin')
+                    const AiStudioSectionHeading(label: 'Setup')
                   else
                     const SizedBox(height: 24),
                   if (mode == AiMode.auto) ...[
-                    AiStudioPaper(
+                    AiStudioCard(
                       key: const ValueKey('ai-auto-status'),
                       padding: const EdgeInsets.all(20),
-                      seed: 58,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -250,50 +249,14 @@ class _CompanionPageState extends ConsumerState<CompanionPage> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 16),
                   ],
-                  KeyedSubtree(
-                    key: _setupKey,
-                    child: reduced
-                        ? setup
-                        : AnimatedSize(
-                            duration: const Duration(milliseconds: 320),
-                            curve: Curves.easeInOutCubic,
-                            alignment: Alignment.topCenter,
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 240),
-                              switchInCurve: Curves.easeOutCubic,
-                              switchOutCurve: Curves.easeInCubic,
-                              transitionBuilder: (child, animation) =>
-                                  FadeTransition(
-                                    opacity: animation,
-                                    child: SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(0, .025),
-                                        end: Offset.zero,
-                                      ).animate(animation),
-                                      child: child,
-                                    ),
-                                  ),
-                              // Retired controls cannot receive taps during a transition.
-                              layoutBuilder: (current, previous) => Stack(
-                                alignment: Alignment.topCenter,
-                                children: [
-                                  for (final child in previous)
-                                    ExcludeSemantics(
-                                      child: IgnorePointer(child: child),
-                                    ),
-                                  ?current,
-                                ],
-                              ),
-                              child: setup,
-                            ),
-                          ),
-                  ),
+                  KeyedSubtree(key: _setupKey, child: setup),
                   if (hasEngine) ...[
                     const SizedBox(height: 8),
                     const AiTaskPreferences(),
                   ],
-                  const AiStudioRule(label: 'the little details'),
+                  const AiStudioSectionHeading(label: 'Preferences'),
                   CompanionShortcuts(
                     onVoice: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -503,21 +466,19 @@ class _LocalAiIntro extends StatelessWidget {
   const _LocalAiIntro();
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Expanded(
-        child: Text(
-          'Your little\nthinking space.',
-          style: studioTitle(context, size: 28),
-        ),
+      Text(
+        'Local AI',
+        style: Theme.of(context).textTheme.headlineSmall
+            ?.copyWith(fontWeight: FontWeight.w600),
       ),
-      const SizedBox(width: 10),
-      ExcludeSemantics(
-        child: Image.asset(
-          'assets/images/ai_studio_computer.png',
-          width: 120,
-          height: 110,
-        ),
+      const SizedBox(height: 8),
+      Text(
+        'Choose where AI runs and manage your setup.',
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: context.colors.onSurfaceVariant),
       ),
     ],
   );

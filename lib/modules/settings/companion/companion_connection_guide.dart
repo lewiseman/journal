@@ -122,8 +122,7 @@ class _CompanionConnectionGuideState extends State<CompanionConnectionGuide> {
           onTap: guided && !state.busy ? () => _selectStep(i) : null,
         ),
     ];
-    return AiStudioPaper(
-      seed: 62,
+    return AiStudioCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

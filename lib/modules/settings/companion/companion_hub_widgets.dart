@@ -38,8 +38,8 @@ class CompanionDetailLayout extends StatelessWidget {
   );
 }
 
-/// A short physical press gives the controls the same tactile feel as QVAC.
-class CompanionSurfaceButton extends StatefulWidget {
+/// A simple tappable card for navigation within Local AI settings.
+class CompanionSurfaceButton extends StatelessWidget {
   const CompanionSurfaceButton({
     super.key,
     required this.child,
@@ -49,27 +49,14 @@ class CompanionSurfaceButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final Color? color;
-  @override
-  State<CompanionSurfaceButton> createState() => _CompanionSurfaceButtonState();
-}
 
-class _CompanionSurfaceButtonState extends State<CompanionSurfaceButton> {
-  bool _pressed = false;
   @override
-  Widget build(BuildContext context) {
-    final reduced = MediaQuery.disableAnimationsOf(context);
-    return AnimatedScale(
-      scale: _pressed ? .98 : 1,
-      duration: reduced ? Duration.zero : const Duration(milliseconds: 110),
-      child: AiStudioPaper(
-        color: widget.color,
-        padding: const EdgeInsets.all(5),
-        onTap: widget.onTap,
-        onHighlightChanged: (value) => setState(() => _pressed = value),
-        child: widget.child,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AiStudioCard(
+    color: color,
+    padding: EdgeInsets.zero,
+    onTap: onTap,
+    child: child,
+  );
 }
 
 class CompanionDetailHeading extends StatelessWidget {
@@ -273,26 +260,7 @@ class _Shortcut extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
-    final captionStyle = Theme.of(context).textTheme.bodySmall!
-        .copyWith(color: ink.withValues(alpha: .8), height: 1.4);
-    // Reserve two lines using the actual font and accessibility text scale.
-    final captionMeasure = TextPainter(
-      text: TextSpan(text: '\n', style: captionStyle),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 2,
-    )..layout();
-    final captionHeight = captionMeasure.height;
-    captionMeasure.dispose();
-    final titleStyle = studioTitle(context, size: 21).copyWith(color: ink);
-    final titleMeasure = TextPainter(
-      text: TextSpan(text: '\n', style: titleStyle),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 2,
-    )..layout();
-    final titleHeight = titleMeasure.height;
-    titleMeasure.dispose();
+    final text = Theme.of(context).textTheme;
     return CompanionSurfaceButton(
       color: color,
       onTap: onTap,
@@ -301,130 +269,35 @@ class _Shortcut extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ExcludeSemantics(
-              child: SizedBox(
-                height: 68,
-                width: 104,
-                child: CustomPaint(
-                  painter: _ShortcutPainter(voice, ink, context.colors.surface),
+            Row(
+              children: [
+                Icon(
+                  voice ? Icons.headphones_rounded : Icons.tune_rounded,
+                  size: 28,
+                  color: ink,
                 ),
-              ),
+                const Spacer(),
+                Icon(Icons.chevron_right_rounded, size: 20, color: ink),
+              ],
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              height: titleHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: titleStyle,
-                    ),
-                  ),
-                  Icon(Icons.arrow_outward_rounded, size: 18, color: ink),
-                ],
+            Text(
+              title,
+              style: text.titleMedium?.copyWith(
+                color: ink,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 6),
-            SizedBox(
-              height: captionHeight,
-              child: Text(
-                caption,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: captionStyle,
-              ),
+            Text(
+              caption,
+              style: text.bodySmall?.copyWith(color: ink, height: 1.4),
             ),
           ],
         ),
       ),
     );
   }
-}
-
-class _ShortcutPainter extends CustomPainter {
-  const _ShortcutPainter(this.voice, this.ink, this.paper);
-  final bool voice;
-  final Color ink, paper;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final stroke = Paint()
-      ..color = ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final wash = Paint()..color = ink.withValues(alpha: .07);
-    canvas.drawOval(const Rect.fromLTWH(0, 10, 98, 54), wash);
-    if (voice) {
-      canvas.drawArc(
-        const Rect.fromLTWH(12, 6, 58, 58),
-        3.14,
-        3.14,
-        false,
-        stroke,
-      );
-      for (final x in [12.0, 60.0]) {
-        final pad = RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, 31, 10, 23),
-          const Radius.circular(5),
-        );
-        canvas.drawRRect(pad, Paint()..color = paper);
-        canvas.drawRRect(pad, stroke);
-      }
-      for (var i = 0; i < 5; i++) {
-        final height = const [10.0, 19.0, 28.0, 16.0, 8.0][i];
-        canvas.drawLine(
-          Offset(30 + i * 6, 43 - height / 2),
-          Offset(30 + i * 6, 43 + height / 2),
-          stroke,
-        );
-      }
-      canvas.drawCircle(
-        const Offset(87, 20),
-        3,
-        Paint()..color = ink.withValues(alpha: .35),
-      );
-    } else {
-      canvas.save();
-      canvas.translate(42, 36);
-      for (var i = 2; i >= 0; i--) {
-        canvas.save();
-        canvas.rotate((i - 1) * .12);
-        final sheet = RRect.fromRectAndRadius(
-          Rect.fromLTWH(-24.0 + i * 5, -27.0 + i * 3, 43, 53),
-          const Radius.circular(6),
-        );
-        canvas.drawRRect(sheet, Paint()..color = paper);
-        canvas.drawRRect(sheet, stroke);
-        if (i == 0) {
-          for (var line = 0; line < 3; line++) {
-            canvas.drawLine(
-              Offset(-14, -12.0 + line * 9),
-              Offset(line == 2 ? -1 : 8, -12.0 + line * 9),
-              stroke,
-            );
-          }
-        }
-        canvas.restore();
-      }
-      canvas.restore();
-      canvas.drawCircle(
-        const Offset(84, 16),
-        3,
-        Paint()..color = ink.withValues(alpha: .35),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ShortcutPainter oldDelegate) =>
-      voice != oldDelegate.voice ||
-      ink != oldDelegate.ink ||
-      paper != oldDelegate.paper;
 }
 
 class CompanionReadinessStrip extends StatelessWidget {

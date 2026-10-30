@@ -17,6 +17,10 @@ class FakeGitHub:
 
     def api(self, method, endpoint, data=None, **kwargs):
         self.events.append((method, endpoint, data))
+        if endpoint == "":
+            return {"default_branch": "main"}
+        if endpoint == "commits/main":
+            return {"sha": "sha"}
         if endpoint.startswith("releases/tags/"):
             return self.existing
         if endpoint.startswith("git/ref/tags/"):
@@ -26,7 +30,7 @@ class FakeGitHub:
         if endpoint == "releases/12/assets?per_page=100":
             return []
         if method == "PATCH":
-            return {"id": 12, "html_url": "https://github.com/lewiseman/journal/releases/tag/v0.1.0+2"}
+            return {"id": 12, "html_url": "https://github.com/lewiseman/qvac_hack/releases/tag/v0.1.0+2"}
         if endpoint == "releases/latest":
             return {"id": 12, "assets": [{"name": event[1]} for event in self.events if event[0] == "UPLOAD"]}
         raise AssertionError((method, endpoint))
@@ -81,20 +85,21 @@ class ReleaseTests(unittest.TestCase):
     def test_published_releases_are_never_replaced(self):
         client = FakeGitHub(existing={"draft": False})
         with self.assertRaisesRegex(release.ReleaseError, "already published"):
-            release.publish(client, "v0.1.0+2", "sha", [], "notes")
-        self.assertEqual(len(client.events), 1)
+            release.publish(client, "v0.1.0+2", [], "notes")
+        self.assertEqual(len(client.events), 3)
 
     def test_wrong_draft_source_is_rejected(self):
         client = FakeGitHub(existing={"draft": True, "target_commitish": "other"})
         with self.assertRaisesRegex(release.ReleaseError, "different commit"):
-            release.publish(client, "v0.1.0+2", "sha", [], "notes")
-        self.assertEqual(len(client.events), 1)
+            release.publish(client, "v0.1.0+2", [], "notes")
+        self.assertEqual(len(client.events), 3)
 
-    def test_existing_tag_must_match_the_built_source(self):
+    def test_existing_tag_must_match_the_release_commit(self):
         client = FakeGitHub()
-        with patch.object(client, "api", side_effect=[None, {"object": {"type": "commit", "sha": "other"}}]):
-            with self.assertRaisesRegex(release.ReleaseError, "different source"):
-                release.publish(client, "v0.1.0+2", "sha", [], "notes")
+        with patch.object(client, "api", side_effect=[{"default_branch": "main"}, {"sha": "sha"}, None,
+                                                      {"object": {"type": "commit", "sha": "other"}}]):
+            with self.assertRaisesRegex(release.ReleaseError, "different commit"):
+                release.publish(client, "v0.1.0+2", [], "notes")
 
     def test_publish_only_after_every_upload_completes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -102,7 +107,7 @@ class ReleaseTests(unittest.TestCase):
             for file in files:
                 file.write_text("fixture")
             client = FakeGitHub()
-            release.publish(client, "v0.1.0+2", "sha", files, "notes")
+            release.publish(client, "v0.1.0+2", files, "notes")
             actions = [event[0] for event in client.events]
             created = next(event for event in client.events if event[0] == "POST")
             self.assertTrue(created[2]["draft"])
@@ -111,7 +116,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertFalse(client.events[actions.index("PATCH")][2]["draft"])
             interrupted = FakeGitHub(fail_upload=True)
             with self.assertRaisesRegex(release.ReleaseError, "interrupted"):
-                release.publish(interrupted, "v0.1.0+2", "sha", files, "notes")
+                release.publish(interrupted, "v0.1.0+2", files, "notes")
             self.assertNotIn("PATCH", [event[0] for event in interrupted.events])
 
 

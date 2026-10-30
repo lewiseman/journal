@@ -55,18 +55,15 @@ class DeviceTaskCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              if (task == AiTask.transcription)
-                Icon(Icons.mic_none_rounded, color: colors.primary, size: 30)
-              else
-                ExcludeSemantics(
-                  child: Image.asset(
-                    task == AiTask.image
-                        ? 'assets/images/more_appearance.png'
-                        : 'assets/images/notes_add.png',
-                    width: 42,
-                    height: 42,
-                  ),
-                ),
+              Icon(
+                switch (task) {
+                  AiTask.transcription => Icons.mic_none_rounded,
+                  AiTask.image => Icons.image_outlined,
+                  AiTask.writing => Icons.edit_note_rounded,
+                },
+                color: colors.primary,
+                size: 28,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -229,19 +226,16 @@ class DeviceAiSection extends ConsumerWidget {
     }).length;
     final checking = installed.isLoading || catalog.isLoading;
     final failed = installed.hasError || catalog.hasError;
-    return AiStudioPaper(
-      seed: 35,
+    return AiStudioCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              ExcludeSemantics(
-                child: Image.asset(
-                  'assets/images/navigation/notes_active.png',
-                  width: 48,
-                  height: 48,
-                ),
+              Icon(
+                Icons.offline_bolt_outlined,
+                color: colors.primary,
+                size: 32,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -281,20 +275,12 @@ class DeviceAiSection extends ConsumerWidget {
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(
-                begin: 0,
-                end: tasks.isEmpty ? 0 : ready / tasks.length,
-              ),
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 380),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, _) => LinearProgressIndicator(
-                value: checking ? null : value,
-                minHeight: 3,
-                backgroundColor: colors.primaryContainer.withValues(alpha: .45),
-              ),
+            child: LinearProgressIndicator(
+              value: checking
+                  ? null
+                  : (tasks.isEmpty ? 0 : ready / tasks.length),
+              minHeight: 3,
+              backgroundColor: colors.primaryContainer.withValues(alpha: .45),
             ),
           ),
           const SizedBox(height: 18),

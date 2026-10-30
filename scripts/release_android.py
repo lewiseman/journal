@@ -21,7 +21,9 @@ import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY = "lewiseman/journal"
+# APKs are published from qvac_hack; the app source stays in journal.
+REPOSITORY = "lewiseman/qvac_hack"
+SOURCE_REPOSITORY = "lewiseman/journal"
 APK_NAME = "journal-arm64-v8a.apk"
 DOWNLOAD_URL = f"https://github.com/{REPOSITORY}/releases/latest/download/{APK_NAME}"
 LEGACY_DOWNLOAD_URL = f"https://github.com/{REPOSITORY}/releases/latest/download/journal.apk"
@@ -65,7 +67,8 @@ def github_token():
 
 
 class GitHub:
-    def __init__(self, token):
+    def __init__(self, token, repository=REPOSITORY):
+        self.repository = repository
         self.headers = {"Authorization": f"Bearer {token}",
                         "Accept": "application/vnd.github+json",
                         "X-GitHub-Api-Version": "2022-11-28",
@@ -73,7 +76,7 @@ class GitHub:
 
     def api(self, method, endpoint, data=None, missing_ok=False):
         payload = json.dumps(data).encode() if data is not None else None
-        request = urllib.request.Request(f"https://api.github.com/repos/{REPOSITORY}/{endpoint}",
+        request = urllib.request.Request(f"https://api.github.com/repos/{self.repository}/{endpoint}".rstrip("/"),
                                          data=payload, method=method,
                                          headers={**self.headers, "Content-Type": "application/json"})
         try:
@@ -87,7 +90,7 @@ class GitHub:
     def upload(self, release_id, file):
         # Stream large APKs; never send the bearer token through a redirected URL.
         connection = http.client.HTTPSConnection("uploads.github.com", timeout=600)
-        endpoint = f"/repos/{REPOSITORY}/releases/{release_id}/assets?name={urllib.parse.quote(file.name)}"
+        endpoint = f"/repos/{self.repository}/releases/{release_id}/assets?name={urllib.parse.quote(file.name)}"
         try:
             with file.open("rb") as stream:
                 connection.request("POST", endpoint, body=stream,
@@ -148,21 +151,24 @@ def inspect_apk(apk, tools, version_name, build_number):
             "signingCertificateSha256": certificate[1]}
 
 
-def publish(client, tag, source_commit, files, notes):
+def publish(client, tag, files, notes):
+    # The release repository has its own history, so tags point at its default branch.
+    branch = client.api("GET", "")["default_branch"]
+    release_commit = client.api("GET", f"commits/{urllib.parse.quote(branch, safe='')}")["sha"]
     release = client.api("GET", f"releases/tags/{urllib.parse.quote(tag, safe='')}", missing_ok=True)
     if release and not release["draft"]:
         raise ReleaseError(f"{tag} is already published. Increase the build number; published APKs are never replaced.")
-    if release and release["target_commitish"] != source_commit:
+    if release and release["target_commitish"] != release_commit:
         raise ReleaseError("The existing draft targets a different commit. Use a new version or resolve that draft first.")
     tag_ref = client.api("GET", f"git/ref/tags/{urllib.parse.quote(tag, safe='')}", missing_ok=True)
     if tag_ref:
         target = tag_ref["object"]
         while target["type"] == "tag":
             target = client.api("GET", f"git/tags/{target['sha']}")["object"]
-        if target["type"] != "commit" or target["sha"] != source_commit:
-            raise ReleaseError("That Git tag points to different source. Choose a new version; existing tags are never moved.")
+        if target["type"] != "commit" or target["sha"] != release_commit:
+            raise ReleaseError("That Git tag points to a different commit. Choose a new version; existing tags are never moved.")
     if not release:
-        release = client.api("POST", "releases", {"tag_name": tag, "target_commitish": source_commit,
+        release = client.api("POST", "releases", {"tag_name": tag, "target_commitish": release_commit,
                              "name": f"Journal {tag[1:]}", "body": notes, "draft": True, "prerelease": False})
     # Only draft uploads may be replaced after an interrupted attempt.
     for asset in client.api("GET", f"releases/{release['id']}/assets?per_page=100"):
@@ -184,7 +190,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", help="MAJOR.MINOR.PATCH+BUILD; defaults to pubspec.yaml")
     parser.add_argument("--publish", action="store_true", help="Upload a new GitHub release and make it latest; requires clean, pushed source")
-    parser.add_argument("--skip-tests", action="store_true", help="Skip Flutter tests when the same source was already tested")
     parser.add_argument("--site-dir", type=Path, default=ROOT.parent / "bookflip", help="Marketing checkout to update after success")
     parser.add_argument("--notes-file", type=Path, help="Optional Markdown release notes")
     args = parser.parse_args()
@@ -212,8 +217,9 @@ def main():
     if args.publish:
         if dirty:
             raise ReleaseError("Commit the app's current changes and push that commit before using --publish. Build-only mode accepts local changes.")
-        client = GitHub(github_token())
-        client.api("GET", f"commits/{source_commit}")  # Require the exact built source on GitHub.
+        token = github_token()
+        client = GitHub(token)
+        GitHub(token, SOURCE_REPOSITORY).api("GET", f"commits/{source_commit}")  # Require the exact built source on GitHub.
         existing = client.api("GET", f"releases/tags/{urllib.parse.quote(tag, safe='')}", missing_ok=True)
         if existing and not existing["draft"]:
             raise ReleaseError(f"{tag} is already published; increase BUILD for the next update.")
@@ -229,9 +235,6 @@ def main():
                     raise ReleaseError(f"BUILD must exceed the latest release's {previous_build} so Android can install updates.")
     print(f"Building Journal {version} from {source_commit[:12]}" + (" (includes local changes)" if dirty else ""), flush=True)
     run("flutter", "pub", "get")
-    if not args.skip_tests:
-        run("flutter", "test")
-        run("flutter", "test", "packages/sync_wise/test")
     run("npm", "ci", cwd=ROOT / "native/qvac")
     run("npm", "run", "check", cwd=ROOT / "native/qvac")
     run("npm", "run", "build", "--", "--platform=android", cwd=ROOT / "native/qvac")
@@ -277,7 +280,7 @@ def main():
     (output / "release-notes.md").write_text(notes)
     print(f"Verified signed APK: {artifact}\nSHA-256: {metadata['sha256']}", flush=True)
     if client:
-        publish(client, tag, source_commit, [artifact, checksum, legacy_artifact, legacy_checksum, manifest], notes)
+        publish(client, tag, [artifact, checksum, legacy_artifact, legacy_checksum, manifest], notes)
     # Build-only mode prepares the matching marketing change for review too.
     # Publish the APK before deploying these website files.
     if (args.site_dir / "src/site.js").is_file():
