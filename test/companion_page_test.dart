@@ -792,7 +792,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('You’re connected!'), findsOneWidget);
       expect(find.text('Connected · identity verified'), findsOneWidget);
-      expect(find.text('Load model'), findsOneWidget);
+      expect(find.text('Writing · Load model'), findsOneWidget);
       expect(_key('companion-phone-code'), findsNothing);
       await _capture(tester, 'connected');
       await tester.ensureVisible(_key('companion-computers'));
@@ -848,7 +848,7 @@ void main() {
   });
 
   testWidgets(
-    'dashboard shortcuts open voice, past work, help and connection details',
+    'dashboard shortcuts open voice, preferences, help and connection details',
     (tester) async {
       const channel = MethodChannel('flutter_tts');
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -862,6 +862,9 @@ void main() {
         ),
       );
       await _mount(tester, initial: _connected());
+      expect(find.text('Make it yours'), findsOneWidget);
+      expect(find.text('Past work'), findsNothing);
+      expect(_key('companion-ai-task-history'), findsNothing);
       await tester.ensureVisible(_key('companion-reply-voice'));
       await _capture(tester, 'dashboard');
       await tester.tap(_key('companion-reply-voice'));
@@ -869,10 +872,11 @@ void main() {
       expect(find.byType(ReplyVoicePage), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      await tester.ensureVisible(_key('companion-ai-task-history'));
-      await tester.tap(_key('companion-ai-task-history'));
+      await tester.ensureVisible(_key('companion-preferences'));
+      await tester.tap(_key('companion-preferences'));
       await tester.pumpAndSettle();
-      expect(find.byType(SummaryHistoryPage), findsOneWidget);
+      expect(find.byType(CompanionPreferencesPage), findsOneWidget);
+      expect(find.byType(SummaryHistoryPage), findsNothing);
       await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.ensureVisible(_key('companion-help'));
@@ -919,27 +923,43 @@ void main() {
     },
   );
 
-  testWidgets(
-    'AI strip keeps every capability reachable and explains its real readiness',
-    (tester) async {
-      await _mount(tester, initial: _connected());
-      await tester.ensureVisible(_key('companion-capability-text'));
-      await tester.tap(_key('companion-capability-text'));
-      await tester.pumpAndSettle();
-      expect(find.text('Writing · Load model'), findsOneWidget);
+  testWidgets('skill chips wrap and explain their real readiness', (
+    tester,
+  ) async {
+    await _mount(tester, initial: _connected());
+    for (final id in ['text', 'vision', 'embedding', 'speech']) {
       expect(
-        find.text('Load a writing model on your computer.'),
-        findsOneWidget,
+        tester.widget(_key('companion-capability-$id')),
+        isA<ActionChip>(),
       );
-      await tester.tap(find.text('Close'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(_key('companion-capability-speech'));
-      await tester.tap(_key('companion-capability-speech'));
-      await tester.pumpAndSettle();
-      expect(find.text('Computer voice · Unavailable'), findsOneWidget);
-      expect(find.text('Read replies on screen.'), findsOneWidget);
-    },
-  );
+    }
+    await tester.ensureVisible(find.text('AI on your computer'));
+    await _capture(tester, 'skill-chips');
+    await tester.ensureVisible(_key('companion-capability-text'));
+    await tester.tap(_key('companion-capability-text'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Writing · Load model'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Load a writing model on your computer.'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(_key('companion-capability-speech'));
+    await tester.tap(_key('companion-capability-speech'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Computer voice · Unavailable'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Read replies on screen.'), findsOneWidget);
+  });
 
   for (final layout in [
     (

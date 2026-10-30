@@ -28,14 +28,11 @@ class QvacAssistantController extends ChangeNotifier {
   Route<dynamic>? get _page =>
       _routes.whereType<PageRoute<dynamic>>().lastOrNull;
   _Destination? get _destination => _pages[_page];
-  _Destination? get _nearestDestination => _routes.reversed
-      .map((route) => _pages[route])
-      .whereType<_Destination>()
-      .firstOrNull;
   bool get visible =>
       !dismissed &&
       _routes.lastOrNull is PageRoute &&
-      (_nearestDestination?.enabled ?? false);
+      (_destination?.enabled ?? false) &&
+      sheetBuilder != null;
   bool get docking => visible && (_destination?.dock ?? false);
   bool get atRoot => _destination?.root ?? false;
   String get pageLabel => _destination?.label ?? 'this page';
@@ -73,12 +70,14 @@ class QvacAssistantController extends ChangeNotifier {
     QvacAssistantSheetBuilder builder,
   ) {
     (_contents[route] ??= {})[label] = builder;
+    _changed();
   }
 
   void _unregisterContent(Route<dynamic>? route, String label) {
     final contents = _contents[route];
-    contents?.remove(label);
+    if (contents?.remove(label) == null) return;
     if (contents?.isEmpty ?? false) _contents.remove(route);
+    _changed();
   }
 
   void _measureDock(Rect? rect) {
@@ -163,8 +162,8 @@ class QvacAssistantScope extends InheritedWidget {
       controller != oldWidget.controller;
 }
 
-/// Supplies tools for one page without changing the root tab's visibility or
-/// docking rules. Retained tabs only supply content when their label is active.
+/// Supplies tools for one page, making the assistant available on that route.
+/// Retained tabs only supply content when their label is active.
 class QvacAssistantContent extends StatefulWidget {
   const QvacAssistantContent({
     super.key,
@@ -329,7 +328,7 @@ class _QvacAssistantDockState extends State<QvacAssistantDock> {
         onRect: controller._measureDock,
         child: CompositedTransformTarget(
           link: controller.dockLink,
-          child: Opacity(opacity: controller.dismissed ? 1 : 0, child: child),
+          child: Opacity(opacity: controller.docking ? 0 : 1, child: child),
         ),
       ),
     );

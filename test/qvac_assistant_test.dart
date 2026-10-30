@@ -43,10 +43,27 @@ class _MotionSettings extends SettingsNotifier {
 final _button = find.byKey(const ValueKey('qvac-assistant-button'));
 final _captureKey = GlobalKey();
 
+Widget _withTools(String label, Widget child, {bool enabled = true}) => enabled
+    ? QvacAssistantContent(
+        label: label,
+        builder: (_, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          children: [Text('$label tools')],
+        ),
+        child: child,
+      )
+    : child;
+
 class _Tabs extends StatefulWidget {
-  const _Tabs({super.key, required this.onBuild, this.onboarding = false});
+  const _Tabs({
+    super.key,
+    required this.onBuild,
+    this.onboarding = false,
+    this.moreTools = false,
+  });
   final VoidCallback onBuild;
-  final bool onboarding;
+  final bool onboarding, moreTools;
   @override
   State<_Tabs> createState() => _TabsState();
 }
@@ -74,36 +91,43 @@ class _TabsState extends State<_Tabs> {
           index: page,
           children: [
             for (final label in ['Diary', 'Notes', 'Flow'])
-              Center(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-              ),
-            ListView(
-              controller: scroll,
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              children: [
-                const SizedBox(height: 180),
-                MoreIndexEntry(
-                  title: 'Appearance',
-                  description: 'Colors, theme and fonts',
-                  artwork: MoreEntryArtwork.appearance,
-                  onTap: () {},
-                ),
-                MoreIndexEntry(
-                  title: 'Local QVAC',
-                  status: 'No computer connected',
-                  artwork: MoreEntryArtwork.qvac,
-                  showDivider: false,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const CompanionPage(),
-                    ),
+              _withTools(
+                label,
+                Center(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.headlineLarge,
                   ),
                 ),
-                const SizedBox(height: 800),
-              ],
+              ),
+            _withTools(
+              'More',
+              ListView(
+                controller: scroll,
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                children: [
+                  const SizedBox(height: 180),
+                  MoreIndexEntry(
+                    title: 'Appearance',
+                    description: 'Colors, theme and fonts',
+                    artwork: MoreEntryArtwork.appearance,
+                    onTap: () {},
+                  ),
+                  MoreIndexEntry(
+                    title: 'Local QVAC',
+                    status: 'No computer connected',
+                    artwork: MoreEntryArtwork.qvac,
+                    showDivider: false,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const CompanionPage(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 800),
+                ],
+              ),
+              enabled: widget.moreTools,
             ),
           ],
         ),
@@ -131,6 +155,7 @@ _mount(
   bool reduced = false,
   bool systemReduced = false,
   bool onboarding = false,
+  bool moreTools = false,
   double scale = 1,
   Size size = const Size(390, 844),
 }) async {
@@ -186,6 +211,7 @@ _mount(
           home: _Tabs(
             key: tabs,
             onboarding: onboarding,
+            moreTools: moreTools,
             onBuild: () => builds++,
           ),
         ),
@@ -261,7 +287,7 @@ void main() {
     await _capture(tester, 'connected');
     await tester.tap(_button);
     await tester.pumpAndSettle();
-    expect(find.text('A little help with Diary'), findsOneWidget);
+    expect(find.text('Diary tools'), findsOneWidget);
     expect(_button, findsNothing);
     await _capture(tester, 'sheet');
     app.nav.currentState!.pop();
@@ -270,7 +296,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(_button);
     await tester.pumpAndSettle();
-    expect(find.text('A little help with Notes'), findsOneWidget);
+    expect(find.text('Notes tools'), findsOneWidget);
     app.nav.currentState!.pop();
     await tester.pumpAndSettle();
     (app.scope.read(companionControllerProvider.notifier) as _Connection).phase(
@@ -295,10 +321,11 @@ void main() {
     await tester.tap(find.text('More').last);
     await tester.pumpAndSettle();
     expect(app.tabs.currentState!.page, 3);
-    expect(
-      tester.getRect(_button),
-      tester.getRect(find.byType(QvacAssistantDock)),
-    );
+    expect(_button, findsNothing);
+    await tester.tap(find.text('Diary').last);
+    await tester.pumpAndSettle();
+    expect(_button, findsOneWidget);
+    expect(app.assistant.dismissed, false);
   });
 
   testWidgets(
@@ -335,7 +362,7 @@ void main() {
     final settings = find.byKey(const ValueKey('qvac-local-ai-settings'));
     final handle = find.byKey(const ValueKey('qvac-sheet-handle'));
     final surface = find.byKey(const ValueKey('qvac-sheet-surface'));
-    for (var page = 0; page < 4; page++) {
+    for (var page = 0; page < 3; page++) {
       app.tabs.currentState!.select(page);
       await tester.pumpAndSettle();
       await tester.tap(_button);
@@ -378,7 +405,7 @@ void main() {
     expect(_button, findsNothing);
   });
 
-  testWidgets('floats above pushed pages and yields to dialogs', (
+  testWidgets('pages without tools hide the assistant and restore it on back', (
     tester,
   ) async {
     final app = await _mount(tester);
@@ -387,6 +414,9 @@ void main() {
         builder: (_) => const Scaffold(body: Text('Details')),
       ),
     );
+    await tester.pumpAndSettle();
+    expect(_button, findsNothing);
+    app.nav.currentState!.pop();
     await tester.pumpAndSettle();
     expect(_button, findsOneWidget);
     showDialog<void>(
@@ -400,10 +430,52 @@ void main() {
     expect(_button, findsOneWidget);
   });
 
+  testWidgets('visibility follows tools being added and removed on a page', (
+    tester,
+  ) async {
+    final app = await _mount(tester);
+    var hasTools = false;
+    late StateSetter updatePage;
+    app.nav.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => QvacAssistantPage(
+          label: 'Details',
+          child: StatefulBuilder(
+            builder: (_, setState) {
+              updatePage = setState;
+              return _withTools(
+                'Details',
+                const Scaffold(body: Text('Details')),
+                enabled: hasTools,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(_button, findsNothing);
+    updatePage(() => hasTools = true);
+    await tester.pumpAndSettle();
+    expect(_button, findsOneWidget);
+    await tester.tap(_button);
+    await tester.pumpAndSettle();
+    expect(find.text('Details tools'), findsOneWidget);
+    app.nav.currentState!.pop();
+    await tester.pumpAndSettle();
+    updatePage(() => hasTools = false);
+    await tester.pumpAndSettle();
+    expect(_button, findsNothing);
+    app.nav.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(_button, findsOneWidget);
+    expect(tester.binding.hasScheduledFrame, false);
+  });
+
   testWidgets(
-    'one image docks into More and lifts back to its floating position',
+    'one image docks into a page with tools and lifts back to its floating position',
     (tester) async {
-      final app = await _mount(tester);
+      final app = await _mount(tester, moreTools: true);
       final floating = tester.getRect(_button);
       app.tabs.currentState!.select(3);
       await tester.pump();
@@ -432,7 +504,7 @@ void main() {
   testWidgets(
     'docked image tracks scrolling and floats when its slot leaves the viewport',
     (tester) async {
-      final app = await _mount(tester);
+      final app = await _mount(tester, moreTools: true);
       app.tabs.currentState!.select(3);
       await tester.pumpAndSettle();
       app.tabs.currentState!.scroll.jumpTo(50);
@@ -512,7 +584,7 @@ void main() {
   testWidgets('the docked assistant can be dragged out and closed', (
     tester,
   ) async {
-    final app = await _mount(tester);
+    final app = await _mount(tester, moreTools: true);
     app.tabs.currentState!.select(3);
     await tester.pumpAndSettle();
     final gesture = await tester.startGesture(tester.getCenter(_button));
@@ -531,7 +603,7 @@ void main() {
   testWidgets(
     'rapid tab changes retain the assistant and settle without idle frames',
     (tester) async {
-      final app = await _mount(tester);
+      final app = await _mount(tester, moreTools: true);
       for (final page in [3, 0, 3, 1, 3, 2, 3]) {
         app.tabs.currentState!.select(page);
         await tester.pump();
@@ -550,7 +622,7 @@ void main() {
   testWidgets('saved motion mode settles the assistant and restores movement', (
     tester,
   ) async {
-    final app = await _mount(tester, systemReduced: true);
+    final app = await _mount(tester, systemReduced: true, moreTools: true);
     final settings =
         app.scope.read(settingsController.notifier) as _MotionSettings;
     final controller = app.scope.read(qvacAssistantProvider);
@@ -578,7 +650,7 @@ void main() {
   testWidgets('opening a sheet mid-flight pauses and then resumes docking', (
     tester,
   ) async {
-    final app = await _mount(tester);
+    final app = await _mount(tester, moreTools: true);
     app.tabs.currentState!.select(3);
     await tester.pump();
     await tester.pump();
@@ -626,16 +698,13 @@ void main() {
         size: layout.size,
         scale: layout.scale,
       );
-      app.tabs.currentState!.select(3);
+      app.tabs.currentState!.select(1);
       await tester.pumpAndSettle();
       expect(_button, findsOneWidget);
       await _capture(tester, layout.name);
       await tester.tap(_button);
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const ValueKey('qvac-page-placeholder')),
-        findsOneWidget,
-      );
+      expect(find.text('Notes tools'), findsOneWidget);
       expect(tester.takeException(), isNull);
       app.nav.currentState!.pop();
       await tester.pumpAndSettle();

@@ -15,7 +15,7 @@ import 'package:journal/modules/more/views/pages/more_page.dart';
 import 'package:journal/modules/people/people_pages.dart';
 import 'package:journal/modules/more/views/widgets/more_index_entry.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
-import 'package:journal/modules/notes/summary/summary_history_page.dart';
+import 'package:journal/modules/settings/companion/companion_detail_pages.dart';
 import 'package:journal/modules/root/controllers/sync_providers.dart';
 import 'package:journal/modules/root/views/widgets/bottom_navbar.dart';
 import 'package:journal/modules/settings/companion/companion_controller.dart';
@@ -205,24 +205,30 @@ void main() {
     }
   });
 
-  testWidgets('floating QVAC docks below the pinned account header', (
+  testWidgets('More keeps its QVAC artwork and link without a generic helper', (
     tester,
   ) async {
     await _mount(tester, floatingAssistant: true);
     final button = find.byKey(const ValueKey('qvac-assistant-button'));
+    expect(button, findsNothing);
     await _collapseAccount(tester);
     await tester.ensureVisible(find.text('Local QVAC'));
     await tester.pumpAndSettle();
+    final artwork = find.byType(QvacAssistantDock);
     expect(
-      tester.getRect(button),
-      tester.getRect(find.byType(QvacAssistantDock)),
+      tester
+          .widget<Opacity>(
+            find.descendant(of: artwork, matching: find.byType(Opacity)),
+          )
+          .opacity,
+      1,
     );
-    await _capture(tester, 'assistant-docked');
-    await tester.tap(button);
+    await tester.tap(artwork);
     await tester.pumpAndSettle();
-    expect(find.text('A little help with More'), findsOneWidget);
-    expect(find.byType(CompanionPage), findsNothing);
-    Navigator.of(tester.element(find.byType(QvacAssistantSheet))).pop();
+    expect(find.byType(CompanionPage), findsOneWidget);
+    expect(button, findsNothing);
+    expect(find.byType(QvacAssistantSheet), findsNothing);
+    await tester.pageBack();
     await tester.pumpAndSettle();
     // On a short landscape screen the slot cannot fit below the pinned card.
     tester.view.physicalSize = const Size(844, 320);
@@ -230,15 +236,15 @@ void main() {
     final scroll = _moreScroll(tester);
     scroll.jumpTo(scroll.position.maxScrollExtent);
     await tester.pumpAndSettle();
-    expect(tester.getSize(button).width, 68);
-    await _capture(tester, 'assistant-undocked');
+    expect(button, findsNothing);
+    await _capture(tester, 'no-generic-assistant');
     expect(tester.takeException(), isNull);
   });
 
   testWidgets(
-    'More opens Appearance directly and AI task history through Local QVAC',
+    'More opens Appearance directly and AI preferences through Local QVAC',
     (tester) async {
-      await _mount(tester);
+      await _mount(tester, floatingAssistant: true);
       expect(find.byType(SyncAccountCard), findsOneWidget);
       expect(find.text('Make it yours'), findsNothing);
       expect(find.text('Settings'), findsNothing);
@@ -261,6 +267,7 @@ void main() {
       await tester.tap(find.text('Appearance'));
       await tester.pumpAndSettle();
       expect(find.byType(AppearancePage), findsOneWidget);
+      expect(find.byKey(const ValueKey('qvac-assistant-button')), findsNothing);
       expect(find.text('Typography'), findsOneWidget);
       expect(find.text('Settings'), findsNothing);
       await tester.pageBack();
@@ -279,18 +286,14 @@ void main() {
       expect(find.byType(CompanionPage), findsOneWidget);
       expect(find.text('Let’s connect your computer'), findsOneWidget);
       await _capture(tester, 'companion');
-      final history = find.byKey(const ValueKey('companion-ai-task-history'));
-      await tester.scrollUntilVisible(history, 250);
+      final preferences = find.byKey(const ValueKey('companion-preferences'));
+      await tester.scrollUntilVisible(preferences, 250);
       await tester.pumpAndSettle();
-      await tester.tap(history);
+      await tester.tap(preferences);
       await tester.pumpAndSettle();
-      expect(find.byType(SummaryHistoryPage), findsOneWidget);
-      expect(
-        find.text(
-          'No note AI tasks yet. Open a saved note for a summary or writing help.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.byType(CompanionPreferencesPage), findsOneWidget);
+      expect(find.text('Daily diary questions'), findsOneWidget);
+      expect(find.byKey(const ValueKey('recall-settings')), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
       expect(find.byType(CompanionPage), findsOneWidget);
@@ -445,12 +448,12 @@ void main() {
       expect(find.text('Local QVAC').hitTestable(), findsOneWidget);
       await tester.tap(find.text('Local QVAC'));
       await tester.pumpAndSettle();
-      final history = find.byKey(const ValueKey('companion-ai-task-history'));
-      await tester.scrollUntilVisible(history, 250);
+      final preferences = find.byKey(const ValueKey('companion-preferences'));
+      await tester.scrollUntilVisible(preferences, 250);
       await tester.pumpAndSettle();
-      await tester.tap(history);
+      await tester.tap(preferences);
       await tester.pumpAndSettle();
-      expect(find.byType(SummaryHistoryPage), findsOneWidget);
+      expect(find.byType(CompanionPreferencesPage), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
       await tester.pageBack();

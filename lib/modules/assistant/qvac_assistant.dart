@@ -245,11 +245,11 @@ class _FloatingAssistantState extends State<_FloatingAssistant>
   Future<void> _openSheet() async {
     if (_sheetOpen || _closing || _dragging) return;
     final context = widget.navigatorKey.currentState?.overlay?.context;
-    if (context == null) return;
+    final contentBuilder = widget.controller.sheetBuilder;
+    if (context == null || contentBuilder == null) return;
     _sheetOpen = true;
     HapticFeedback.selectionClick();
     final pageLabel = widget.controller.pageLabel;
-    final contentBuilder = widget.controller.sheetBuilder;
     final companion = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -681,10 +681,10 @@ class QvacAssistantSheet extends StatefulWidget {
   const QvacAssistantSheet({
     super.key,
     required this.pageLabel,
-    this.contentBuilder,
+    required this.contentBuilder,
   });
   final String pageLabel;
-  final QvacAssistantSheetBuilder? contentBuilder;
+  final QvacAssistantSheetBuilder contentBuilder;
 
   /// Gives feature pages room without changing the toolbox's initial height.
   /// Outside an assistant sheet, there is nothing to resize.
@@ -711,8 +711,7 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
   // Flutter compares snap lists by identity. A fresh list on each drag frame
   // restarts snapping and cancels the finger's active drag.
   List<double> get _snapSizes {
-    if (!const {'Notes', 'Flow'}.contains(widget.pageLabel) ||
-        widget.contentBuilder == null) {
+    if (!const {'Notes', 'Flow'}.contains(widget.pageLabel)) {
       return const [.64];
     }
     final media = MediaQuery.of(context);
@@ -843,15 +842,7 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
                     Expanded(
                       child: _QvacSheetScrollScope(
                         controller: scrollController,
-                        child:
-                            widget.contentBuilder?.call(
-                              context,
-                              scrollController,
-                            ) ??
-                            _QvacPlaceholder(
-                              pageLabel: widget.pageLabel,
-                              scrollController: scrollController,
-                            ),
+                        child: widget.contentBuilder(context, scrollController),
                       ),
                     ),
                   ],
@@ -960,112 +951,6 @@ class _SettingsTag extends ConsumerWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QvacPlaceholder extends ConsumerWidget {
-  const _QvacPlaceholder({
-    required this.pageLabel,
-    required this.scrollController,
-  });
-  final String pageLabel;
-  final ScrollController scrollController;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final phase = ref.watch(
-      companionControllerProvider.select((state) => state.phase),
-    );
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        controller: scrollController,
-        physics: const ClampingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Image.asset(
-                  qvacArtwork,
-                  width: 56,
-                  height: 56,
-                  excludeFromSemantics: true,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Your local companion',
-                        style: theme.textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        companionPhaseLabel(phase),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Close',
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Container(
-              key: const ValueKey('qvac-page-placeholder'),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: colors.outlineVariant),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.auto_awesome_outlined,
-                    color: colors.primary,
-                    size: 28,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'A little help with $pageLabel',
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'This space will adapt to the page you’re on. Tools for $pageLabel are coming soon.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Tip: hold QVAC to open your companion. Drag it to the bottom to tuck it away.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ],
         ),
       ),
     );

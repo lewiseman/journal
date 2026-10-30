@@ -4,7 +4,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 
-import 'package:journal/modules/notes/summary/summary_history_page.dart';
 import 'package:journal/modules/voice/views/pages/reply_voice_page.dart';
 
 import '../../local_ai/core/ai_settings.dart';
@@ -301,15 +300,7 @@ class _CompanionPageState extends ConsumerState<CompanionPage> {
                         builder: (_) => const ReplyVoicePage(),
                       ),
                     ),
-                    onHistory: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SummaryHistoryPage(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  CompanionPreferenceCard(
-                    onTap: () => Navigator.of(context).push(
+                    onPreferences: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => const CompanionPreferencesPage(),
                       ),

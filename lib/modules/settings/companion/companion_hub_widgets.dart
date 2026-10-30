@@ -203,9 +203,9 @@ class CompanionShortcuts extends StatelessWidget {
   const CompanionShortcuts({
     super.key,
     required this.onVoice,
-    required this.onHistory,
+    required this.onPreferences,
   });
-  final VoidCallback onVoice, onHistory;
+  final VoidCallback onVoice, onPreferences;
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -223,16 +223,16 @@ class CompanionShortcuts extends StatelessWidget {
         onTap: onVoice,
       ),
       _Shortcut(
-        key: const ValueKey('companion-ai-task-history'),
-        title: 'Past work',
-        caption: 'AI task history',
+        key: const ValueKey('companion-preferences'),
+        title: 'Make it yours',
+        caption: 'Diary questions & search',
         voice: false,
         color: Color.alphaBlend(
           colors.tertiaryContainer.withValues(alpha: .4),
           colors.surface,
         ),
         ink: colors.onTertiaryContainer,
-        onTap: onHistory,
+        onTap: onPreferences,
       ),
     ];
     return LayoutBuilder(
@@ -284,6 +284,15 @@ class _Shortcut extends StatelessWidget {
     )..layout();
     final captionHeight = captionMeasure.height;
     captionMeasure.dispose();
+    final titleStyle = studioTitle(context, size: 21).copyWith(color: ink);
+    final titleMeasure = TextPainter(
+      text: TextSpan(text: '\n', style: titleStyle),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 2,
+    )..layout();
+    final titleHeight = titleMeasure.height;
+    titleMeasure.dispose();
     return CompanionSurfaceButton(
       color: color,
       onTap: onTap,
@@ -302,18 +311,22 @@ class _Shortcut extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: studioTitle(context, size: 21).copyWith(color: ink),
+            SizedBox(
+              height: titleHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: titleStyle,
+                    ),
                   ),
-                ),
-                Icon(Icons.arrow_outward_rounded, size: 18, color: ink),
-              ],
+                  Icon(Icons.arrow_outward_rounded, size: 18, color: ink),
+                ],
+              ),
             ),
             const SizedBox(height: 6),
             SizedBox(
@@ -414,48 +427,6 @@ class _ShortcutPainter extends CustomPainter {
       paper != oldDelegate.paper;
 }
 
-class CompanionPreferenceCard extends StatelessWidget {
-  const CompanionPreferenceCard({super.key, required this.onTap});
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => CompanionSurfaceButton(
-    key: const ValueKey('companion-preferences'),
-    onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        children: [
-          Icon(Icons.tune_rounded, size: 28, color: context.colors.primary),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Make it yours',
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Diary questions & search',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: context.colors.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: context.colors.onSurfaceVariant,
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
 class CompanionReadinessStrip extends StatelessWidget {
   const CompanionReadinessStrip({super.key, required this.state});
   final CompanionState state;
@@ -465,61 +436,32 @@ class CompanionReadinessStrip extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'AI on your computer',
-                style: Theme.of(context).textTheme.titleSmall
-                    ?.copyWith(color: context.colors.onSurfaceVariant),
-              ),
-            ),
-            if (capabilities.length > 1)
-              ExcludeSemantics(
-                child: Icon(
-                  Icons.swipe_rounded,
-                  size: 18,
-                  color: context.colors.onSurfaceVariant,
-                ),
-              ),
-          ],
+        Text(
+          'AI on your computer',
+          style: Theme.of(context).textTheme.titleSmall
+              ?.copyWith(color: context.colors.onSurfaceVariant),
         ),
         const SizedBox(height: 10),
         if (capabilities.isEmpty)
           const Text('Model status is not available yet.')
         else
-          LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              key: PageStorageKey(
-                'companion-model-readiness-${state.selectedId}',
-              ),
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                spacing: 10,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final capability in capabilities)
-                    SizedBox(
-                      width: MediaQuery.textScalerOf(context)
-                          .scale(154)
-                          .clamp(0.0, constraints.maxWidth),
-                      child: _ReadinessCard(
-                        capability: Map<String, dynamic>.from(
-                          capability as Map,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final capability in capabilities)
+                _ReadinessChip(
+                  capability: Map<String, dynamic>.from(capability as Map),
+                ),
+            ],
           ),
       ],
     );
   }
 }
 
-class _ReadinessCard extends StatelessWidget {
-  const _ReadinessCard({required this.capability});
+class _ReadinessChip extends StatelessWidget {
+  const _ReadinessChip({required this.capability});
   final Map<String, dynamic> capability;
   @override
   Widget build(BuildContext context) {
@@ -544,12 +486,22 @@ class _ReadinessCard extends StatelessWidget {
     };
     final ready = capability['status'] == 'ready';
     final colors = context.colors;
-    return CompanionSurfaceButton(
+    return ActionChip(
       key: ValueKey('companion-capability-${capability['id']}'),
-      color: ready
+      avatar: Icon(
+        icon,
+        size: 17,
+        color: ready ? colors.primary : colors.onSurfaceVariant,
+      ),
+      label: Text('$name · $status'),
+      labelStyle: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(color: ready ? colors.primary : colors.onSurfaceVariant),
+      shape: const StadiumBorder(),
+      side: BorderSide(color: colors.outlineVariant.withValues(alpha: .65)),
+      backgroundColor: ready
           ? colors.primaryContainer.withValues(alpha: .45)
           : colors.surfaceContainerLow,
-      onTap: () => showDialog<void>(
+      onPressed: () => showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
           scrollable: true,
@@ -564,46 +516,6 @@ class _ReadinessCard extends StatelessWidget {
               child: const Text('Close'),
             ),
           ],
-        ),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 74),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Icon(icon, size: 25, color: colors.primary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          ready
-                              ? Icons.check_circle_rounded
-                              : Icons.circle_outlined,
-                          size: 12,
-                          color: colors.primary,
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            status,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(color: colors.onSurfaceVariant),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
