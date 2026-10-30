@@ -1,7 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:journal/common.dart';
 import 'package:journal/modules/presentation/note_website_view.dart';
+import 'package:journal/modules/presentation/website_assets.dart';
 import 'package:journal/modules/presentation/website_contract.dart';
+import 'package:journal/modules/presentation/website_theme_picker.dart';
 
 /// Previews a note's generated website on a page of its own. A bar in the
 /// note's paper colour names the note; the site sits beneath it like a sheet.
@@ -99,6 +101,10 @@ class NoteWebsitePage extends StatelessWidget {
                 label: const Text('Edit'),
               ),
             ),
+          if (onEdit != null) ...[
+            const SizedBox(width: 4),
+            WebsiteThemeButton(note: note, style: tonal),
+          ],
           ?actions,
         ],
       ),
@@ -107,7 +113,10 @@ class NoteWebsitePage extends StatelessWidget {
         child: ColoredBox(
           // Sites without a background of their own draw on the app surface.
           color: context.colors.surface,
-          child: NoteWebsiteView(html: note.website),
+          child: NoteWebsiteView(
+            html: note.website,
+            photos: websitePhotos(note.attachments),
+          ),
         ),
       ),
     );

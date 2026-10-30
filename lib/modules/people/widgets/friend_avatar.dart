@@ -49,7 +49,8 @@ class FriendAvatar extends StatelessWidget {
         child: Center(
           child: Text(
             initial.toUpperCase(),
-            style: peopleHand(
+            textScaler: TextScaler.noScaling,
+            style: peopleTitle(
               context,
               size: size * .52,
               color: PeoplePalette.of(context).ink,

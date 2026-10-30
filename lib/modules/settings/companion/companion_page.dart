@@ -140,6 +140,40 @@ class CompanionPage extends ConsumerWidget {
     final connected = state.phase == CompanionPhase.connected;
     final phoneFirst =
         mode == AiMode.device || (mode == AiMode.auto && !connected);
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    final setup = Column(
+      key: ValueKey(phoneFirst ? 'phone-setup' : 'computer-setup'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (phoneFirst) ...[
+          const DeviceAiSection(key: ValueKey('ai-phone-setup')),
+          const SizedBox(height: 20),
+          _alternativeSetup(
+            context,
+            id: 'companion',
+            icon: Icons.desktop_mac_rounded,
+            title: 'Companion extras',
+            subtitle:
+                'Search by meaning, voice & scans still need your computer.',
+            status: connected ? 'Connected' : null,
+            builder: (context) => _companionSetup(context, ref, state),
+          ),
+        ] else ...[
+          _companionSetup(context, ref, state),
+          if (hasEngine) ...[
+            const SizedBox(height: 20),
+            _alternativeSetup(
+              context,
+              id: 'device',
+              icon: Icons.phone_iphone_rounded,
+              title: 'Take AI with you',
+              subtitle: 'Prepare phone models for offline writing & images.',
+              builder: (_) => const DeviceAiSection(),
+            ),
+          ],
+        ],
+      ],
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('Local AI')),
       body: SafeArea(
@@ -152,6 +186,8 @@ class CompanionPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const _LocalAiIntro(),
+                  if (hasEngine) const SizedBox(height: 24),
                   const DeviceModeSelector(),
                   const SizedBox(height: 24),
                   if (mode == AiMode.auto) ...[
@@ -165,47 +201,79 @@ class CompanionPage extends ConsumerWidget {
                         ),
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: Text(
-                        connected
-                            ? 'Your computer is connected. Auto prefers Companion; set up phone models below for when you’re away.'
-                            : 'Your computer is offline. Auto can use the phone models you set up below.',
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(height: 1.5),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            connected
+                                ? Icons.desktop_mac_rounded
+                                : Icons.phone_iphone_rounded,
+                            color: context.colors.primary,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                connected
+                                    ? 'Your computer is connected. Auto prefers Companion; set up phone models below for when you’re away.'
+                                    : 'Your computer is offline. Auto can use the phone models you set up below.',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(height: 1.5),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                  if (phoneFirst) ...[
-                    const DeviceAiSection(key: ValueKey('ai-phone-setup')),
-                    const SizedBox(height: 20),
-                    _alternativeSetup(
-                      context,
-                      id: 'companion',
-                      icon: Icons.desktop_mac_rounded,
-                      title: 'Companion extras',
-                      subtitle: 'Search by meaning, voice & scans still need your computer.',
-                      status: connected ? 'Connected' : null,
-                      builder: (context) =>
-                          _companionSetup(context, ref, state),
-                    ),
-                  ] else ...[
-                    _companionSetup(context, ref, state),
-                    if (hasEngine) ...[
-                      const SizedBox(height: 20),
-                      _alternativeSetup(
-                        context,
-                        id: 'device',
-                        icon: Icons.phone_iphone_rounded,
-                        title: 'Take AI with you',
-                        subtitle: 'Prepare phone models for offline writing & images.',
-                        builder: (_) => const DeviceAiSection(),
+                  if (reduced)
+                    setup
+                  else
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.easeInOutCubic,
+                      alignment: Alignment.topCenter,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 240),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, .025),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        ),
+                        // Retired controls cannot receive taps during a transition.
+                        layoutBuilder: (current, previous) => Stack(
+                          alignment: Alignment.topCenter,
+                          children: [
+                            for (final child in previous)
+                              ExcludeSemantics(
+                                child: IgnorePointer(child: child),
+                              ),
+                            ?current,
+                          ],
+                        ),
+                        child: setup,
                       ),
-                    ],
-                  ],
+                    ),
                   if (hasEngine) ...[
                     const SizedBox(height: 8),
                     const AiTaskPreferences(),
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
+                  Text(
+                    'A little more personal',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
                   CompanionShortcuts(
                     onVoice: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -424,6 +492,68 @@ class CompanionPage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LocalAiIntro extends StatelessWidget {
+  const _LocalAiIntro();
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final compact = MediaQuery.textScalerOf(context).scale(14) > 20;
+    final title = Text(
+      'A little help, close by.',
+      style: text.titleLarge?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: -.5,
+        height: 1.2,
+      ),
+    );
+    final description = Text(
+      'Writing, images and everyday ideas, on your own devices.',
+      style: text.bodyMedium?.copyWith(
+        color: context.colors.onSurfaceVariant,
+        height: 1.45,
+      ),
+    );
+    final artwork = ExcludeSemantics(
+      child: Image.asset(
+        'assets/images/more_local_qvac.png',
+        width: compact ? 48 : 76,
+        height: compact ? 54 : 86,
+      ),
+    );
+    if (compact) {
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Help on your own devices.',
+              style: text.bodyMedium?.copyWith(
+                color: context.colors.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          artwork,
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [title, const SizedBox(height: 8), description],
+          ),
+        ),
+        const SizedBox(width: 12),
+        artwork,
+      ],
     );
   }
 }

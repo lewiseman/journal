@@ -13,7 +13,9 @@ import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:sync_wise/sync_wise.dart' show SyncDeviceRole;
 
 import 'note_website_view.dart';
+import 'website_assets.dart';
 import 'website_contract.dart';
+import 'website_theme_picker.dart';
 
 /// The Markdown formatting operation this page offers.
 const _markdownOperation = 'markdown-note';
@@ -33,6 +35,7 @@ class NotePresentationPage extends ConsumerStatefulWidget {
 
 class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
   final _description = TextEditingController();
+  String _theme = 'auto';
   NotePresentationMode? _mode;
   Future<String?>? _preview;
   String? _previewFor;
@@ -176,6 +179,7 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
     final hasSite = note.website.isNotEmpty;
     final stale =
         hasSite && websiteContentHash(note.content) != note.websiteSourceHash;
+    final photos = websitePhotos(note.attachments);
     if (mine && state.phase == 'completed' && _previewFor != state.text) {
       _previewFor = state.text;
       _preview = controller.noteWebsitePreview();
@@ -195,7 +199,7 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
             padding: const EdgeInsets.only(top: 12),
             child: SizedBox(
               height: 360,
-              child: NoteWebsiteView(html: note.website),
+              child: NoteWebsiteView(html: note.website, photos: photos),
             ),
           ),
         Wrap(
@@ -215,6 +219,14 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
         const Divider(height: 32),
       ],
       if (!mine) ...[
+        Text('Look', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        WebsiteThemeSwatches(
+          auto: true,
+          selected: _theme,
+          onSelected: (id) => setState(() => _theme = id),
+        ),
+        const SizedBox(height: 12),
         TextField(
           key: const ValueKey('note-website-description'),
           controller: _description,
@@ -255,7 +267,9 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
             ),
           ),
         Text(
-          'Only this note’s title and text and your description go to your trusted computer. The page is shown with scripts and internet access off.',
+          photos.isEmpty
+              ? 'Only this note’s title and text and your description go to your trusted computer. The page is shown with scripts and internet access off.'
+              : 'Only this note’s title and text and your description go to your trusted computer. Its ${photos.length == 1 ? 'photo stays' : '${photos.length} photos stay'} on this phone and are added to the page here. The page is shown with scripts and internet access off.',
           style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
@@ -266,6 +280,7 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
               : () => controller.startNoteWebsite(
                   widget.noteId,
                   _description.text,
+                  theme: _theme,
                 ),
           icon: const Icon(Icons.auto_awesome_outlined),
           label: Text(hasSite ? 'Generate a new website' : 'Generate website'),
@@ -301,7 +316,10 @@ class _NotePresentationPageState extends ConsumerState<NotePresentationPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(height: 420, child: NoteWebsiteView(html: html)),
+                    SizedBox(
+                      height: 420,
+                      child: NoteWebsiteView(html: html, photos: photos),
+                    ),
                     const SizedBox(height: 12),
                     FilledButton(
                       key: const ValueKey('note-website-use'),

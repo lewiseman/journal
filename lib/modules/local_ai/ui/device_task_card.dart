@@ -93,10 +93,25 @@ class DeviceTaskCard extends ConsumerWidget {
                   ? 'Could not check your downloaded models.'
                   : task == AiTask.image
                   ? 'Create a background for your notes.'
+                  : task == AiTask.transcription
+                  ? 'Turn spoken moments into written words.'
                   : 'Summaries, rewrites and thoughtful answers.',
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: colors.onSurfaceVariant, height: 1.4),
             ),
+            if (!checking && !failed && models.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                assignment == null
+                    ? 'Choose a downloaded model to finish setup.'
+                    : 'Ready on this phone',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: assignment == null
+                      ? colors.onSurfaceVariant
+                      : colors.primary,
+                ),
+              ),
+            ],
             if (failed)
               Align(
                 alignment: Alignment.centerLeft,
@@ -155,9 +170,9 @@ class DeviceTaskCard extends ConsumerWidget {
                 },
               ),
             ] else if (!checking)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: FilledButton.tonalIcon(
                   key: ValueKey('device-get-model-${task.name}'),
                   onPressed: () => _openModels(context, task: task),
                   icon: const Icon(Icons.download_rounded, size: 19),
@@ -183,6 +198,24 @@ class DeviceAiSection extends ConsumerWidget {
     final engine = ref.watch(onDeviceEngineProvider);
     if (engine == null) return const SizedBox.shrink();
     final colors = Theme.of(context).colorScheme;
+    final installed = ref.watch(installedModelsProvider);
+    final catalog = ref.watch(modelCatalogProvider);
+    final settings = ref.watch(aiSettingsProvider);
+    final tasks = engine.supportedTasks;
+    final ready = tasks.where((task) {
+      final id = settings.assignments[task];
+      return id != null &&
+          (installed.asData?.value.contains(id) ?? false) &&
+          (catalog.asData?.value.any(
+                (model) =>
+                    model.id == id &&
+                    model.task == task &&
+                    engine.supportedModelFormats.contains(model.format),
+              ) ??
+              false);
+    }).length;
+    final checking = installed.isLoading || catalog.isLoading;
+    final failed = installed.hasError || catalog.hasError;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -221,8 +254,40 @@ class DeviceAiSection extends ConsumerWidget {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            checking
+                ? 'Checking your offline setup…'
+                : failed
+                ? 'Your models could not be checked'
+                : '$ready of ${tasks.length} tools ready on this phone',
+            style: Theme.of(context).textTheme.labelMedium
+                ?.copyWith(color: colors.primary),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(
+              begin: 0,
+              end: tasks.isEmpty ? 0 : ready / tasks.length,
+            ),
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 380),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => LinearProgressIndicator(
+              value: checking ? null : value,
+              minHeight: 5,
+              backgroundColor: colors.primaryContainer.withValues(alpha: .45),
+            ),
+          ),
+        ),
         const SizedBox(height: 18),
-        for (final task in engine.supportedTasks) DeviceTaskCard(task: task),
+        for (final task in tasks) DeviceTaskCard(task: task),
         ListTile(
           key: const ValueKey('device-manage-models'),
           contentPadding: const EdgeInsets.symmetric(horizontal: 4),

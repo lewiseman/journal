@@ -49,7 +49,9 @@ class SummaryHandle {
   final String? localSource;
 
   /// A website generated from saved note [noteId].
-  bool get isNoteWebsite => operation == noteWebsiteOperation;
+  bool get isNoteWebsite =>
+      operation == noteWebsiteOperation ||
+      operation == noteWebsiteDesignOperation;
 
   /// The retired block-styling presentation, kept readable in history only.
   bool get isRetiredPresentation => operation == 'present-text';

@@ -772,10 +772,6 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
                 child: Opacity(
                   opacity: ((exposed - 76) / 48).clamp(0, 1),
                   child: _SettingsTag(
-                    iconOnly: const {
-                      'Note',
-                      'Notes',
-                    }.contains(widget.pageLabel),
                     onPressed: () => Navigator.pop(context, true),
                   ),
                 ),
@@ -869,33 +865,15 @@ class _QvacAssistantSheetState extends State<QvacAssistantSheet> {
   );
 }
 
-/// Settings stay above the sheet; note tools use a compact icon shortcut.
+/// Settings stay above the sheet as a status pill on every page.
 class _SettingsTag extends ConsumerWidget {
-  const _SettingsTag({required this.onPressed, this.iconOnly = false});
+  const _SettingsTag({required this.onPressed});
   final VoidCallback onPressed;
-  final bool iconOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    if (iconOnly) {
-      return Material(
-        color: colors.surface,
-        elevation: 3,
-        shadowColor: colors.shadow.withValues(alpha: .35),
-        shape: CircleBorder(
-          side: BorderSide(color: colors.outlineVariant.withValues(alpha: .6)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: IconButton(
-          key: const ValueKey('qvac-local-ai-settings'),
-          tooltip: 'Local AI settings',
-          onPressed: onPressed,
-          icon: const Icon(Icons.tune_rounded, size: 20),
-        ),
-      );
-    }
     final phase = ref.watch(
       companionControllerProvider.select((state) => state.phase),
     );

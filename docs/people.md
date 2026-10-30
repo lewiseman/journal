@@ -5,6 +5,23 @@ invitation or accepts a scanned/pasted invitation. The inviter explicitly confir
 the request. Invitations expire after five minutes and are single-use. To share
 through another app, copy the invitation, share it, then return to Journal.
 
+Friends and Notes use rounded icon tabs under a collapsing, pinned header with
+the Friends artwork from More and a subtle accent wash. The tabs keep independent
+scroll positions. Friends appear as rows with their blob avatars and
+waiting-note counts. Add friend separates Invite from Accept (scan or paste).
+Pages follow the app's background, accent and selected font; explanatory copy
+lives in empty states. The QR expiry border, scanner and burning reader remain.
+
+Incoming-note alerts are floating paper cards with an animated envelope, sender
+avatar and an ink flourish. They offer Open Friends and dismiss actions, show no
+note preview, and keep only the latest arrival on screen. Motion follows the app
+setting; alerts stay static with animations disabled and clear on backgrounding.
+
+The reader gives brief notes a paper sheet at least 280 logical pixels tall,
+with the message centered horizontally and vertically. Longer letters grow and
+scroll on ruled paper. Sender details, the reading timer and Close remain outside
+the burning area; landscape layouts put the timer and controls beside the sheet.
+
 Friend details opens Write a note, lists unopened notes, and removes a friend.
 Notes contain newly written plain text, at most 500 whitespace-separated words
 and 8 KiB of UTF-8. Both apps must be open. Sending makes one attempt with a

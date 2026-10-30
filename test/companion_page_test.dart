@@ -395,8 +395,12 @@ void main() {
         ),
         installed: {'writing-test'},
       );
+      expect(find.text('1 of 2 tools ready on this phone'), findsOneWidget);
       await _capture(tester, 'local-ai-ready');
       await tester.tap(_key('ai-mode-companion'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(_key('ai-use-companion'));
+      await tester.tap(_key('ai-use-companion'));
       await tester.pumpAndSettle();
       expect(find.text('Your offline setup'), findsNothing);
       expect(find.text('Let’s connect your computer'), findsOneWidget);
@@ -416,6 +420,9 @@ void main() {
       await _capture(tester, 'local-ai-companion');
       await tester.ensureVisible(_key('ai-mode-device'));
       await tester.tap(_key('ai-mode-device'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(_key('ai-use-device'));
+      await tester.tap(_key('ai-use-device'));
       await tester.pumpAndSettle();
       expect(find.text('Your offline setup'), findsOneWidget);
       expect(find.text('Qwen2.5 · 0.5B Instruct'), findsOneWidget);
@@ -502,6 +509,17 @@ void main() {
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Device engine: Fake engine'));
         expect(find.byType(DropdownButtonFormField<AiMode>), findsNWidgets(2));
+        await tester.ensureVisible(_key('ai-mode-auto'));
+        await tester.tap(_key('ai-mode-auto'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(_key('ai-use-auto'));
+        await tester.tap(_key('ai-use-auto'));
+        await tester.pumpAndSettle();
+        final scope = ProviderScope.containerOf(
+          tester.element(find.byType(CompanionPage)),
+        );
+        expect(scope.read(aiSettingsProvider).mode, AiMode.auto);
+        await _capture(tester, 'local-ai-option-${layout.name}');
         expect(tester.takeException(), isNull);
       },
     );
@@ -535,45 +553,65 @@ void main() {
   );
 
   testWidgets(
-    'QVAC speaks the current step and stops when a step or route changes',
+    'connection steps swipe without spoken controls or connection changes',
     (tester) async {
       final app = await _mount(tester);
-      await tester.tap(_key('companion-guide-mascot'));
+      expect(find.text('Listen'), findsNothing);
+      expect(_key('companion-guide-listen'), findsNothing);
+      expect(_key('companion-guide-mascot'), findsNothing);
+      await tester.ensureVisible(_key('companion-guide-card'));
+      await tester.drag(_key('companion-guide-card'), const Offset(-240, 0));
       await tester.pumpAndSettle();
-      expect(app.voice.spoken.single, contains('same private Wi-Fi'));
-      expect(find.text('Stop'), findsOneWidget);
-      await tester.tap(_key('companion-step-1'));
+      expect(
+        find.text('On your computer, tap “Connect a phone”. Scan its QR.'),
+        findsOneWidget,
+      );
+      await tester.drag(_key('companion-guide-card'), const Offset(-240, 0));
       await tester.pumpAndSettle();
-      expect(find.text('Listen'), findsOneWidget);
-      await tester.tap(_key('companion-guide-listen'));
+      expect(
+        find.text('Compare the phone code. Then approve on your computer.'),
+        findsOneWidget,
+      );
+      await tester.drag(_key('companion-guide-card'), const Offset(240, 0));
       await tester.pumpAndSettle();
-      expect(app.voice.spoken.last, contains('Point the camera'));
-      final stopped = app.voice.stops;
-      await tester.tap(_key('companion-paste'));
-      await tester.pumpAndSettle();
-      expect(app.voice.stops, greaterThan(stopped));
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      expect(find.text('Listen'), findsOneWidget);
+      expect(
+        find.text('On your computer, tap “Connect a phone”. Scan its QR.'),
+        findsOneWidget,
+      );
+      expect(app.connection.pairs, 0);
+      expect(app.connection.scans, 0);
+      expect(app.voice.spoken, isEmpty);
     },
   );
 
   testWidgets(
-    'spoken help stops in the background and handles a missing voice',
+    'swiping AI options only compares until an option is explicitly chosen',
     (tester) async {
-      final app = await _mount(tester);
-      await tester.tap(_key('companion-guide-listen'));
+      final app = await _mount(tester, aiSettings: const AiSettings());
+      final scope = ProviderScope.containerOf(
+        tester.element(find.byType(CompanionPage)),
+      );
+      await tester.ensureVisible(_key('ai-mode-deck'));
+      await tester.drag(_key('ai-mode-deck'), const Offset(-320, 0));
       await tester.pumpAndSettle();
-      final stops = app.voice.stops;
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      expect(scope.read(aiSettingsProvider).mode, AiMode.companion);
+      expect(_key('ai-use-device').hitTestable(), findsOneWidget);
+      await _capture(tester, 'local-ai-compare');
+      await tester.tap(_key('ai-use-device'));
       await tester.pumpAndSettle();
-      expect(app.voice.stops, greaterThan(stops));
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      app.voice.fail = true;
-      await tester.tap(_key('companion-guide-listen'));
+      expect(scope.read(aiSettingsProvider).mode, AiMode.device);
+      expect(find.text('Your offline setup'), findsOneWidget);
+      expect(app.connection.pairs, 0);
+      expect(app.connection.retries, 0);
+      await tester.ensureVisible(_key('ai-mode-auto'));
+      await tester.tap(_key('ai-mode-auto'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Voice is unavailable.'), findsOneWidget);
-      expect(find.text('Listen'), findsOneWidget);
+      expect(scope.read(aiSettingsProvider).mode, AiMode.device);
+      await tester.ensureVisible(_key('ai-use-auto'));
+      await tester.tap(_key('ai-use-auto'));
+      await tester.pumpAndSettle();
+      expect(scope.read(aiSettingsProvider).mode, AiMode.auto);
+      expect(_key('ai-auto-status'), findsOneWidget);
     },
   );
 

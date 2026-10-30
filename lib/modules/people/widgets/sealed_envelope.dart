@@ -107,7 +107,7 @@ class _SealedEnvelopeState extends State<SealedEnvelope>
                                       'From ${widget.name}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: peopleHand(context, size: 22),
+                                      style: peopleTitle(context, size: 22),
                                     ),
                                     Row(
                                       children: [

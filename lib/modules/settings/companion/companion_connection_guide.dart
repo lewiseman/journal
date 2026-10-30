@@ -3,15 +3,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'companion_controller.dart';
-import 'companion_guide_voice.dart';
-
-const _artwork = 'assets/images/more_local_qvac.png';
 
 /// A visual walkthrough. Browsing a step never changes connection or trust.
-class CompanionConnectionGuide extends ConsumerStatefulWidget {
+class CompanionConnectionGuide extends StatefulWidget {
   const CompanionConnectionGuide({
     super.key,
     required this.connection,
@@ -23,16 +19,13 @@ class CompanionConnectionGuide extends ConsumerStatefulWidget {
   final VoidCallback onScan, onReconnect, onCancel;
 
   @override
-  ConsumerState<CompanionConnectionGuide> createState() =>
+  State<CompanionConnectionGuide> createState() =>
       _CompanionConnectionGuideState();
 }
 
-class _CompanionConnectionGuideState
-    extends ConsumerState<CompanionConnectionGuide>
-    with WidgetsBindingObserver {
-  int _step = 0, _bounce = 0, _speech = 0;
-  bool _speaking = false;
-  CompanionGuideVoice? _voice;
+class _CompanionConnectionGuideState extends State<CompanionConnectionGuide> {
+  int _step = 0;
+  double _drag = 0;
 
   bool get _connected => widget.connection.phase == CompanionPhase.connected;
   bool get _pairing => widget.connection.phase == CompanionPhase.pairing;
@@ -46,49 +39,12 @@ class _CompanionConnectionGuideState
       : _step;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Dialogs, the scanner and pushed settings pages also pause spoken help.
-    if (ModalRoute.isCurrentOf(context) == false) _stopSpeaking();
-  }
-
-  @override
   void didUpdateWidget(CompanionConnectionGuide oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.connection.phase != widget.connection.phase) {
-      _stopSpeaking();
-      if (oldWidget.connection.phase == CompanionPhase.pairing) _step = 1;
-      if (_connected && oldWidget.connection.phase == CompanionPhase.pairing) {
-        _bounce++;
-      }
+    if (oldWidget.connection.phase == CompanionPhase.pairing &&
+        widget.connection.phase != CompanionPhase.pairing) {
+      _step = 1;
     }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
-      _stopSpeaking();
-      if (mounted) setState(() {});
-    }
-  }
-
-  void _stopSpeaking() {
-    _speech++;
-    _speaking = false;
-    unawaited(_voice?.stop());
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _stopSpeaking();
-    super.dispose();
   }
 
   String get _title {
@@ -133,75 +89,10 @@ class _CompanionConnectionGuideState
             },
   };
 
-  String get _spoken {
-    final phase = widget.connection.phase;
-    final help = switch (phase) {
-      CompanionPhase.permissionDenied => 'On an iPhone, open Settings, find Journal and allow Local Network access. Then try again.',
-      CompanionPhase.identityChanged => 'The computer’s identity could not be verified. Do not approve a computer you do not recognize. Check its identity in connection details.',
-      CompanionPhase.revoked => 'This computer no longer recognizes this phone. Check connection details. You may need to forget it and scan a fresh code.',
-      CompanionPhase.incompatible => 'Update Journal on your phone and Journal Companion on your computer, then try again.',
-      CompanionPhase.loading =>
-        'Please wait while I check your saved computers.',
-      CompanionPhase.connected => 'Your phone is connected to your computer. The model status below shows which AI tools are ready.',
-      CompanionPhase.pairing =>
-        widget.connection.verification == null
-            ? 'Wait a moment. Keep Journal Companion open on your computer.'
-            : 'Look at the phone code here and on your computer. The code on this phone is ${widget.connection.verification!.split('').join(', ')}. Compare every character. Only if they match, tap Approve on your computer.',
-      _ when _remembered => 'Open Journal Companion on your computer. Put your phone and computer on the same private Wi-Fi. Then tap Connect again. If that does not work, open Need help below.',
-      _ => switch (_step) {
-        0 => 'Let’s connect your computer. Put your phone and computer on the same private Wi-Fi. Open Journal Companion on the computer. Then tap Next on this phone.',
-        1 => 'In Journal Companion on your computer, choose Connect a phone. Tap Scan QR on this phone. Point the camera at the square code on the computer. Check the computer’s identity before continuing.',
-        _ => 'After scanning, check the computer’s identity. A phone code will appear here. Compare every character with the code on the computer. Only if they match, tap Approve on the computer. I will show you when you are connected.',
-      },
-    };
-    return help;
-  }
-
-  Future<void> _listen() async {
-    if (_speaking) {
-      _stopSpeaking();
-      setState(() {});
-      return;
-    }
-    final generation = ++_speech;
-    setState(() {
-      _speaking = true;
-      _bounce++;
-    });
-    unawaited(HapticFeedback.selectionClick());
-    try {
-      _voice ??= ref.read(companionGuideVoiceProvider);
-      await _voice!.speak(_spoken);
-    } catch (_) {
-      if (mounted && generation == _speech) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Voice is unavailable. Follow the pictures, or check your phone’s speech settings.',
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted && generation == _speech) {
-        setState(() => _speaking = false);
-      }
-    }
-  }
-
   void _selectStep(int step) {
-    _stopSpeaking();
+    if (step == _step) return;
     unawaited(HapticFeedback.selectionClick());
-    setState(() {
-      _step = step;
-      _bounce++;
-    });
-  }
-
-  void _act(VoidCallback action) {
-    _stopSpeaking();
-    setState(() {});
-    action();
+    setState(() => _step = step);
   }
 
   @override
@@ -218,56 +109,6 @@ class _CompanionConnectionGuideState
         state.phase == CompanionPhase.loading ||
         state.phase == CompanionPhase.connecting ||
         _pairing;
-    final mascot = Semantics(
-      label: _speaking ? 'Stop spoken help' : 'QVAC. Listen to this step',
-      button: true,
-      onTap: _listen,
-      child: ExcludeSemantics(
-        child: InkWell(
-          key: const ValueKey('companion-guide-mascot'),
-          borderRadius: BorderRadius.circular(28),
-          onTap: _listen,
-          child: TweenAnimationBuilder<double>(
-            key: ValueKey(_bounce),
-            tween: Tween(begin: 0, end: 1),
-            duration: reduced
-                ? Duration.zero
-                : const Duration(milliseconds: 520),
-            builder: (context, value, child) => Transform.translate(
-              offset: Offset(0, -7 * math.sin(value * math.pi)),
-              child: Transform.rotate(
-                angle: math.sin(value * math.pi * 2) * .04,
-                child: child,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Image.asset(_artwork, width: 88, height: 96),
-            ),
-          ),
-        ),
-      ),
-    );
-    final title = Text(
-      _title,
-      style: theme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w600,
-        letterSpacing: -.5,
-      ),
-    );
-    final listen = TextButton.icon(
-      key: const ValueKey('companion-guide-listen'),
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        minimumSize: const Size(48, 48),
-      ),
-      onPressed: _listen,
-      icon: Icon(
-        _speaking ? Icons.stop_circle_outlined : Icons.volume_up_rounded,
-        size: 22,
-      ),
-      label: Text(_speaking ? 'Stop' : 'Listen'),
-    );
     final largeText = MediaQuery.textScalerOf(context).scale(12) > 16;
     final steps = [
       for (var i = 0; i < 3; i++)
@@ -283,166 +124,173 @@ class _CompanionConnectionGuideState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth <
-                MediaQuery.textScalerOf(context).scale(210) + 114) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      mascot,
-                      const SizedBox(width: 14),
-                      Flexible(child: listen),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  title,
-                ],
-              );
-            }
-            return Row(
-              children: [
-                mascot,
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [title, const SizedBox(height: 4), listen],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 20),
-        Container(
-          decoration: BoxDecoration(
-            color: colors.primaryContainer.withValues(alpha: .48),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: colors.primary.withValues(alpha: .12)),
+        Text(
+          _title,
+          style: theme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -.4,
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!_connected && !_remembered)
-                  largeText
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: steps,
-                        )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (final step in steps) Expanded(child: step),
-                          ],
-                        ),
-                AnimatedSwitcher(
-                  duration: duration,
-                  child: _DeviceScene(key: ValueKey(_scene), step: _scene),
-                ),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _instruction,
-                    textAlign: TextAlign.center,
-                    style: theme.titleMedium?.copyWith(
-                      height: 1.45,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (_pairing && state.verification != null) ...[
-                  const SizedBox(height: 18),
-                  Container(
-                    key: const ValueKey('companion-phone-code'),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      children: [
-                        Text('Phone code', style: theme.labelLarge),
-                        const SizedBox(height: 8),
-                        SelectableText(
-                          RegExp(r'.{1,4}')
-                              .allMatches(state.verification!)
-                              .map((part) => part.group(0))
-                              .join(' '),
-                          semanticsLabel:
-                              'Phone verification code: ${state.verification!.split('').join(' ')}',
-                          textAlign: TextAlign.center,
-                          style: theme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
+        ),
+        const SizedBox(height: 6),
+        if (guided) ...[
+          Text(
+            'Three small steps. Swipe through, or tap a step below.',
+            style: theme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+        ] else
+          const SizedBox(height: 12),
+        GestureDetector(
+          key: const ValueKey('companion-guide-card'),
+          onHorizontalDragStart: guided && !state.busy
+              ? (_) => _drag = 0
+              : null,
+          onHorizontalDragUpdate: guided && !state.busy
+              ? (details) => _drag += details.delta.dx
+              : null,
+          onHorizontalDragEnd: guided && !state.busy
+              ? (details) {
+                  final movement = _drag.abs() > 40
+                      ? _drag
+                      : (details.primaryVelocity ?? 0).abs() > 250
+                      ? details.primaryVelocity!
+                      : 0.0;
+                  if (movement == 0) return;
+                  final forward =
+                      Directionality.of(context) == TextDirection.ltr
+                      ? movement < 0
+                      : movement > 0;
+                  _selectStep((_step + (forward ? 1 : -1)).clamp(0, 2));
+                }
+              : null,
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.primaryContainer.withValues(alpha: .48),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: colors.primary.withValues(alpha: .12)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!_connected && !_remembered)
+                    largeText
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: steps,
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final step in steps) Expanded(child: step),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Only approve if every character matches.',
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                  AnimatedSwitcher(
+                    duration: duration,
+                    child: _DeviceScene(key: ValueKey(_scene), step: _scene),
+                  ),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _instruction,
+                      textAlign: TextAlign.center,
+                      style: theme.titleMedium?.copyWith(
+                        height: 1.45,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
+                  if (_pairing && state.verification != null) ...[
+                    const SizedBox(height: 18),
+                    Container(
+                      key: const ValueKey('companion-phone-code'),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          Text('Phone code', style: theme.labelLarge),
+                          const SizedBox(height: 8),
+                          SelectableText(
+                            RegExp(r'.{1,4}')
+                                .allMatches(state.verification!)
+                                .map((part) => part.group(0))
+                                .join(' '),
+                            semanticsLabel:
+                                'Phone verification code: ${state.verification!.split('').join(' ')}',
+                            textAlign: TextAlign.center,
+                            style: theme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Only approve if every character matches.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  if (_connected)
+                    _ConnectionBadge(
+                      label: 'Connected · identity verified',
+                      icon: Icons.verified_user_outlined,
+                    )
+                  else if (awaiting)
+                    _ConnectionBadge(
+                      label: _pairing
+                          ? 'Waiting for your computer'
+                          : 'Checking connection…',
+                      icon: Icons.hourglass_top_rounded,
+                    )
+                  else if (_remembered)
+                    FilledButton.icon(
+                      key: const ValueKey('companion-reconnect'),
+                      onPressed: state.busy ? null : widget.onReconnect,
+                      icon: const Icon(Icons.link_rounded),
+                      label: const Text('Connect again'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(56),
+                      ),
+                    )
+                  else if (_step == 0)
+                    FilledButton.icon(
+                      key: const ValueKey('companion-guide-next'),
+                      onPressed: state.busy ? null : () => _selectStep(1),
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                      label: const Text('Next'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(56),
+                      ),
+                    )
+                  else
+                    FilledButton.icon(
+                      key: const ValueKey('companion-scan'),
+                      onPressed: state.busy ? null : widget.onScan,
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 26),
+                      label: const Text('Scan QR'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(56),
+                      ),
+                    ),
+                  if (_pairing && state.busy) ...[
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: widget.onCancel,
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Cancel pairing'),
+                    ),
+                  ],
                 ],
-                const SizedBox(height: 18),
-                if (_connected)
-                  _ConnectionBadge(
-                    label: 'Connected · identity verified',
-                    icon: Icons.verified_user_outlined,
-                  )
-                else if (awaiting)
-                  _ConnectionBadge(
-                    label: _pairing
-                        ? 'Waiting for your computer'
-                        : 'Checking connection…',
-                    icon: Icons.hourglass_top_rounded,
-                  )
-                else if (_remembered)
-                  FilledButton.icon(
-                    key: const ValueKey('companion-reconnect'),
-                    onPressed: state.busy
-                        ? null
-                        : () => _act(widget.onReconnect),
-                    icon: const Icon(Icons.link_rounded),
-                    label: const Text('Connect again'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(56),
-                    ),
-                  )
-                else if (_step == 0)
-                  FilledButton.icon(
-                    key: const ValueKey('companion-guide-next'),
-                    onPressed: state.busy ? null : () => _selectStep(1),
-                    icon: const Icon(Icons.arrow_forward_rounded),
-                    label: const Text('Next'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(56),
-                    ),
-                  )
-                else
-                  FilledButton.icon(
-                    key: const ValueKey('companion-scan'),
-                    onPressed: state.busy ? null : () => _act(widget.onScan),
-                    icon: const Icon(Icons.qr_code_scanner_rounded, size: 26),
-                    label: const Text('Scan QR'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(56),
-                    ),
-                  ),
-                if (_pairing && state.busy) ...[
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: () => _act(widget.onCancel),
-                    icon: const Icon(Icons.close_rounded),
-                    label: const Text('Cancel pairing'),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -506,7 +354,11 @@ class _StepButton extends StatelessWidget {
             child: Flex(
               direction: horizontal ? Axis.horizontal : Axis.vertical,
               children: [
-                Container(
+                AnimatedContainer(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(

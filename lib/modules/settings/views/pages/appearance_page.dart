@@ -97,6 +97,7 @@ class AppearancePage extends ConsumerWidget {
           _sectionTitle('Motion'),
           const SizedBox(height: 12),
           const _AnimationsToggle(),
+          const SizedBox(height: 100),
         ],
       ),
     );

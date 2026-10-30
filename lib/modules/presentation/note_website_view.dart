@@ -1,15 +1,24 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:journal/modules/notes/models/note_attachment.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'website_assets.dart';
 import 'website_contract.dart';
 
 /// Shows a note's generated website: re-sanitized, with JavaScript off and
 /// every navigation blocked, so the page can only draw itself.
 class NoteWebsiteView extends StatefulWidget {
-  const NoteWebsiteView({super.key, required this.html});
+  const NoteWebsiteView({
+    super.key,
+    required this.html,
+    this.photos = const [],
+  });
   final String html;
+
+  /// The note's photos, embedded where a themed page asks for them.
+  final List<NoteAttachment> photos;
 
   @override
   State<NoteWebsiteView> createState() => _NoteWebsiteViewState();
@@ -28,7 +37,13 @@ class _NoteWebsiteViewState extends State<NoteWebsiteView> {
   @override
   void didUpdateWidget(NoteWebsiteView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.html != widget.html) _load();
+    if (oldWidget.html != widget.html ||
+        !listEquals(
+          [for (final p in oldWidget.photos) p.pathKey],
+          [for (final p in widget.photos) p.pathKey],
+        )) {
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -39,6 +54,8 @@ class _NoteWebsiteViewState extends State<NoteWebsiteView> {
     try {
       // Synced pages are checked again: another device may be older or wrong.
       safe = await sanitizeWebsiteBounded(html);
+      // Photos and fonts are added after the check and never stored.
+      safe = await withWebsiteAssets(safe, widget.photos);
     } catch (_) {
       if (mounted && html == widget.html) setState(() => _failed = true);
       return;

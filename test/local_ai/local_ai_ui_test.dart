@@ -75,9 +75,11 @@ void main() {
           child: const MaterialApp(home: Scaffold(body: DeviceModeSelector())),
         ),
       );
+      await tester.tap(find.byKey(const ValueKey('ai-mode-device')));
+      await tester.pumpAndSettle();
       expect(find.text('On this phone'), findsOneWidget);
-      await tester.tap(find.text('On this phone'));
-      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('ai-use-device')));
+      await tester.pumpAndSettle();
       expect(
         find.textContaining('Keep Journal in the foreground'),
         findsOneWidget,

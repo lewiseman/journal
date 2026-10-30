@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
-import 'package:journal/modules/more/views/widgets/people_artwork.dart';
 import 'package:journal/utils/navigation_helper.dart';
 
 import 'people_controller.dart';
@@ -16,7 +15,9 @@ import 'people_models.dart';
 import 'widgets/burning_paper.dart';
 import 'widgets/friend_avatar.dart';
 import 'widgets/people_paper.dart';
-import 'widgets/sealed_envelope.dart';
+import 'widgets/people_header_artwork.dart';
+import 'widgets/note_arrival_banner.dart';
+import 'widgets/reading_note_sheet.dart';
 
 Future<void> _action(
   BuildContext context,
@@ -41,81 +42,61 @@ Future<void> _action(
 
 class _Status extends ConsumerWidget {
   const _Status();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(peopleControllerProvider);
-    final palette = PeoplePalette.of(context);
-    if (!state.supported) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 20),
-        child: PaperSheet(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(Icons.phone_android_rounded, color: palette.clay),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text('Friends works on Android phones for now.'),
-              ),
-            ],
-          ),
-        ),
+    final colors = Theme.of(context).colorScheme;
+    if (state.supported && (state.loading || state.busy)) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 20),
+        child: LinearProgressIndicator(semanticsLabel: 'Connecting'),
       );
     }
-    if (state.loading || state.busy) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: PeopleChip(
-            label: 'Connecting…',
-            icon: SizedBox.square(
-              dimension: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.6,
-                color: palette.clay,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    if (state.message == null) return const SizedBox.shrink();
+    final message = !state.supported
+        ? 'Friends works on Android phones for now.'
+        : state.message;
+    if (message == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
-      child: PaperSheet(
-        padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.wifi_off_rounded, color: palette.wax, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    state.message!,
-                    style: TextStyle(color: palette.wax),
+      child: Material(
+        color: colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    state.supported
+                        ? Icons.wifi_off_rounded
+                        : Icons.phone_android_rounded,
+                    size: 20,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(message)),
+                ],
+              ),
+              if (state.supported)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => _action(context, () async {
+                      final controller = ref.read(
+                        peopleControllerProvider.notifier,
+                      );
+                      await controller.restore();
+                      await controller.connect();
+                    }),
+                    child: const Text('Retry connection'),
                   ),
                 ),
-              ],
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                style: TextButton.styleFrom(foregroundColor: palette.ink),
-                onPressed: () => _action(context, () async {
-                  final controller = ref.read(
-                    peopleControllerProvider.notifier,
-                  );
-                  await controller.restore();
-                  await controller.connect();
-                }),
-                child: const Text('Retry connection'),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -124,120 +105,117 @@ class _Status extends ConsumerWidget {
 
 class PeoplePage extends ConsumerWidget {
   const PeoplePage({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(peopleControllerProvider);
-    final palette = PeoplePalette.of(context);
     final unopened = state.notes.where((n) => !n.opened).toList();
     final canAdd = state.supported && !state.loading;
-    return PeopleScaffold(
-      title: 'Friends',
-      children: [
-        const _Status(),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Your friends', style: peopleHand(context, size: 38)),
-                  const SizedBox(height: 4),
-                  Text(
-                    'A small note, just between you.\nKeep both apps open to exchange notes.',
-                    style: TextStyle(color: palette.muted, height: 1.4),
+    return PeopleTabbedScaffold(
+      title: 'People',
+      headerArtwork: const PeopleHeaderArtwork(),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: IconButton.filledTonal(
+            key: const ValueKey('people-add-friend'),
+            tooltip: 'Add friend',
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            onPressed: canAdd
+                ? () => context.nav.push(const AddFriendPage())
+                : null,
+          ),
+        ),
+      ],
+      tabs: [
+        Tab(
+          child: _TabLabel(
+            'Friends',
+            count: state.friends.length,
+            icon: Icons.people_outline_rounded,
+          ),
+        ),
+        Tab(
+          child: _TabLabel(
+            'Notes',
+            count: unopened.length,
+            icon: Icons.mail_outline_rounded,
+          ),
+        ),
+      ],
+      views: [
+        PeopleTabView(
+          key: const ValueKey('people-friends-view'),
+          slivers: [
+            const SliverToBoxAdapter(child: _Status()),
+            if (state.candidates.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: _KnockCard(
+                    name: state.candidates.first.name,
+                    friendKey: state.candidates.first.key,
+                    onTap: () => context.nav.push(const AddFriendPage()),
                   ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            const SizedBox(width: 76, height: 76, child: PeopleEntryArtwork()),
+            if (state.friends.isEmpty)
+              SliverToBoxAdapter(
+                child: _PeopleEmptyState(
+                  icon: Icons.people_outline_rounded,
+                  title: 'Your people, right here',
+                  message: 'Add a friend with an invitation or QR code to share disappearing notes.',
+                  action: InkButton(
+                    label: 'Add friend',
+                    icon: Icons.person_add_alt_1_rounded,
+                    expand: false,
+                    onPressed: canAdd
+                        ? () => context.nav.push(const AddFriendPage())
+                        : null,
+                  ),
+                ),
+              )
+            else
+              SliverList.separated(
+                itemCount: state.friends.length,
+                separatorBuilder: (_, _) => const Padding(
+                  padding: EdgeInsets.only(left: 72),
+                  child: Divider(height: 1),
+                ),
+                itemBuilder: (context, index) {
+                  final person = state.friends[index];
+                  return _FriendTile(
+                    key: ValueKey('people-friend-${person.key}'),
+                    person: person,
+                    unopened: unopened
+                        .where((n) => n.friendKey == person.key)
+                        .length,
+                  );
+                },
+              ),
           ],
         ),
-        const SizedBox(height: 18),
-        InkButton(
-          key: const ValueKey('people-add-friend'),
-          label: 'Add friend',
-          icon: Icons.person_add_alt_1_rounded,
-          onPressed: canAdd
-              ? () => context.nav.push(const AddFriendPage())
-              : null,
-        ),
-        if (state.candidates.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          _KnockCard(
-            name: state.candidates.first.name,
-            friendKey: state.candidates.first.key,
-            onTap: () => context.nav.push(const AddFriendPage()),
-          ),
-        ],
-        if (unopened.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          PeopleHeading(
-            'Waiting for you',
-            trailing: WaxBadge(count: unopened.length),
-          ),
-          EnvelopeStack(
-            children: [
-              for (final (i, note) in unopened.indexed)
-                _NoteEnvelope(id: note.id, tilt: EnvelopeStack.tiltFor(i)),
-            ],
-          ),
-        ],
-        const SizedBox(height: 24),
-        const PeopleHeading('Friends'),
-        if (state.friends.isEmpty)
-          CustomPaint(
-            painter: _DashedBorder(palette.muted.withValues(alpha: .4)),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Text(
-                'Your people will appear here. Create an invitation, or scan or paste one from a friend.',
-                style: TextStyle(color: palette.muted, height: 1.4),
+        PeopleTabView(
+          key: const ValueKey('people-notes-view'),
+          slivers: [
+            const SliverToBoxAdapter(child: _Status()),
+            if (unopened.isEmpty)
+              const SliverToBoxAdapter(
+                child: _PeopleEmptyState(
+                  icon: Icons.mark_email_unread_outlined,
+                  title: 'No notes waiting',
+                  message: 'Keep both apps open to exchange notes. Each note opens once and disappears after reading.',
+                ),
+              )
+            else
+              SliverList.separated(
+                itemCount: unopened.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (_, index) => _NoteTile(
+                  key: ValueKey('people-note-${unopened[index].id}'),
+                  id: unopened[index].id,
+                ),
               ),
-            ),
-          )
-        else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const spacing = 14.0;
-              final columns = constraints.maxWidth > 440 ? 3 : 2;
-              final width =
-                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
-              return Wrap(
-                spacing: spacing,
-                runSpacing: spacing,
-                children: [
-                  for (final (i, person) in state.friends.indexed)
-                    SizedBox(
-                      width: width,
-                      child: _FriendCard(
-                        person: person,
-                        unopened: state.notes
-                            .where(
-                              (n) => n.friendKey == person.key && !n.opened,
-                            )
-                            .length,
-                        tilt: (i.isEven ? -1 : 1) * .012,
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        const SizedBox(height: 32),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.lock_outline_rounded, size: 16, color: palette.muted),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                peoplePrivacy,
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: palette.muted),
-              ),
-            ),
           ],
         ),
       ],
@@ -245,103 +223,114 @@ class PeoplePage extends ConsumerWidget {
   }
 }
 
-class _FriendCard extends StatelessWidget {
-  const _FriendCard({
-    required this.person,
-    required this.unopened,
-    required this.tilt,
+class _TabLabel extends StatelessWidget {
+  const _TabLabel(this.label, {required this.count, this.icon});
+  final String label;
+  final int count;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (icon != null && MediaQuery.textScalerOf(context).scale(14) <= 20) ...[
+        Icon(icon, size: 18),
+        const SizedBox(width: 7),
+      ],
+      Flexible(
+        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      if (count > 0) ...[
+        const SizedBox(width: 8),
+        Badge.count(
+          count: count,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          textColor: Theme.of(context).colorScheme.onPrimary,
+        ),
+      ],
+    ],
+  );
+}
+
+class _PeopleEmptyState extends StatelessWidget {
+  const _PeopleEmptyState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.action,
   });
-  final Person person;
-  final int unopened;
-  final double tilt;
+  final IconData icon;
+  final String title, message;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
-    final palette = PeoplePalette.of(context);
-    return Transform.rotate(
-      angle: tilt,
-      child: Stack(
-        clipBehavior: Clip.none,
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 12),
+      child: Column(
         children: [
-          PaperSheet(
-            padding: EdgeInsets.zero,
-            child: Material(
-              type: MaterialType.transparency,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(6),
-                onTap: () =>
-                    context.nav.push(FriendDetailsPage(friendKey: person.key)),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FriendAvatar(
-                        friendKey: person.key,
-                        name: person.name,
-                        size: 64,
-                        hero: true,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        person.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: peopleHand(context, size: 26),
-                      ),
-                      Text(
-                        unopened == 0
-                            ? 'No notes waiting'
-                            : unopened == 1
-                            ? '1 unopened note'
-                            : '$unopened unopened notes',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: unopened == 0 ? palette.muted : palette.wax,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Icon(icon, size: 32, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 340),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
               ),
             ),
           ),
-          if (unopened > 0)
-            Positioned(
-              top: -8,
-              right: -6,
-              child: WaxBadge(count: unopened, size: 28),
-            ),
+          if (action != null) ...[const SizedBox(height: 24), action!],
         ],
       ),
     );
   }
 }
 
-class _DashedBorder extends CustomPainter {
-  const _DashedBorder(this.color);
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    final path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          (Offset.zero & size).deflate(1),
-          const Radius.circular(8),
-        ),
-      );
-    for (final metric in path.computeMetrics()) {
-      for (var d = 0.0; d < metric.length; d += 11) {
-        canvas.drawPath(metric.extractPath(d, d + 6), paint);
-      }
-    }
-  }
+class _FriendTile extends StatelessWidget {
+  const _FriendTile({super.key, required this.person, required this.unopened});
+  final Person person;
+  final int unopened;
 
   @override
-  bool shouldRepaint(_DashedBorder old) => old.color != color;
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    leading: FriendAvatar(
+      friendKey: person.key,
+      name: person.name,
+      size: 52,
+      hero: true,
+    ),
+    title: Text(person.name, style: peopleTitle(context, size: 17)),
+    subtitle: unopened == 0
+        ? null
+        : Text(
+            unopened == 1 ? '1 note waiting' : '$unopened notes waiting',
+            style: TextStyle(color: Theme.of(context).colorScheme.primary),
+          ),
+    trailing: Icon(
+      Icons.chevron_right_rounded,
+      color: PeoplePalette.of(context).muted,
+    ),
+    onTap: () => context.nav.push(FriendDetailsPage(friendKey: person.key)),
+  );
 }
 
 class _KnockCard extends StatelessWidget {
@@ -352,39 +341,19 @@ class _KnockCard extends StatelessWidget {
   });
   final String name, friendKey;
   final VoidCallback onTap;
+
   @override
-  Widget build(BuildContext context) {
-    final palette = PeoplePalette.of(context);
-    return PaperSheet(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Row(
-        children: [
-          FriendAvatar(friendKey: friendKey, name: name, size: 48),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Knock knock — $name',
-                  style: peopleHand(context, size: 24),
-                ),
-                Text(
-                  'wants to be your friend',
-                  style: TextStyle(color: palette.muted),
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: palette.wax),
-            onPressed: onTap,
-            child: const Text('Review friend request'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Card.filled(
+    margin: EdgeInsets.zero,
+    child: ListTile(
+      contentPadding: const EdgeInsets.all(12),
+      leading: FriendAvatar(friendKey: friendKey, name: name, size: 44),
+      title: Text(name),
+      subtitle: const Text('Friend request'),
+      trailing: const Icon(Icons.arrow_forward_rounded),
+      onTap: onTap,
+    ),
+  );
 }
 
 class AddFriendPage extends ConsumerStatefulWidget {
@@ -463,178 +432,196 @@ class _AddFriendPageState extends ConsumerState<AddFriendPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(peopleControllerProvider);
     final controller = ref.read(peopleControllerProvider.notifier);
-    final palette = PeoplePalette.of(context);
     final invite = state.invite;
     final canReceive =
         state.supported && !state.busy && state.candidates.isEmpty;
-    return PeopleScaffold(
+    return PeopleTabbedScaffold(
       title: 'Add friend',
-      children: [
-        const _Status(),
-        PaperSheet(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Invite someone', style: peopleHand(context, size: 30)),
-              const SizedBox(height: 6),
-              Text(
-                'Show a QR code nearby, or copy an invitation to share through another app. Come back to Journal so your friend can connect.',
-                style: TextStyle(color: palette.muted, height: 1.4),
-              ),
-              const SizedBox(height: 18),
-              if (invite == null || invite.expired)
-                InkButton(
-                  label: 'Create invitation',
-                  icon: Icons.qr_code_rounded,
-                  onPressed: canReceive ? controller.createInvite : null,
-                )
-              else
-                _InviteTicket(
-                  invite: invite,
-                  onCopy: () async {
-                    await Clipboard.setData(
-                      ClipboardData(text: invite.encode()),
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Invitation copied. Return here after sharing.',
-                          ),
+      tabs: [
+        Tab(child: _TabLabel('Invite', count: state.candidates.length)),
+        const Tab(text: 'Accept'),
+      ],
+      views: [
+        PeopleTabView(
+          key: const ValueKey('people-invite-view'),
+          slivers: [
+            const SliverToBoxAdapter(child: _Status()),
+            for (final person in state.candidates)
+              SliverToBoxAdapter(
+                child: Card.filled(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final avatar = FriendAvatar(
+                              friendKey: person.key,
+                              name: person.name,
+                              size: 52,
+                            );
+                            final identity = Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  person.name,
+                                  style: peopleTitle(context, size: 20),
+                                ),
+                                const Text('Friend request'),
+                              ],
+                            );
+                            if (constraints.maxWidth < 280 ||
+                                MediaQuery.textScalerOf(context).scale(20) >
+                                    28) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  avatar,
+                                  const SizedBox(height: 12),
+                                  identity,
+                                ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                avatar,
+                                const SizedBox(width: 14),
+                                Expanded(child: identity),
+                              ],
+                            );
+                          },
                         ),
-                      );
-                    }
-                  },
-                  onCancel: controller.cancelInvite,
-                ),
-            ],
-          ),
-        ),
-        for (final person in state.candidates) ...[
-          const SizedBox(height: 18),
-          PaperSheet(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    FriendAvatar(
-                      friendKey: person.key,
-                      name: person.name,
-                      size: 52,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        '${person.name} wants to be your friend',
-                        style: peopleHand(context, size: 26),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Confirm only if this is the person you shared your invitation with.',
-                  style: TextStyle(color: palette.muted, height: 1.4),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    InkButton(
-                      label: 'Confirm friend',
-                      expand: false,
-                      onPressed: state.busy
-                          ? null
-                          : () => controller.confirm(person, true),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: palette.muted,
-                      ),
-                      onPressed: state.busy
-                          ? null
-                          : () => controller.confirm(person, false),
-                      child: const Text('Decline'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-        const SizedBox(height: 18),
-        PaperSheet(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Have an invitation?', style: peopleHand(context, size: 30)),
-              const SizedBox(height: 14),
-              InkButton(
-                label: 'Scan invitation',
-                icon: Icons.qr_code_scanner_rounded,
-                outlined: true,
-                onPressed: canReceive
-                    ? () async {
-                        final raw = await context.nav.push<String>(
-                          const PeopleScannerPage(),
-                        );
-                        if (raw != null && mounted) await _accept(raw);
-                      }
-                    : null,
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Row(
-                  children: [
-                    Expanded(child: Divider(color: palette.rule)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'or',
-                        style: peopleHand(
-                          context,
-                          size: 20,
-                          color: palette.muted,
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            InkButton(
+                              label: 'Confirm friend',
+                              expand: false,
+                              onPressed: state.busy
+                                  ? null
+                                  : () => _action(
+                                      context,
+                                      () => controller.confirm(person, true),
+                                    ),
+                            ),
+                            TextButton(
+                              onPressed: state.busy
+                                  ? null
+                                  : () => _action(
+                                      context,
+                                      () => controller.confirm(person, false),
+                                    ),
+                              child: const Text('Decline'),
+                            ),
+                          ],
                         ),
-                      ),
+                      ],
                     ),
-                    Expanded(child: Divider(color: palette.rule)),
-                  ],
-                ),
-              ),
-              TextField(
-                controller: _paste,
-                maxLength: 2048,
-                minLines: 2,
-                maxLines: 4,
-                enableSuggestions: false,
-                autocorrect: false,
-                decoration: InputDecoration(
-                  labelText: 'Paste invitation',
-                  filled: true,
-                  fillColor: palette.desk.withValues(alpha: .6),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
                   ),
                 ),
               ),
-              const SizedBox(height: 4),
-              InkButton(
-                label: 'Accept pasted invitation',
-                onPressed: state.supported && !state.busy
-                    ? () => _accept(_paste.text)
-                    : null,
+            if (state.candidates.isEmpty)
+              SliverToBoxAdapter(
+                child: invite == null || invite.expired
+                    ? _PeopleEmptyState(
+                        icon: Icons.qr_code_rounded,
+                        title: 'Make a new connection',
+                        message: 'Show your QR code or copy an invitation. Keep Journal open while your friend connects.',
+                        action: InkButton(
+                          label: 'Create invitation',
+                          icon: Icons.qr_code_rounded,
+                          expand: false,
+                          onPressed: canReceive
+                              ? () => _action(context, controller.createInvite)
+                              : null,
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: _InviteTicket(
+                          invite: invite,
+                          onCopy: () async {
+                            await Clipboard.setData(
+                              ClipboardData(text: invite.encode()),
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Invitation copied. Return here after sharing.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          onCancel: () =>
+                              _action(context, controller.cancelInvite),
+                        ),
+                      ),
               ),
-            ],
-          ),
+          ],
         ),
-        const SizedBox(height: 16),
-        Text(
-          'While connecting, wait here for your friend to confirm. Invitations expire after five minutes.',
-          style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: palette.muted),
+        PeopleTabView(
+          key: const ValueKey('people-accept-view'),
+          slivers: [
+            const SliverToBoxAdapter(child: _Status()),
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  InkButton(
+                    label: 'Scan invitation',
+                    icon: Icons.qr_code_scanner_rounded,
+                    onPressed: canReceive
+                        ? () async {
+                            final raw = await context.nav.push<String>(
+                              const PeopleScannerPage(),
+                            );
+                            if (raw != null && mounted) await _accept(raw);
+                          }
+                        : null,
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    'Invitation code',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _paste,
+                    maxLength: 2048,
+                    minLines: 3,
+                    maxLines: 5,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    decoration: InputDecoration(
+                      labelText: 'Paste invitation',
+                      alignLabelWithHint: true,
+                      filled: true,
+                      fillColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerLow,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      counterText: '',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  InkButton(
+                    label: 'Accept pasted invitation',
+                    outlined: true,
+                    onPressed: canReceive ? () => _accept(_paste.text) : null,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -785,7 +772,7 @@ class _PeopleScannerPageState extends State<PeopleScannerPage> {
         foregroundColor: Colors.white,
         title: Text(
           'Scan invitation',
-          style: peopleHand(context, size: 28, color: Colors.white),
+          style: peopleTitle(context, size: 28, color: Colors.white),
         ),
       ),
       body: Stack(
@@ -829,7 +816,7 @@ class _PeopleScannerPageState extends State<PeopleScannerPage> {
             child: Text(
               'Point at your friend’s invitation',
               textAlign: TextAlign.center,
-              style: peopleHand(context, size: 24, color: Colors.white),
+              style: peopleTitle(context, size: 24, color: Colors.white),
             ),
           ),
         ],
@@ -872,122 +859,112 @@ class _ViewfinderPainter extends CustomPainter {
 class FriendDetailsPage extends ConsumerWidget {
   const FriendDetailsPage({super.key, required this.friendKey});
   final String friendKey;
+
+  Future<void> _remove(
+    BuildContext context,
+    WidgetRef ref,
+    Person person,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove ${person.name}?'),
+        content: const Text(
+          'Their unopened notes will disappear. You will need a new invitation to connect again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.nav.pop(false),
+            child: const Text('Keep friend'),
+          ),
+          FilledButton(
+            onPressed: () => context.nav.pop(true),
+            child: const Text('Remove friend'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await _action(context, () async {
+        await ref.read(peopleControllerProvider.notifier).remove(person);
+        if (context.mounted) context.nav.pop();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(peopleControllerProvider);
-    final palette = PeoplePalette.of(context);
     final person = state.person(friendKey);
     final notes = state.notes
         .where((n) => n.friendKey == friendKey && !n.opened)
         .toList();
     return PeopleScaffold(
-      title: person?.name ?? 'Friend',
+      title: 'Friend',
+      actions: [
+        if (person != null)
+          PopupMenuButton<String>(
+            tooltip: 'Friend options',
+            onSelected: (_) => _remove(context, ref, person),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'remove',
+                child: Text(
+                  'Remove friend',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ],
+          ),
+      ],
       children: [
         const _Status(),
         if (person == null)
-          const Text('This friend has been removed.')
+          const _PeopleEmptyState(
+            icon: Icons.person_off_outlined,
+            title: 'Friend removed',
+            message: 'Add them again with a new invitation to reconnect.',
+          )
         else ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           Center(
             child: FriendAvatar(
               friendKey: person.key,
               name: person.name,
-              size: 116,
+              size: 96,
               hero: true,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             person.name,
             textAlign: TextAlign.center,
-            style: peopleHand(context, size: 44),
+            style: peopleTitle(context, size: 28),
           ),
-          Text(
-            'Every note between you burns after reading.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: palette.muted),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
           InkButton(
             key: const ValueKey('people-write-note'),
             label: 'Write a note',
-            icon: Icons.edit_rounded,
+            icon: Icons.edit_outlined,
             onPressed: () =>
                 context.nav.push(WritePeopleNotePage(friendKey: friendKey)),
           ),
           const SizedBox(height: 32),
           PeopleHeading(
-            'Unopened notes',
-            trailing: notes.isEmpty ? null : WaxBadge(count: notes.length),
+            'Notes',
+            trailing: notes.isEmpty ? null : Text('${notes.length} waiting'),
           ),
           if (notes.isEmpty)
-            CustomPaint(
-              painter: _DashedBorder(palette.muted.withValues(alpha: .4)),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.mark_email_unread_outlined,
-                      color: palette.muted,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'No unopened notes. Both apps must be open to receive one.',
-                        style: TextStyle(color: palette.muted, height: 1.4),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            const _PeopleEmptyState(
+              icon: Icons.mark_email_unread_outlined,
+              title: 'Nothing waiting, yet',
+              message: 'Keep both apps open to exchange notes. Each note disappears after reading.',
             )
           else
-            EnvelopeStack(
-              children: [
-                for (final (i, note) in notes.indexed)
-                  _NoteEnvelope(id: note.id, tilt: EnvelopeStack.tiltFor(i)),
-              ],
-            ),
-          const SizedBox(height: 40),
-          Center(
-            child: TextButton.icon(
-              style: TextButton.styleFrom(
-                foregroundColor: palette.wax.withValues(alpha: .85),
-              ),
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('Remove ${person.name}?'),
-                    content: const Text(
-                      'Their unopened notes will disappear. You will need a new invitation to connect again.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => context.nav.pop(false),
-                        child: const Text('Keep friend'),
-                      ),
-                      FilledButton(
-                        onPressed: () => context.nav.pop(true),
-                        child: const Text('Remove friend'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed == true && context.mounted) {
-                  await _action(context, () async {
-                    await ref
-                        .read(peopleControllerProvider.notifier)
-                        .remove(person);
-                    if (context.mounted) context.nav.pop();
-                  });
-                }
-              },
-              icon: const Icon(Icons.person_remove_outlined),
-              label: const Text('Remove friend'),
-            ),
-          ),
+            for (final note in notes) ...[
+              _NoteTile(id: note.id),
+              const SizedBox(height: 12),
+            ],
         ],
       ],
     );
@@ -1074,7 +1051,7 @@ class _WritePeopleNotePageState extends ConsumerState<WritePeopleNotePage>
     final words = peopleWordCount(_text.text);
     final bytes = utf8.encode(_text.text).length;
     const lineHeight = 30.0;
-    final body = peopleSerif(context, size: 17);
+    final body = peopleBody(context, size: 17);
     return PeopleScaffold(
       title: 'Write a note',
       children: [
@@ -1093,7 +1070,7 @@ class _WritePeopleNotePageState extends ConsumerState<WritePeopleNotePage>
               Expanded(
                 child: Text(
                   'For ${person.name}',
-                  style: peopleHand(context, size: 34),
+                  style: peopleTitle(context, size: 20),
                 ),
               ),
             ],
@@ -1155,7 +1132,7 @@ class _WritePeopleNotePageState extends ConsumerState<WritePeopleNotePage>
             child: PeopleChip(
               icon: const FlameIcon(size: 14),
               label:
-                  '${peopleReadingTime(_text.text).inSeconds} seconds to read, starting when opened.',
+                  '${peopleReadingTime(_text.text).inSeconds} seconds to read',
             ),
           ),
           const SizedBox(height: 20),
@@ -1171,12 +1148,14 @@ class _WritePeopleNotePageState extends ConsumerState<WritePeopleNotePage>
                 ? _send
                 : null,
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Keep both apps open. This makes one attempt and discards the draft. Nothing is saved for later delivery.',
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: palette.muted),
-          ),
+          if (_text.text.isEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Keep both apps open to send. Notes disappear after reading and aren’t saved.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: palette.muted),
+            ),
+          ],
         ],
       ],
     );
@@ -1216,7 +1195,9 @@ class _WordMeter extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          '$words / 500 words · $bytes / 8192 bytes',
+          bytes > 8192
+              ? 'Note is too large · $words / 500 words'
+              : '$words / 500 words',
           style: Theme.of(context).textTheme.labelMedium
               ?.copyWith(color: over ? palette.wax : palette.muted),
         ),
@@ -1225,24 +1206,44 @@ class _WordMeter extends StatelessWidget {
   }
 }
 
-class _NoteEnvelope extends ConsumerWidget {
-  const _NoteEnvelope({required this.id, this.tilt = 0});
+class _NoteTile extends ConsumerWidget {
+  const _NoteTile({super.key, required this.id});
   final int id;
-  final double tilt;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(peopleControllerProvider);
     final note = state.note(id);
     if (note == null || note.opened) return const SizedBox.shrink();
-    return SealedEnvelope(
-      friendKey: note.friendKey,
-      name: state.person(note.friendKey)?.name ?? 'a friend',
-      seconds: note.duration.inSeconds,
-      tilt: tilt,
-      onOpen: () {
-        ref.read(peopleControllerProvider.notifier).openNote(id);
-        context.nav.push(ReadPeopleNotePage(noteId: id));
-      },
+    final name = state.person(note.friendKey)?.name ?? 'a friend';
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+        leading: FriendAvatar(friendKey: note.friendKey, name: name, size: 44),
+        title: Text('From $name', style: peopleTitle(context, size: 16)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            children: [
+              const FlameIcon(size: 13),
+              const SizedBox(width: 6),
+              Flexible(child: Text('${note.duration.inSeconds}s · Opens once')),
+            ],
+          ),
+        ),
+        trailing: const Icon(Icons.arrow_outward_rounded, size: 20),
+        onTap: () {
+          ref.read(peopleControllerProvider.notifier).openNote(id);
+          context.nav.push(ReadPeopleNotePage(noteId: id));
+        },
+      ),
     );
   }
 }
@@ -1299,76 +1300,180 @@ class _ReadPeopleNotePageState extends ConsumerState<ReadPeopleNotePage>
         note.remaining > Duration.zero;
     if (_wasVisible && !visible) HapticFeedback.mediumImpact();
     _wasVisible = visible;
-    const lineHeight = 30.0;
-    final body = peopleSerif(context, size: 17);
-    return PeopleScaffold(
-      title: visible
-          ? 'From ${state.person(note.friendKey)?.name ?? 'a friend'}'
-          : 'Note disappeared',
-      // The sheet sits in a wide margin so its shadow burns with it.
-      padding: const EdgeInsets.fromLTRB(0, 8, 0, 40),
-      children: [
-        if (visible) ...[
-          Row(
-            children: [
-              const SizedBox(width: 20),
-              _Countdown(note: note),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Closing this page discards the note.',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: palette.muted),
-                ),
-              ),
-              const SizedBox(width: 20),
-            ],
-          ),
-          const SizedBox(height: 6),
-          BurningPaper(
-            seed: note.id,
-            inset: 30,
-            progress: () =>
-                1 -
-                note.remaining.inMilliseconds / note.duration.inMilliseconds,
-            child: Padding(
-              // Keeps the sheet's shadow inside the burn mask.
-              padding: const EdgeInsets.fromLTRB(30, 30, 30, 30),
-              child: PaperSheet(
-                ruled: true,
-                lineHeight: lineHeight,
-                padding: const EdgeInsets.fromLTRB(28, 18, 20, 30),
-                child: Text(
-                  note.text,
-                  style: body,
-                  strutStyle: StrutStyle(
-                    fontFamily: body.fontFamily,
-                    fontSize: 17,
-                    height: lineHeight / 17,
-                    forceStrutHeight: true,
-                  ),
-                ),
+    final theme = Theme.of(context);
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.height < 650;
+    final wide = size.width > size.height * 1.3;
+    final verticalPadding = compact ? 0.0 : 12.0;
+    final name = visible
+        ? state.person(note.friendKey)?.name ?? 'a friend'
+        : null;
+    final reader = LayoutBuilder(
+      builder: (context, viewport) => Scrollbar(
+        child: SingleChildScrollView(
+          key: const ValueKey('people-reading-scroll'),
+          padding: EdgeInsets.symmetric(vertical: verticalPadding),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: max(0, viewport.maxHeight - verticalPadding * 2),
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: visible
+                    ? LayoutBuilder(
+                        builder: (context, paper) => BurningPaper(
+                          seed: note.id,
+                          inset: 28,
+                          progress: () =>
+                              1 -
+                              note.remaining.inMilliseconds /
+                                  note.duration.inMilliseconds,
+                          child: Padding(
+                            // Keep the paper and its shadow inside the burn mask.
+                            padding: const EdgeInsets.all(28),
+                            child: ReadingNoteSheet(
+                              text: note.text,
+                              minHeight: max(
+                                280,
+                                min(
+                                  420,
+                                  min(
+                                    (paper.maxWidth - 56) * 1.08,
+                                    viewport.maxHeight -
+                                        56 -
+                                        verticalPadding * 2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24),
+                        child: _Disappeared(),
+                      ),
               ),
             ),
           ),
-        ] else
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: _Disappeared(),
-          ),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: InkButton(
-            label: 'Close',
-            outlined: true,
-            onPressed: () {
-              _controller.discardNote(widget.noteId);
-              context.nav.pop();
-            },
-          ),
         ),
-      ],
+      ),
+    );
+    final countdown = visible
+        ? Padding(
+            key: const ValueKey('people-reading-countdown'),
+            padding: EdgeInsets.only(
+              top: compact ? 4 : 8,
+              bottom: compact ? 0 : 4,
+            ),
+            child: Center(child: _Countdown(note: note)),
+          )
+        : const SizedBox.shrink();
+    final hint = Text(
+      'Disappears when closed',
+      textAlign: TextAlign.center,
+      style: theme.textTheme.bodySmall?.copyWith(color: palette.muted),
+    );
+    final close = Semantics(
+      hint: compact && !wide && visible ? 'Closing discards this note' : null,
+      child: InkButton(
+        key: const ValueKey('people-close-note'),
+        label: 'Close',
+        icon: Icons.close_rounded,
+        outlined: true,
+        onPressed: () {
+          _controller.discardNote(widget.noteId);
+          context.nav.pop();
+        },
+      ),
+    );
+    return QvacAssistantPage(
+      enabled: false,
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          surfaceTintColor: Colors.transparent,
+          scrolledUnderElevation: 0,
+          title: visible
+              ? Row(
+                  children: [
+                    FriendAvatar(
+                      friendKey: note.friendKey,
+                      name: name!,
+                      size: 32,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'From $name',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
+                )
+              : const Text('Note disappeared'),
+        ),
+        body: SafeArea(
+          top: false,
+          child: wide
+              ? Row(
+                  children: [
+                    Expanded(child: reader),
+                    SizedBox(
+                      width: 200,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 16, 28, 16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (visible) ...[
+                              countdown,
+                              const SizedBox(height: 20),
+                              hint,
+                              const SizedBox(height: 16),
+                            ],
+                            close,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  children: [
+                    if (visible) countdown,
+                    Expanded(child: reader),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            28,
+                            compact ? 4 : 8,
+                            28,
+                            compact ? 12 : 16,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (visible && !compact) ...[
+                                hint,
+                                const SizedBox(height: 12),
+                              ],
+                              close,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
     );
   }
 }
@@ -1444,7 +1549,7 @@ class _Disappeared extends StatelessWidget {
             Text(
               'This note has disappeared.',
               textAlign: TextAlign.center,
-              style: peopleHand(context, size: 28),
+              style: peopleTitle(context, size: 22),
             ),
             const SizedBox(height: 6),
             Text(
@@ -1531,7 +1636,7 @@ class PeopleHost extends ConsumerWidget {
       if (navContext == null) return;
       final messenger = ScaffoldMessenger.maybeOf(navContext);
       if (!next.foreground) {
-        messenger?.hideCurrentSnackBar();
+        messenger?.clearSnackBars();
         return;
       }
       final oldIds = previous?.notes.map((n) => n.id).toSet() ?? <int>{};
@@ -1539,18 +1644,45 @@ class PeopleHost extends ConsumerWidget {
           .where((n) => !oldIds.contains(n.id))
           .firstOrNull;
       if (incoming == null) return;
+      if (messenger == null) return;
       final name = next.person(incoming.friendKey)?.name ?? 'a friend';
-      messenger?.showSnackBar(
+      // Keep arrivals current instead of replaying a backlog of old notices.
+      messenger.clearSnackBars();
+      final reduced = MediaQuery.disableAnimationsOf(navContext);
+      messenger.showSnackBar(
         SnackBar(
-          content: Text('A note from $name'),
-          action: SnackBarAction(
-            label: 'Open Friends',
-            onPressed: () {
-              final context = navigatorKey.currentContext;
-              if (context != null) context.nav.push(const PeoplePage());
-            },
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          padding: EdgeInsets.zero,
+          clipBehavior: Clip.none,
+          duration: const Duration(seconds: 8),
+          persist: MediaQuery.accessibleNavigationOf(navContext),
+          content: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: NoteArrivalBanner(
+                key: ValueKey('people-arrival-${incoming.id}'),
+                name: name,
+                friendKey: incoming.friendKey,
+                onDismiss: () => messenger.hideCurrentSnackBar(),
+                onOpen: () {
+                  messenger.hideCurrentSnackBar();
+                  final context = navigatorKey.currentContext;
+                  if (context != null) context.nav.push(const PeoplePage());
+                },
+              ),
+            ),
           ),
         ),
+        snackBarAnimationStyle: reduced
+            ? AnimationStyle.noAnimation
+            : const AnimationStyle(
+                duration: Duration(milliseconds: 400),
+                reverseDuration: Duration(milliseconds: 240),
+              ),
       );
     });
     return child;

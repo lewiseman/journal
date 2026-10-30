@@ -24,7 +24,9 @@ import 'package:journal/modules/notes/models/note_attachment.dart';
 
 import 'package:journal/modules/notes/models/note_tag.dart';
 
+import '../../presentation/website_assets.dart';
 import '../../presentation/website_contract.dart';
+import '../../presentation/website_render.dart';
 
 import 'package:journal/modules/diary/controllers/diary_providers.dart';
 import 'package:journal/modules/diary/history/diary_history_contract.dart';
@@ -455,9 +457,14 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         await summaryRevision(note) == handle.revision;
   }
 
-  /// A self-contained website from saved note [noteId], shown as its
-  /// preview. Only the title, content and [description] are sent.
-  Future<void> startNoteWebsite(String noteId, String description) async {
+  /// A themed website from saved note [noteId], shown as its preview. Only
+  /// the title, content, [description], [theme] (an id or `auto`) and the
+  /// number of photos the note has are sent.
+  Future<void> startNoteWebsite(
+    String noteId,
+    String description, {
+    String theme = 'auto',
+  }) async {
     if (!await _readyToStart()) return;
     final generation = ++_generation;
     _show('submitting', busy: true, stale: false);
@@ -482,21 +489,23 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         title: note.title,
         content: note.content,
         description: description,
+        theme: theme,
+        photos: websitePhotos(note.attachments).length,
       );
-      final input = request.request();
       final computer = _capableProvider(
-        contractKey: 'websiteContract',
-        contract: noteWebsiteContract,
-        operation: noteWebsiteOperation,
+        contractKey: 'websiteDesignContract',
+        contract: noteWebsiteDesignContract,
+        operation: noteWebsiteDesignOperation,
         fallback: 'Your note is unchanged.',
         update: 'Update the companion to make websites.',
       );
+      final input = request.request();
       await _submitNew(
         generation,
         noteId: noteId,
         local: request.encode(),
         input: input,
-        operation: noteWebsiteOperation,
+        operation: request.operation,
         computer: computer,
       );
     } catch (error) {
@@ -2012,7 +2021,11 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         !invalidOutput &&
         handle.isNoteWebsite) {
       try {
-        await sanitizeWebsiteBounded(job['text'] as String);
+        await websitePageFromOutput(
+          handle.operation,
+          job['text'] as String,
+          source: handle.localSource,
+        );
       } catch (_) {
         invalidOutput = true;
       }
@@ -2132,7 +2145,11 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
     final handle = state.handle, text = state.text;
     if (handle == null || !handle.isNoteWebsite || text == null) return null;
     try {
-      return await sanitizeWebsiteBounded(text);
+      return await websitePageFromOutput(
+        handle.operation,
+        text,
+        source: handle.localSource,
+      );
     } catch (_) {
       return null;
     }
@@ -2157,7 +2174,11 @@ class NoteSummaryController extends Notifier<NoteSummaryState> {
         return false;
       }
       final request = WebsiteRequest.decode(handle.localSource!);
-      final html = await sanitizeWebsiteBounded(text);
+      final html = await websitePageFromOutput(
+        handle.operation,
+        text,
+        source: handle.localSource,
+      );
       if (!_alive(generation) || state.handle?.id != handle.id) return false;
       ref
           .read(notesRepositoryProvider)

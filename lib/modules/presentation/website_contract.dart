@@ -6,12 +6,37 @@ import 'package:cryptography/cryptography.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html;
 
-/// A self-contained website generated from one saved note.
+/// The retired freehand website, written whole by the model. It is no longer
+/// requested; the name stays so saved pages and older jobs still read.
 const noteWebsiteOperation = 'present-website';
-const noteWebsiteContract = 1;
 const noteWebsiteInputBytes = 2000;
 const noteWebsiteDescriptionChars = 240;
 const noteWebsiteOutputBytes = 16384;
+
+/// A themed website: the computer returns a [WebsiteSpec] of the note's own
+/// words, and this phone draws it with a hand-built theme.
+const noteWebsiteDesignOperation = 'design-website';
+const noteWebsiteDesignContract = 1;
+const websiteThemeIds = [
+  'editorial',
+  'zine',
+  'garden',
+  'notebook',
+  'night',
+  'postcard',
+];
+const websiteAccents = ['ink', 'rose', 'ocean', 'forest', 'sun', 'plum'];
+const websiteSectionKinds = [
+  'text',
+  'cards',
+  'list',
+  'timeline',
+  'quote',
+  'stats',
+  'photos',
+];
+const websiteMaxPhotos = 6;
+const websiteSpecBytes = 8192;
 
 final _control = RegExp(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]');
 
@@ -24,7 +49,8 @@ String websiteContentHash(String content) => Sha256()
     .join();
 
 /// What was asked for, and the note at that moment. Only the title, content
-/// and description are sent.
+/// and description are sent, plus for a themed website the theme and how
+/// many photos the note has; the photos themselves stay on this phone.
 class WebsiteRequest {
   const WebsiteRequest({
     required this.noteId,
@@ -32,8 +58,18 @@ class WebsiteRequest {
     required this.title,
     required this.content,
     required this.description,
+    this.theme = '',
+    this.photos = 0,
   });
   final String noteId, version, title, content, description;
+
+  /// A [websiteThemeIds] entry or `auto`; empty for a freehand website.
+  final String theme;
+  final int photos;
+
+  bool get themed => theme.isNotEmpty;
+  String get operation =>
+      themed ? noteWebsiteDesignOperation : noteWebsiteOperation;
 
   String get contentHash => websiteContentHash(content);
 
@@ -49,10 +85,17 @@ class WebsiteRequest {
         'Describe the website in one line of at most 240 characters.',
       );
     }
+    if (themed &&
+        ((theme != 'auto' && !websiteThemeIds.contains(theme)) ||
+            photos < 0 ||
+            photos > websiteMaxPhotos)) {
+      throw const FormatException('Choose one of the website themes.');
+    }
     final value = jsonEncode({
       'title': title.trim(),
       'text': content,
       'description': clean,
+      if (themed) ...{'theme': theme, 'photos': photos},
     });
     if (utf8.encode(value).length > noteWebsiteInputBytes) {
       throw const FormatException(
@@ -68,6 +111,7 @@ class WebsiteRequest {
     'title': title,
     'content': content,
     'description': description,
+    if (themed) ...{'theme': theme, 'photos': photos},
   });
 
   factory WebsiteRequest.decode(String raw) {
@@ -88,6 +132,153 @@ class WebsiteRequest {
       title: json['title'] as String,
       content: json['content'] as String,
       description: json['description'] as String,
+      theme: json['theme'] is String ? json['theme'] as String : '',
+      photos: json['photos'] is int ? json['photos'] as int : 0,
+    );
+  }
+}
+
+/// One titled entry of a cards, list, timeline or stats section.
+class WebsiteItem {
+  const WebsiteItem({required this.title, required this.text});
+  final String title, text;
+
+  Map<String, Object> toJson() => {'title': title, 'text': text};
+}
+
+class WebsiteSection {
+  const WebsiteSection({
+    required this.kind,
+    this.heading = '',
+    this.body = '',
+    this.items = const [],
+    this.photo = -1,
+  });
+  final String kind, heading, body;
+  final List<WebsiteItem> items;
+
+  /// Index into the note's image attachments, or -1 for none.
+  final int photo;
+
+  Map<String, Object> toJson() => {
+    'kind': kind,
+    'heading': heading,
+    'body': body,
+    'items': [for (final item in items) item.toJson()],
+    'photo': photo,
+  };
+}
+
+/// The structure of a themed website, in the note's own words. Every string
+/// is plain text; the renderer escapes it.
+class WebsiteSpec {
+  const WebsiteSpec({
+    required this.theme,
+    required this.accent,
+    required this.heading,
+    this.tagline = '',
+    required this.sections,
+  });
+  final String theme, accent, heading, tagline;
+  final List<WebsiteSection> sections;
+
+  WebsiteSpec withStyle({String? theme, String? accent}) => WebsiteSpec(
+    theme: theme ?? this.theme,
+    accent: accent ?? this.accent,
+    heading: heading,
+    tagline: tagline,
+    sections: sections,
+  );
+
+  String encode() => jsonEncode({
+    'theme': theme,
+    'accent': accent,
+    'hero': {'heading': heading, 'tagline': tagline},
+    'sections': [for (final section in sections) section.toJson()],
+  });
+
+  /// Throws [FormatException] unless [raw] is a spec within the contract.
+  /// [photos] bounds photo indexes; null skips that check (a synced page
+  /// may come from a device with different attachments).
+  factory WebsiteSpec.decode(String raw, {int? photos}) {
+    var text = raw.trim();
+    final fence = RegExp(
+      r'^```(?:json)?\s*\n([\s\S]*?)\n?```$',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (fence != null) text = fence.group(1)!.trim();
+    if (utf8.encode(text).length > websiteSpecBytes) {
+      throw const FormatException('Oversized website');
+    }
+    Object? json;
+    try {
+      json = jsonDecode(text);
+    } on FormatException {
+      throw const FormatException('Invalid website');
+    }
+    String plain(Object? value, int chars, {bool lines = false}) {
+      if (value is! String ||
+          value.runes.length > chars ||
+          (lines ? _control : RegExp(r'[\x00-\x1f\x7f]')).hasMatch(value)) {
+        throw const FormatException('Invalid website');
+      }
+      return value;
+    }
+
+    Map keyed(Object? value, String keys) {
+      if (value is! Map ||
+          (value.keys.map((k) => '$k').toList()..sort()).join(',') != keys) {
+        throw const FormatException('Invalid website');
+      }
+      return value;
+    }
+
+    final spec = keyed(json, 'accent,hero,sections,theme');
+    final hero = keyed(spec['hero'], 'heading,tagline');
+    final sections = spec['sections'];
+    if (!websiteThemeIds.contains(spec['theme']) ||
+        !websiteAccents.contains(spec['accent']) ||
+        sections is! List ||
+        sections.isEmpty ||
+        sections.length > 8) {
+      throw const FormatException('Invalid website');
+    }
+    return WebsiteSpec(
+      theme: spec['theme'] as String,
+      accent: spec['accent'] as String,
+      heading: plain(hero['heading'], 80),
+      tagline: plain(hero['tagline'], 160),
+      sections: [
+        for (final value in sections)
+          () {
+            final section = keyed(value, 'body,heading,items,kind,photo');
+            final items = section['items'], photo = section['photo'];
+            if (!websiteSectionKinds.contains(section['kind']) ||
+                items is! List ||
+                items.length > 6 ||
+                photo is! int ||
+                photo < -1 ||
+                photo >= (photos ?? websiteMaxPhotos)) {
+              throw const FormatException('Invalid website');
+            }
+            return WebsiteSection(
+              kind: section['kind'] as String,
+              heading: plain(section['heading'], 80),
+              body: plain(section['body'], 600, lines: true),
+              items: [
+                for (final item in items)
+                  () {
+                    final entry = keyed(item, 'text,title');
+                    return WebsiteItem(
+                      title: plain(entry['title'], 80),
+                      text: plain(entry['text'], 240, lines: true),
+                    );
+                  }(),
+              ],
+              photo: photo,
+            );
+          }(),
+      ],
     );
   }
 }

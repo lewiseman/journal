@@ -143,18 +143,35 @@ class FlowReflection extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
           ],
-          TextButton.icon(
-            key: const ValueKey('flow-reflect'),
-            style: button,
-            onPressed: summary.busy && working
-                ? null
-                : () => controller.request(thought),
-            icon: const Icon(Icons.auto_awesome_outlined, size: 18),
-            label: Text(kept == null ? 'Reflect on this' : 'Reflect again'),
-          ),
-          Text(
-            'Sends only this thought’s text to your paired computer. Nothing is saved unless you keep it.',
-            style: quiet,
+          Center(
+            child: TextButton(
+              key: const ValueKey('flow-reflect'),
+              style: button.copyWith(
+                padding: const WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+              onPressed: summary.busy && working
+                  ? null
+                  : () => controller.request(thought),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/images/flow_reflect.png',
+                    width: 72,
+                    height: 72,
+                    filterQuality: FilterQuality.high,
+                    excludeFromSemantics: true,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    kept == null ? 'Reflect on this' : 'Reflect again',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ],

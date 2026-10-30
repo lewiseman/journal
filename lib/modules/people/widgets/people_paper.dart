@@ -1,12 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:journal/config/diary_typography.dart';
 import 'package:journal/config/theme.dart';
 import 'package:journal/modules/assistant/qvac_assistant_scope.dart';
 
-/// Stationery colours shared by every People page: warm desk, cream paper,
-/// brown ink and a red wax seal.
+/// App surfaces and accents, with warm paper reserved for the notes themselves.
 @immutable
 class PeoplePalette {
   const PeoplePalette._({
@@ -19,27 +17,22 @@ class PeoplePalette {
     required this.rule,
   });
 
-  static const _light = PeoplePalette._(
-    desk: Color(0xFFF2E9DA),
-    paper: Color(0xFFFCF7EE),
-    ink: Color(0xFF3A2E28),
-    muted: Color(0xFF8A7768),
-    clay: Color(0xFF9B6456),
-    wax: Color(0xFFA8322D),
-    rule: Color(0x1F3A2E28),
-  );
-  static const _dark = PeoplePalette._(
-    desk: Color(0xFF1C1815),
-    paper: Color(0xFF2A241F),
-    ink: Color(0xFFEDE2D2),
-    muted: Color(0xFFA8998A),
-    clay: Color(0xFFE6B4A7),
-    wax: Color(0xFFC9473F),
-    rule: Color(0x1FEDE2D2),
-  );
-
-  static PeoplePalette of(BuildContext context) =>
-      context.isDark ? _dark : _light;
+  static PeoplePalette of(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final paper = context.isDark
+        ? const Color(0xFF2A241F)
+        : const Color(0xFFFCF7EE);
+    return PeoplePalette._(
+      desk: theme.scaffoldBackgroundColor,
+      paper: paper,
+      ink: colors.onSurface,
+      muted: colors.onSurfaceVariant,
+      clay: colors.primary,
+      wax: colors.error,
+      rule: colors.outlineVariant,
+    );
+  }
 
   final Color desk, paper, ink, muted, clay, wax, rule;
 
@@ -47,31 +40,33 @@ class PeoplePalette {
   static const scorchColor = Color(0xFF7A4A1E);
 }
 
-TextStyle peopleHand(BuildContext context, {double size = 30, Color? color}) =>
-    DiaryTypography.of(context).title.copyWith(
+TextStyle peopleTitle(BuildContext context, {double size = 30, Color? color}) =>
+    Theme.of(context).textTheme.titleLarge!.copyWith(
       fontSize: size,
-      height: 1.1,
+      fontWeight: FontWeight.w600,
+      height: 1.25,
       color: color ?? PeoplePalette.of(context).ink,
     );
 
-TextStyle peopleSerif(BuildContext context, {double? size, Color? color}) =>
-    DiaryTypography.of(context).body.copyWith(
+TextStyle peopleBody(BuildContext context, {double? size, Color? color}) =>
+    Theme.of(context).textTheme.bodyLarge!.copyWith(
       fontSize: size,
       color: color ?? PeoplePalette.of(context).ink,
     );
 
-/// The common page frame: a desk-coloured background, a quiet app bar with
-/// a handwritten title and a centred, width-limited column.
+/// Shared app background, typography and a width-limited scrolling body.
 class PeopleScaffold extends StatelessWidget {
   const PeopleScaffold({
     super.key,
     required this.title,
     required this.children,
     this.padding = const EdgeInsets.fromLTRB(20, 8, 20, 40),
+    this.actions,
   });
   final String title;
   final List<Widget> children;
   final EdgeInsets padding;
+  final List<Widget>? actions;
 
   @override
   Widget build(BuildContext context) {
@@ -86,13 +81,14 @@ class PeopleScaffold extends StatelessWidget {
           foregroundColor: palette.ink,
           elevation: 0,
           scrolledUnderElevation: 0,
-          title: Text(title, style: peopleHand(context, size: 28)),
+          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          actions: actions,
         ),
         body: SafeArea(
           top: false,
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 580),
+              constraints: const BoxConstraints(maxWidth: 680),
               child: ListView(padding: padding, children: children),
             ),
           ),
@@ -100,6 +96,222 @@ class PeopleScaffold extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Coordinated tab scrolling keeps the tabs visible as the title collapses.
+class PeopleTabbedScaffold extends StatelessWidget {
+  const PeopleTabbedScaffold({
+    super.key,
+    required this.title,
+    required this.tabs,
+    required this.views,
+    this.actions,
+    this.headerArtwork,
+  });
+
+  final String title;
+  final List<Widget> tabs, views;
+  final List<Widget>? actions;
+  final Widget? headerArtwork;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final artwork = headerArtwork;
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final compactHeader = MediaQuery.sizeOf(context).height < 500;
+    final tabHeight = artwork == null ? kTextTabBarHeight : 76.0;
+    final expandedHeight = artwork == null
+        ? null
+        : compactHeader
+        ? 224.0
+        : 280.0;
+    return DefaultTabController(
+      length: tabs.length,
+      child: QvacAssistantPage(
+        enabled: false,
+        child: Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          body: NestedScrollView(
+            headerSliverBuilder: (context, _) => [
+              SliverOverlapAbsorber(
+                handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
+                  context,
+                ),
+                sliver: artwork == null
+                    ? SliverAppBar.large(
+                        backgroundColor: theme.scaffoldBackgroundColor,
+                        surfaceTintColor: Colors.transparent,
+                        title: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        actions: actions,
+                        bottom: TabBar(
+                          tabs: tabs,
+                          labelStyle: theme.textTheme.labelLarge,
+                          unselectedLabelStyle: theme.textTheme.labelLarge,
+                          dividerColor: theme.colorScheme.outlineVariant,
+                        ),
+                      )
+                    : SliverLayoutBuilder(
+                        builder: (context, constraints) {
+                          final expansion =
+                              1 -
+                              (constraints.scrollOffset /
+                                      (expandedHeight! -
+                                          kToolbarHeight -
+                                          tabHeight))
+                                  .clamp(0.0, 1.0);
+                          final inset = max(
+                            20.0,
+                            (constraints.crossAxisExtent - 640) / 2,
+                          );
+                          final canPop = Navigator.of(context).canPop();
+                          return SliverAppBar(
+                            pinned: true,
+                            expandedHeight: expandedHeight,
+                            backgroundColor: theme.scaffoldBackgroundColor,
+                            surfaceTintColor: Colors.transparent,
+                            scrolledUnderElevation: 0,
+                            actions: actions,
+                            flexibleSpace: FlexibleSpaceBar(
+                              expandedTitleScale: textScale > 1.4 ? 1.15 : 1.6,
+                              centerTitle: false,
+                              titlePadding: EdgeInsetsDirectional.only(
+                                start:
+                                    inset + (canPop ? 52 : 0) * (1 - expansion),
+                                bottom:
+                                    tabHeight +
+                                    4 +
+                                    (compactHeader ? 20 : 40) * expansion,
+                              ),
+                              title: Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -.35,
+                                ),
+                              ),
+                              background: SafeArea(
+                                bottom: false,
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      top: compactHeader ? 48 : 64,
+                                      right: inset,
+                                      width: min(
+                                        compactHeader ? 104.0 : 164.0,
+                                        (constraints.crossAxisExtent -
+                                                inset * 2) *
+                                            .44,
+                                      ),
+                                      height: compactHeader ? 104 : 164,
+                                      child: artwork,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            bottom: PreferredSize(
+                              preferredSize: Size.fromHeight(tabHeight),
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  inset,
+                                  4,
+                                  inset,
+                                  16,
+                                ),
+                                child: Container(
+                                  height: 56,
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        theme.colorScheme.surfaceContainerLow,
+                                    borderRadius: BorderRadius.circular(22),
+                                    border: Border.all(
+                                      color: theme.colorScheme.outlineVariant
+                                          .withValues(alpha: .45),
+                                    ),
+                                  ),
+                                  child: TabBar(
+                                    tabs: tabs,
+                                    dividerHeight: 0,
+                                    indicatorSize: TabBarIndicatorSize.tab,
+                                    indicatorAnimation:
+                                        TabIndicatorAnimation.linear,
+                                    indicator: BoxDecoration(
+                                      color: theme.colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(17),
+                                      border: Border.all(
+                                        color: theme.colorScheme.primary
+                                            .withValues(alpha: .12),
+                                      ),
+                                    ),
+                                    labelPadding: EdgeInsets.symmetric(
+                                      horizontal: textScale > 1.4 ? 4 : 10,
+                                    ),
+                                    labelStyle: theme.textTheme.labelLarge
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                    unselectedLabelStyle:
+                                        theme.textTheme.labelLarge,
+                                    labelColor:
+                                        theme.colorScheme.onPrimaryContainer,
+                                    unselectedLabelColor:
+                                        theme.colorScheme.onSurfaceVariant,
+                                    splashBorderRadius: BorderRadius.circular(
+                                      17,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+            body: TabBarView(children: views),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PeopleTabView extends StatelessWidget {
+  const PeopleTabView({super.key, required this.slivers});
+  final List<Widget> slivers;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    bottom: false,
+    child: Builder(
+      builder: (context) => CustomScrollView(
+        key: PageStorageKey(key),
+        slivers: [
+          SliverOverlapInjector(
+            handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+          ),
+          SliverLayoutBuilder(
+            builder: (context, constraints) => SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                max(20, (constraints.crossAxisExtent - 640) / 2),
+                20,
+                max(20, (constraints.crossAxisExtent - 640) / 2),
+                24 + MediaQuery.paddingOf(context).bottom,
+              ),
+              sliver: SliverMainAxisGroup(slivers: slivers),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// A sheet of cream paper with a soft shadow, a faint fibre texture and,
@@ -309,7 +521,7 @@ class _FlamePainter extends CustomPainter {
   bool shouldRepaint(_FlamePainter old) => old.color != color;
 }
 
-/// A stationery-style primary action: an ink pill with a handwritten label.
+/// A primary action using the app's colors and button typography.
 class InkButton extends StatelessWidget {
   const InkButton({
     super.key,
@@ -326,52 +538,29 @@ class InkButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = PeoplePalette.of(context);
-    final enabled = onPressed != null;
-    final ink = enabled ? palette.ink : palette.ink.withValues(alpha: .3);
-    final background = outlined ? Colors.transparent : ink;
-    final foreground = outlined ? ink : palette.paper;
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      child: Material(
-        color: background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: outlined
-              ? BorderSide(color: ink.withValues(alpha: .45), width: 1.2)
-              : BorderSide.none,
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-            child: Row(
-              mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, color: foreground, size: 20),
-                  const SizedBox(width: 10),
-                ],
-                Flexible(
-                  child: Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: peopleHand(context, size: 24, color: foreground),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+    final child = Row(
+      mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (icon != null) ...[Icon(icon, size: 20), const SizedBox(width: 8)],
+        Flexible(child: Text(label, textAlign: TextAlign.center)),
+      ],
+    );
+    final style = ButtonStyle(
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      ),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
+    return outlined
+        ? OutlinedButton(onPressed: onPressed, style: style, child: child)
+        : FilledButton(onPressed: onPressed, style: style, child: child);
   }
 }
 
-/// A heading in the handwriting font with an underline stroke.
+/// A compact section heading in the app's selected font.
 class PeopleHeading extends StatelessWidget {
   const PeopleHeading(this.text, {super.key, this.trailing});
   final String text;
@@ -382,7 +571,7 @@ class PeopleHeading extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Expanded(child: Text(text, style: peopleHand(context, size: 26))),
+        Expanded(child: Text(text, style: peopleTitle(context, size: 18))),
         ?trailing,
       ],
     ),
