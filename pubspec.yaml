@@ -45,6 +45,7 @@ dependencies:
   bonsoir: 7.1.6
   flutter_tts: ^4.2.5
   webview_flutter: ^4.14.1
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   integration_test:

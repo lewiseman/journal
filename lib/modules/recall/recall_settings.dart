@@ -30,7 +30,7 @@ class RecallSettings extends ConsumerWidget {
         const SizedBox(height: 4),
         const Text(
           'Find diary entries, notes and thoughts by what they mean, not only the words you remember. '
-          'Turning a collection on sends all of its text to your paired computer, in small batches, '
+          'Each collection that is on sends all of its text to your paired computer, in small batches, '
           'so its embedding model can index it. The resulting vectors stay on this phone; the computer '
           'keeps none of the text once each batch is collected. Turning a collection off deletes its vectors.',
         ),

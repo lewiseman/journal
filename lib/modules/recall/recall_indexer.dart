@@ -11,8 +11,8 @@ import 'package:journal/modules/settings/companion/companion_controller.dart';
 import 'package:journal/modules/settings/companion/companion_protocol.dart';
 import 'package:journal/utils/cache.dart';
 
-/// Device-local opt-ins, one per collection. Not synced: each phone decides
-/// what it sends to its own paired computer.
+/// Device-local switches, one per collection, on unless turned off. Not
+/// synced: each phone decides what it sends to its own paired computer.
 const recallKeys = {
   RecallKind.diary: CacheKey<bool>(CacheNamespace.app, 'recallDiary'),
   RecallKind.note: CacheKey<bool>(CacheNamespace.app, 'recallNotes'),
@@ -31,10 +31,10 @@ class CachedRecallPreference implements RecallPreference {
     try {
       return {
         for (final e in recallKeys.entries)
-          if (CacheStorage.instance.get(e.value) ?? false) e.key,
+          if (CacheStorage.instance.get(e.value) ?? true) e.key,
       };
     } on StateError {
-      return const {}; // Storage not initialized: stay opted out.
+      return const {}; // Storage not initialized: stay off.
     }
   }
 

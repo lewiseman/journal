@@ -236,7 +236,7 @@ class CompanionPreferencesPage extends ConsumerWidget {
       const CompanionDetailHeading(
         icon: Icons.tune_rounded,
         title: 'A little help, your way',
-        description: 'Choose the extras you want to use.',
+        description: 'These are on. Turn off anything you don’t want.',
       ),
       Material(
         color: context.colors.primaryContainer.withValues(alpha: .35),

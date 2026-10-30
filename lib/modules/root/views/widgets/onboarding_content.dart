@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts_lite.dart';
 import 'package:journal/config/theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'onboarding_book/onboarding_book.dart';
 import 'onboarding_btn.dart';
@@ -241,7 +243,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: const Text(
-                  'Your space for notes, diary and passing thoughts, with optional local AI.',
+                  'Your space for notes, diary and passing thoughts, with local AI support.',
                   key: ValueKey('onboarding-description'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -394,8 +396,46 @@ class _OnboardingPageHints extends StatelessWidget {
   );
 }
 
-class _OnboardingTerms extends StatelessWidget {
+class _OnboardingTerms extends StatefulWidget {
   const _OnboardingTerms();
+
+  @override
+  State<_OnboardingTerms> createState() => _OnboardingTermsState();
+}
+
+class _OnboardingTermsState extends State<_OnboardingTerms> {
+  late final _terms = TapGestureRecognizer()
+    ..onTap = () =>
+        unawaited(_openLink('https://journal.lewiseman.com/terms.html'));
+  late final _privacy = TapGestureRecognizer()
+    ..onTap = () =>
+        unawaited(_openLink('https://journal.lewiseman.com/privacy.html'));
+
+  Future<void> _openLink(String url) async {
+    try {
+      if (await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      )) {
+        return;
+      }
+    } catch (_) {
+      // Report launch failures below, including platform errors.
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Could not open this page. Please try again.'),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _terms.dispose();
+    _privacy.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -405,20 +445,29 @@ class _OnboardingTerms extends StatelessWidget {
       heightFactor: 1,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
-        child: const Text.rich(
+        child: Text.rich(
           TextSpan(
             text: 'By continuing. You agree to our ',
-            style: TextStyle(color: Color(0xFF6B5E70), height: 1.4),
+            style: const TextStyle(color: Color(0xFF6B5E70), height: 1.4),
             children: [
               TextSpan(
-                text: 'Terms of service',
-                style: TextStyle(
+                text: 'Terms',
+                recognizer: _terms,
+                style: const TextStyle(
                   decoration: TextDecoration.underline,
                   decorationColor: Color(0xFF6B5E70),
                 ),
               ),
-              TextSpan(text: " and you've read the "),
-              TextSpan(text: 'Privacy policy.'),
+              const TextSpan(text: " and you've read the "),
+              TextSpan(
+                text: 'Privacy policy',
+                recognizer: _privacy,
+                style: const TextStyle(
+                  decoration: TextDecoration.underline,
+                  decorationColor: Color(0xFF6B5E70),
+                ),
+              ),
+              const TextSpan(text: '.'),
             ],
           ),
           textAlign: TextAlign.center,

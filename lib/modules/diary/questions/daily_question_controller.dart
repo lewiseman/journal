@@ -7,7 +7,7 @@ import 'package:journal/modules/diary/questions/daily_question_store.dart';
 import 'package:journal/modules/notes/summary/summary_controller.dart';
 import 'package:journal/modules/local_ai/core/ai_router.dart';
 
-/// Device-local opt-in. Not synced: each phone decides for itself.
+/// Device-local, on unless turned off. Not synced: each phone decides.
 const dailyQuestionsKey = CacheKey<bool>(CacheNamespace.app, 'dailyQuestions');
 
 abstract interface class DailyQuestionPreference {
@@ -20,9 +20,9 @@ class CachedDailyQuestionPreference implements DailyQuestionPreference {
   @override
   bool get enabled {
     try {
-      return CacheStorage.instance.get(dailyQuestionsKey) ?? false;
+      return CacheStorage.instance.get(dailyQuestionsKey) ?? true;
     } on StateError {
-      return false; // Storage not initialized: stay opted out.
+      return false; // Storage not initialized: stay off.
     }
   }
 
